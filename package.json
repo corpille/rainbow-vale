@@ -9,6 +9,7 @@
     "watch": "node build.js --watch",
     "dev": "node tools/dev-server.js",
     "editor": "node tools/editor-server.js",
+    "pony-editor": "node tools/pony-editor-server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

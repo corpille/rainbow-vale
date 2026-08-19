@@ -203,6 +203,10 @@
       <div class="row" style="margin-top:6px">
         <button id="resetAllBtn">Reset everything</button>
       </div>
+      <div class="row" style="margin-top:6px">
+        <button class="wide-btn primary" id="writeFileBtn" title="Only works when this page is served by `node tools/pony-editor-server.js` — writes the combined side+down+up render function straight to src/render/render-player.js">Write to render-player.js</button>
+      </div>
+      <div class="hint" id="writeFileStatus" style="display:none; margin-top:6px;"></div>
     </div>
   </div>
 </div>
@@ -2062,6 +2066,384 @@ ${indented}
 }`;
 }
 
+/* ---------------- whole-file export (writes src/render/render-player.js) ----------------
+   Separate from codeForActiveLayerPreview/updateAllCode above (which stay self-contained,
+   single-view, and untouched) — this instead builds the ENTIRE file, matching the shared
+   helper functions hand-written into render-player.js: gradients/leg-formulas/style
+   boilerplate become calls to rainbowGradient/hornGradient/legLift/legSwing/fillStrokeGlow/
+   fillShape/strokeShape/filledDot, and any shape byte-identical between the down and up
+   views (legs/hooves/head, by default) becomes ONE shared function instead of two copies. */
+function indent(text) {
+  return text.split('\n').map(l => (l ? '  ' + l : l)).join('\n');
+}
+const RAINBOW_STOPS = [0, 0.3, 0.5, 0.7, 0.8, 1];
+function isRainbowGradient(layer) {
+  if (layer.stops.length !== RAINBOW_STOPS.length) return false;
+  const sorted = layer.stops.slice().sort((a, b) => a.offset - b.offset);
+  return sorted.every((s, i) => Math.abs(s.offset - RAINBOW_STOPS[i]) < 1e-9 && s.color.toLowerCase() === RAINBOW[i].toLowerCase());
+}
+function isHornGradient(layer) {
+  if (layer.stops.length !== 2) return false;
+  const sorted = layer.stops.slice().sort((a, b) => a.offset - b.offset);
+  return sorted[0].offset === 0 && sorted[1].offset === 1
+    && sorted[0].color.toLowerCase() === '#ffd980' && sorted[1].color.toLowerCase() === '#ff9d5c';
+}
+// { expr: what to pass as the fillStyle, decl: any local gradient var it needs first,
+//   helper: which shared helper it used (for the used-helpers tracking), or null }
+function gradientExprFor(layer, gradName) {
+  if (isRainbowGradient(layer)) {
+    return { expr: `rainbowGradient(${r1(layer.gradStart.x)}, ${r1(layer.gradStart.y)}, ${r1(layer.gradEnd.x)}, ${r1(layer.gradEnd.y)})`, decl: '', helper: 'rainbowGradient' };
+  }
+  if (isHornGradient(layer)) {
+    return { expr: `hornGradient(${r1(layer.gradStart.x)}, ${r1(layer.gradStart.y)}, ${r1(layer.gradEnd.x)}, ${r1(layer.gradEnd.y)})`, decl: '', helper: 'hornGradient' };
+  }
+  const stopLines = layer.stops.slice().sort((a, b) => a.offset - b.offset).map(s => `${gradName}.addColorStop(${r1(s.offset)}, '${s.color}');`).join('\n');
+  return {
+    expr: gradName,
+    decl: `const ${gradName} = ctx.createLinearGradient(${r1(layer.gradStart.x)}, ${r1(layer.gradStart.y)}, ${r1(layer.gradEnd.x)}, ${r1(layer.gradEnd.y)});\n${stopLines}\n`,
+    helper: null,
+  };
+}
+// a point is [x, y] (moveTo the first entry, lineTo any later one) or [cx, cy, x, y]
+// (quadraticCurveTo) — matches the tracePath() helper hand-written into render-player.js.
+// Only used by the whole-file generator below — codeForLayer/pathLines (used by the
+// single-shape preview textarea) stay untouched, since that preview is documented to be
+// self-contained and copy-pasteable without needing tracePath in scope.
+function tracePathLiteral(layer) {
+  const pts = layer.points.map(p => (p.type === 'quad' ? `[${r1(p.cx)}, ${r1(p.cy)}, ${r1(p.x)}, ${r1(p.y)}]` : `[${r1(p.x)}, ${r1(p.y)}]`));
+  return `tracePath([\n${indent(pts.join(',\n'))},\n])`;
+}
+// traced counterpart to codeForLeg() above — same hip/end + swing/lift offset math
+// (including the side view's 0.4x control-point lag), just emitted as a tracePath()
+// call instead of a manual moveTo/quadraticCurveTo pair, to match drawFrontBackLegs /
+// drawPonySide's leg blocks in render-player.js. codeForLeg itself stays untouched
+// since codeForActiveLayerBody's single-shape preview also calls it.
+function codeForLegTraced(layer, includeDecl = true) {
+  const hip = layer.points[0], end = layer.points[1];
+  const decl = includeDecl ? gaitDecl(layer) + '\n' : '';
+  let ptsExpr;
+  if (layer.gait === 'lift') {
+    const v = `lift${layer.legIndex}`;
+    ptsExpr = `[${r1(hip.x)}, ${r1(hip.y)}],\n  [${r1(end.cx)}, ${r1(end.cy)}, ${r1(end.x)}, ${r1(end.y)} - ${v}]`;
+  } else {
+    const v = `swing${layer.legIndex}`;
+    ptsExpr = `[${r1(hip.x)}, ${r1(hip.y)}],\n  [${r1(end.cx)} + ${v} * 0.4, ${r1(end.cy)}, ${r1(end.x)} + ${v}, ${r1(end.y)}]`;
+  }
+  return `${decl}ctx.beginPath();\ntracePath([\n  ${ptsExpr},\n]);\nctx.stroke();`;
+}
+// like blockForGroup() above, but routes anything that fits through the shared helpers
+// instead of inlining their boilerplate. Returns { code, used } — used is the Set of
+// helper-function names this block called, so the file assembler only emits the ones
+// actually referenced (an unused top-level function is a lint error once this is
+// written to a real .js file, unlike a throwaway textarea preview).
+function helperBlockForLayer(name, layer, meta) {
+  const used = new Set();
+  const comment = `// --- ${meta.label} ---`;
+  if (!layer.points.length) return { code: `${comment} (no points placed yet)`, used };
+
+  if (layer.legIndex !== undefined && layer.kind === 'stroke') {
+    // the leg's own curve isn't a uniform translation (its control point lags at 0.4x
+    // the endpoint's offset, for a more natural bend) — kept as bespoke codegen rather
+    // than forced through a generic helper
+    used.add(layer.gait === 'lift' ? 'legLift' : 'legSwing');
+    used.add('tracePath');
+    const strokeExpr = layer.stroke === 'UI_LIGHT' ? 'UI_LIGHT' : `'${layer.stroke}'`;
+    return {
+      code: `${comment}\nctx.save();\nctx.strokeStyle = ${strokeExpr};\nctx.lineWidth = ${layer.width};\nctx.lineCap = 'round';\n${codeForLegTraced(layer, false)}\nctx.restore();`,
+      used,
+    };
+  }
+  if (layer.legIndex !== undefined && layer.kind === 'circle') {
+    used.add(layer.gait === 'lift' ? 'legLift' : 'legSwing');
+    return { code: `${comment}\nctx.save();\nctx.fillStyle = '${layer.fill}';\n${codeForHoof(layer, false)}\nctx.restore();`, used };
+  }
+  if (layer.legIndex !== undefined && layer.kind === 'fill') {
+    // a translate() replaces the per-point "+v"/"-v" math — equivalent for a uniform
+    // rigid move, and far more compact
+    used.add('fillShape');
+    used.add('tracePath');
+    used.add(layer.gait === 'lift' ? 'legLift' : 'legSwing');
+    const v = (layer.gait === 'lift' ? 'lift' : 'swing') + layer.legIndex;
+    const translate = layer.gait === 'lift' ? `ctx.translate(0, -${v});` : `ctx.translate(${v}, 0);`;
+    return {
+      code: `${comment}\nctx.save();\n${translate}\nfillShape('${layer.fill}', () =>\n  ${tracePathLiteral(layer)}\n);\nctx.restore();`,
+      used,
+    };
+  }
+  if (layer.kind === 'taperedGradientStroke') {
+    return { code: `${comment}\nctx.save();\n${codeForTapered(layer, name + 'Grad')}\nctx.restore();`, used };
+  }
+  if (layer.kind === 'circle') {
+    used.add('filledDot');
+    const r = r1(Math.hypot(layer.points[1].x - layer.points[0].x, layer.points[1].y - layer.points[0].y));
+    const fillExpr = layer.fill === 'COLORS.PINK' ? 'COLORS.PINK' : `'${layer.fill}'`;
+    return { code: `${comment}\nfilledDot(${fillExpr}, ${r1(layer.points[0].x)}, ${r1(layer.points[0].y)}, ${r}, ${layer.alpha});`, used };
+  }
+  if (layer.kind === 'ellipse') {
+    const c = layer.points[0], corner = layer.points[1];
+    const rx = r1(Math.abs(corner.x - c.x)), ry = r1(Math.abs(corner.y - c.y));
+    const fillExpr = layer.fill === UI_LIGHT ? 'UI_LIGHT' : `'${layer.fill}'`;
+    const strokeExpr = layer.stroke === PONY_OUTLINE ? 'PONY_OUTLINE' : `'${layer.stroke}'`;
+    return {
+      code: `${comment}\nctx.save();\nctx.shadowColor = COLORS.PINK_GLOW;\nctx.shadowBlur = 6;\nctx.fillStyle = ${fillExpr};\nctx.strokeStyle = ${strokeExpr};\nctx.lineWidth = 0.5;\nfillEllipse(ctx, ${r1(c.x)}, ${r1(c.y)}, ${rx}, ${ry});\nctx.stroke();\nctx.restore();`,
+      used,
+    };
+  }
+  if (layer.kind === 'dotChain') {
+    return { code: `${comment}\nctx.save();\nctx.globalAlpha = ${layer.alpha ?? 1};\n${dotChainCalls(layer).join('\n')}\nctx.restore();`, used };
+  }
+  if (layer.kind === 'fillstroke') {
+    used.add('fillStrokeGlow');
+    used.add('tracePath');
+    const fillExpr = layer.fill === UI_LIGHT ? 'UI_LIGHT' : `'${layer.fill}'`;
+    const strokeExpr = layer.stroke === PONY_OUTLINE ? 'PONY_OUTLINE' : `'${layer.stroke}'`;
+    return { code: `${comment}\nfillStrokeGlow(${fillExpr}, ${strokeExpr}, () =>\n  ${tracePathLiteral(layer)}\n);`, used };
+  }
+  if (layer.kind === 'fill') {
+    used.add('fillShape');
+    used.add('tracePath');
+    return { code: `${comment}\nfillShape('${layer.fill}', () =>\n  ${tracePathLiteral(layer)}\n);`, used };
+  }
+  if (layer.kind === 'gradient') {
+    used.add('fillShape');
+    used.add('tracePath');
+    const g = gradientExprFor(layer, name + 'Grad');
+    if (g.helper) used.add(g.helper);
+    return { code: `${comment}\n${g.decl}fillShape(${g.expr}, () =>\n  ${tracePathLiteral(layer)}\n);`, used };
+  }
+  if (layer.kind === 'stroke') {
+    used.add('strokeShape');
+    used.add('tracePath');
+    const strokeExpr = layer.stroke === 'UI_LIGHT' ? 'UI_LIGHT' : `'${layer.stroke}'`;
+    const drawBody = indent(`ctx.beginPath();\n${tracePathLiteral(layer)};\nctx.stroke();`);
+    return { code: `${comment}\nstrokeShape(${strokeExpr}, ${layer.width}, () => {\n${drawBody}\n});`, used };
+  }
+  return { code: '', used };
+}
+// shapes present in BOTH the down and up views with byte-identical layer data (the
+// default legs/hooves/head are like this — seen from directly in front or behind, the
+// pony's silhouette doesn't change) become one shared function each, instead of two
+// independent copies
+function sharedFrontBackNames(downLayers, upLayers) {
+  return new Set(Object.keys(downLayers).filter(n => upLayers[n] && JSON.stringify(downLayers[n]) === JSON.stringify(upLayers[n])));
+}
+function sharedFnName(name) {
+  return 'drawShared_' + name;
+}
+function legParamName(layer) {
+  return layer.legIndex === undefined ? '' : (layer.gait === 'lift' ? 'lift' : 'swing') + layer.legIndex;
+}
+// builds one view's function BODY (the `moving, walkPhase` function's contents) —
+// `shared` is the set of shape names to call out to instead of inlining
+function buildViewBody(viewData, shared) {
+  const { layers: vLayers, renderOrder: vOrder, groupMeta: vMeta } = viewData;
+  const used = new Set();
+  const legGaits = new Map();
+  vOrder.forEach(n => {
+    const l = vLayers[n];
+    if (l && l.legIndex !== undefined && !vMeta[n].hidden) legGaits.set(l.legIndex, l.gait || 'swing');
+  });
+  const preamble = [...legGaits.entries()].sort((a, b) => a[0] - b[0]).map(([legIndex, gait]) => {
+    used.add(gait === 'lift' ? 'legLift' : 'legSwing');
+    return gait === 'lift'
+      ? `const lift${legIndex} = legLift(moving, walkPhase, ${legIndex});`
+      : `const swing${legIndex} = legSwing(moving, walkPhase, ${legIndex});`;
+  });
+
+  const bothEyePartsPresent = vOrder.includes('eye') && vOrder.includes('eyeLash') && vLayers.eye && vLayers.eyeLash
+    && !vMeta.eye.hidden && !vMeta.eyeLash.hidden;
+  const blocks = [];
+  vOrder.forEach(name => {
+    if (vMeta[name].hidden) return;
+    if (name === 'eyeLash' && bothEyePartsPresent) return;
+    if (name === 'eye' && bothEyePartsPresent) {
+      used.add('strokeShape');
+      used.add('tracePath');
+      const layer = vLayers.eye, lash = vLayers.eyeLash;
+      const strokeExpr = layer.stroke === 'UI_LIGHT' ? 'UI_LIGHT' : `'${layer.stroke}'`;
+      const drawBody = indent(`ctx.beginPath();\n${tracePathLiteral(layer)};\nctx.stroke();\nctx.beginPath();\n${tracePathLiteral(lash)};\nctx.stroke();`);
+      blocks.push(`// --- Eye (+ lash) ---\nstrokeShape(${strokeExpr}, ${layer.width}, () => {\n${drawBody}\n});`);
+      return;
+    }
+    if (shared.has(name)) {
+      blocks.push(`// --- ${vMeta[name].label} --- (shared with the other front/back view)\n${sharedFnName(name)}(${legParamName(vLayers[name])});`);
+      return;
+    }
+    const { code, used: blockUsed } = helperBlockForLayer(name, vLayers[name], vMeta[name]);
+    blockUsed.forEach(h => used.add(h));
+    blocks.push(code);
+  });
+  return { body: [...preamble, ...blocks].join('\n\n'), used };
+}
+const HELPER_SOURCES = {
+  rainbowGradient: `// mane/tail gradients all use the same 6-color rainbow at the same relative stops —
+// only the gradient LINE (start/end point) differs per shape — so they share one
+// offset scheme instead of each call re-declaring its own addColorStop list
+const RAINBOW_STOPS = [0, 0.3, 0.5, 0.7, 0.8, 1];
+function rainbowGradient(x0, y0, x1, y1) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  COLORS.RAINBOW.forEach((c, i) => g.addColorStop(RAINBOW_STOPS[i], c));
+  return g;
+}`,
+  hornGradient: `// the horn's gold-to-orange gradient is identical in all 3 views, just aimed along a
+// different line each time
+function hornGradient(x0, y0, x1, y1) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, '#ffd980');
+  g.addColorStop(1, '#ff9d5c');
+  return g;
+}`,
+  legLift: `function legLift(moving, walkPhase, i) {
+  return moving ? ((1 - Math.cos(walkPhase + i * Math.PI)) / 2) * 2.5 : 0;
+}`,
+  legSwing: `function legSwing(moving, walkPhase, i) {
+  return moving ? Math.sin(walkPhase + i * Math.PI) * 2.6 : 0;
+}`,
+  tracePath: `// a point is [x, y] (moveTo the first entry, lineTo any later one) or [cx, cy, x, y]
+// (quadraticCurveTo) — this replaces the moveTo/lineTo/quadraticCurveTo chain every
+// shape below would otherwise repeat call-by-call
+function tracePath(pts) {
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i];
+    if (p.length === 2) ctx.lineTo(p[0], p[1]);
+    else ctx.quadraticCurveTo(p[0], p[1], p[2], p[3]);
+  }
+}`,
+  fillStrokeGlow: `function fillStrokeGlow(fill, stroke, draw) {
+  ctx.save();
+  ctx.shadowColor = COLORS.PINK_GLOW;
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  draw();
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}`,
+  fillShape: `function fillShape(fill, draw) {
+  ctx.save();
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  draw();
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}`,
+  strokeShape: `// draw() owns its own beginPath()/stroke() calls (sometimes more than one subpath,
+// e.g. an eye plus its lash) — this only holds the shared style + save/restore
+function strokeShape(color, width, draw) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  draw();
+  ctx.restore();
+}`,
+  filledDot: `function filledDot(fill, x, y, r, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = fill;
+  fillCircle(ctx, x, y, r);
+  ctx.restore();
+}`,
+};
+const FIXED_DRAW_PLAYER_SOURCE = `// the player token, always drawn dead-center of the screen
+export function drawPlayer() {
+  const px = canvas.width / 2,
+    py = canvas.height / 2;
+  // drawn in BASE_TILE-pixel units below — scale to the current TILE, plus a bit
+  // extra so the character reads bigger than one bare tile
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.scale((1.2 * TILE) / BASE_TILE, (1.2 * TILE) / BASE_TILE);
+
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#000000';
+  fillEllipse(ctx, 0, 15, 9, 3);
+  ctx.restore();
+
+  const moving = Math.hypot(player.x - player.dispX, player.y - player.dispY) > 0.02;
+  const walkPhase = performance.now() / 110;
+
+  if (player.visualFacing === 'left') player.flip = -1;
+  else if (player.visualFacing === 'right') player.flip = 1;
+
+  if (player.visualFacing === 'down') {
+    drawPonyDown(moving, walkPhase);
+  } else if (player.visualFacing === 'up') {
+    drawPonyUp(moving, walkPhase);
+  } else {
+    ctx.save();
+    ctx.scale(player.flip, 1);
+    drawPonySide(moving, walkPhase);
+    ctx.restore();
+  }
+
+  ctx.restore(); // matches the outer translate/scale
+}`;
+// assembles the whole file: fixed imports/drawPlayer + only the helper functions
+// actually referenced + any down/up-shared shape functions + the 3 view functions
+function buildRenderPlayerSource() {
+  const views = snapshotAllViews();
+  const shared = sharedFrontBackNames(views.down.layers, views.up.layers);
+  const usedHelpers = new Set();
+
+  const sharedDefs = [...shared].map(n => {
+    const layer = views.down.layers[n];
+    const meta = views.down.groupMeta[n] || views.up.groupMeta[n] || { label: n };
+    const { code, used } = helperBlockForLayer(n, layer, meta);
+    used.forEach(h => usedHelpers.add(h));
+    return `function ${sharedFnName(n)}(${legParamName(layer)}) {\n${indent(code)}\n}`;
+  });
+
+  const down = buildViewBody(views.down, shared);
+  const side = buildViewBody(views.side, new Set());
+  const up = buildViewBody(views.up, shared);
+  [down, side, up].forEach(r => r.used.forEach(h => usedHelpers.add(h)));
+
+  const helperOrder = ['rainbowGradient', 'hornGradient', 'legLift', 'legSwing', 'tracePath', 'fillStrokeGlow', 'fillShape', 'strokeShape', 'filledDot'];
+  const helperDefs = helperOrder.filter(h => usedHelpers.has(h)).map(h => HELPER_SOURCES[h]);
+
+  const rest = [
+    helperDefs.join('\n'),
+    '',
+    FIXED_DRAW_PLAYER_SOURCE,
+    '',
+    `// the down (facing camera) and up (facing away) views share the exact same legs,`,
+    `// hooves, and head — seen from directly in front or behind, the pony's silhouette`,
+    `// there doesn't change — so they're factored out once instead of duplicated in`,
+    `// both draw functions below. Body/mane/tail/horn/face differ between the two and`,
+    `// stay inline in each.`,
+    sharedDefs.join('\n'),
+    '',
+    `function drawPonyDown(moving, walkPhase) {\n${indent(down.body)}\n}`,
+    '',
+    `function drawPonySide(moving, walkPhase) {\n${indent(side.body)}\n}`,
+    '',
+    `function drawPonyUp(moving, walkPhase) {\n${indent(up.body)}\n}`,
+  ].join('\n');
+
+  // only import what's actually referenced below — an unused import is a lint error
+  // once this is written to a real .js file, and a sparse enough shape set (e.g. every
+  // fillstroke shape deleted) can genuinely leave one of these unused
+  const coreImports = ['COLORS', 'PONY_OUTLINE', 'UI_LIGHT'].filter(n => rest.includes(n));
+  const engineImports = ['fillCircle', 'fillEllipse'].filter(n => rest.includes(n + '('));
+  const importLines = [
+    `/* ============ Player sprite: side view and front/back view, walk cycle ============ */`,
+    coreImports.length ? `import { ${coreImports.join(', ')} } from '../core/colors.js';` : null,
+    `import { BASE_TILE, TILE${engineImports.length ? ', ' + engineImports.join(', ') : ''} } from '../core/engine-core.js';`,
+    `import { player } from '../core/player.js';`,
+    `import { canvas, ctx } from './render-world.js';`,
+  ].filter(Boolean).join('\n');
+
+  return `${importLines}\n\n${rest}\n`;
+}
+
 document.getElementById('copyBtn').addEventListener('click', () => {
   const ta = document.getElementById('codeOut');
   ta.select();
@@ -2090,6 +2472,24 @@ document.getElementById('resetAllBtn').addEventListener('click', () => {
   ({ layers, renderOrder, groupMeta: GROUP_META, active, selected } = viewStates[currentView]);
   multiSelected.clear(); multiAnchor = null;
   renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
+});
+
+document.getElementById('writeFileBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('writeFileStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Writing...';
+  try {
+    const source = buildRenderPlayerSource();
+    const res = await fetch('/api/render-player', { method: 'POST', body: source });
+    const result = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+    if (!result.ok) throw new Error(result.error || 'unknown error');
+    statusEl.textContent = 'Wrote src/render/render-player.js — reload the game to see it.';
+  } catch (e) {
+    // most likely cause: this page isn't being served by pony-editor-server.js (e.g.
+    // opened directly as a file, or via a different dev server) — fetch to a relative
+    // API path has nothing to reach in that case
+    statusEl.textContent = `Could not write the file (${e.message}). This only works when the page is opened via "node tools/pony-editor-server.js".`;
+  }
 });
 
 /* ---------------- save/load to a real file ---------------- */
