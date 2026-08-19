@@ -3,6 +3,24 @@
   :root{
     --bg:#f3f0fa; --panel:#ffffff; --ink:#3a2f55; --muted:#8b7fa3;
     --line:#e4dcf0; --accent:#e0609c; --accent-soft:#ffdcee;
+    --canvas-wrap-bg:#e8e2f2; --row-bg:#ffffff; --soft-bg:#faf7fc; --hover-bg:#f3f0fa;
+    --shadow:rgba(0,0,0,.15);
+  }
+  /* follows the OS-level setting automatically; the toggle button below overrides this
+     with an explicit data-theme attribute (persisted to localStorage) when clicked */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1a1622; --panel:#242030; --ink:#ece7f7; --muted:#a396c4;
+      --line:#3a3349; --accent:#ff87c2; --accent-soft:#4a2c42;
+      --canvas-wrap-bg:#100e17; --row-bg:#2b2536; --soft-bg:#2b2536; --hover-bg:#332c44;
+      --shadow:rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1a1622; --panel:#242030; --ink:#ece7f7; --muted:#a396c4;
+    --line:#3a3349; --accent:#ff87c2; --accent-soft:#4a2c42;
+    --canvas-wrap-bg:#100e17; --row-bg:#2b2536; --soft-bg:#2b2536; --hover-bg:#332c44;
+    --shadow:rgba(0,0,0,.6);
   }
   *{ box-sizing:border-box; }
   body{
@@ -15,53 +33,60 @@
   header p{ margin:0; color:var(--muted); font-size:12.5px; max-width:90ch; line-height:1.5; }
   header .save-state{ font-size:11px; color:var(--muted); white-space:nowrap; padding-top:4px; }
   .main{ flex:1; display:flex; min-height:0; }
-  .canvas-wrap{ position:relative; flex:1; display:flex; align-items:center; justify-content:center; background:#e8e2f2; overflow:auto; }
+  .canvas-wrap{ position:relative; flex:1; display:flex; align-items:center; justify-content:center; background:var(--canvas-wrap-bg); overflow:auto; }
   .tool-bar{
     position:absolute; top:12px; left:12px; z-index:2; display:flex; gap:2px;
     background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:3px;
-    box-shadow:0 2px 8px rgba(0,0,0,.15);
+    box-shadow:0 2px 8px var(--shadow);
   }
   .tool-btn{
     border:none; background:transparent; color:var(--muted); padding:7px 12px;
     border-radius:7px; font-size:12.5px; font-weight:700; cursor:pointer;
   }
   .tool-btn.active{ background:var(--accent-soft); color:var(--accent); }
-  .tool-btn:hover:not(.active){ background:#f3f0fa; }
+  .tool-btn:hover:not(.active){ background:var(--hover-bg); }
   .tool-btn:disabled{ opacity:.35; cursor:default; }
   .tool-btn:disabled:hover{ background:transparent; }
   .tool-bar.corner-tr{ left:auto; right:12px; }
   .tool-bar.corner-br{ left:auto; right:12px; top:auto; bottom:12px; }
   .zoom-label{ padding:7px 8px; font-size:12px; font-weight:700; color:var(--muted); cursor:pointer; min-width:44px; text-align:center; }
-  canvas{ background:#dfe9f5; border-radius:8px; cursor:crosshair; box-shadow:0 2px 10px rgba(0,0,0,.15); }
+  /* the drawing surface itself stays this fixed light blue in both themes — like most
+     canvas/artboard tools, the "paper" is deliberately theme-independent so every pony
+     color (glows, outlines) keeps the contrast it was tuned against */
+  canvas{ background:#dfe9f5; border-radius:8px; cursor:crosshair; box-shadow:0 2px 10px var(--shadow); }
   .sidebar{ width:380px; border-left:1px solid var(--line); background:var(--panel); padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+  .code-panel{ width:440px; border-right:1px solid var(--line); background:var(--panel); padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+  .code-panel .code-block{ display:flex; flex-direction:column; flex:1; min-height:0; }
+  .code-panel .code-block textarea{ flex:1; min-height:140px; }
   .order-list{ display:flex; flex-direction:column; gap:5px; max-height:280px; overflow-y:auto; }
   .order-row{
     display:flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:8px;
-    padding:6px 8px; background:#fff;
+    padding:6px 8px; background:var(--row-bg);
   }
   .order-row.active{ border-color:var(--accent); background:var(--accent-soft); }
+  .order-row.multi-selected{ outline:2px solid #2bb673; outline-offset:-1px; }
   .order-row.hidden-shape{ opacity:.5; }
   .order-row.hidden-shape .name{ text-decoration:line-through; }
   .order-row .name{ flex:1; font-size:12.5px; cursor:pointer; }
   .order-row button{
-    border:1px solid var(--line); background:#fff; width:22px; height:22px; border-radius:6px;
+    border:1px solid var(--line); background:var(--row-bg); color:var(--ink); width:22px; height:22px; border-radius:6px;
     cursor:pointer; font-size:11px; line-height:1; padding:0;
   }
   .order-row button:disabled{ opacity:.3; cursor:default; }
   .tag{ font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:1px 5px; border-radius:999px; background:var(--accent); color:#fff; }
   .section-title{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 6px; }
-  .hint{ font-size:12px; color:var(--muted); line-height:1.5; background:#faf7fc; border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .hint{ font-size:12px; color:var(--muted); line-height:1.5; background:var(--soft-bg); border:1px solid var(--line); border-radius:8px; padding:10px; }
   .point-fields{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .point-fields label{ font-size:11px; color:var(--muted); display:flex; flex-direction:column; gap:3px; }
   .point-fields input{ border:1px solid var(--line); border-radius:6px; padding:5px 6px; font-size:13px; font-variant-numeric:tabular-nums; }
   .point-fields select{ border:1px solid var(--line); border-radius:6px; padding:5px 6px; font-size:12px; grid-column:1/3; }
   textarea{
     width:100%; font-family:ui-monospace,"Consolas",monospace; font-size:12px;
-    border:1px solid var(--line); border-radius:8px; padding:10px; resize:vertical; background:#faf7fc; color:var(--ink);
+    border:1px solid var(--line); border-radius:8px; padding:10px; resize:vertical; background:var(--soft-bg); color:var(--ink);
   }
   .row{ display:flex; gap:8px; }
   .row button, .wide-btn{
-    flex:1; border:1px solid var(--line); background:#fff; color:var(--ink);
+    flex:1; border:1px solid var(--line); background:var(--row-bg); color:var(--ink);
     padding:8px 10px; border-radius:8px; font-size:12.5px; cursor:pointer; font-weight:600;
   }
   .row button.primary, .wide-btn.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -69,11 +94,16 @@
   input[type=file]{ display:none; }
   .view-tabs{ display:flex; gap:6px; padding:10px 20px 0; background:var(--panel); border-bottom:1px solid var(--line); }
   .view-tab{
-    border:1px solid var(--line); border-bottom:none; background:#faf7fc; color:var(--muted);
+    border:1px solid var(--line); border-bottom:none; background:var(--soft-bg); color:var(--muted);
     padding:8px 16px; border-radius:8px 8px 0 0; font-size:12.5px; font-weight:700; cursor:pointer;
     margin-bottom:-1px;
   }
   .view-tab.active{ background:var(--panel); color:var(--accent); border-color:var(--accent); }
+  .theme-toggle{
+    border:1px solid var(--line); background:var(--row-bg); color:var(--ink); width:32px; height:32px;
+    border-radius:8px; font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .theme-toggle:hover{ background:var(--hover-bg); }
 </style>
 
 <header>
@@ -88,16 +118,35 @@
       independent shapes and generates its own function.
     </p>
   </div>
-  <div class="save-state" id="saveState">saved to this browser</div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <button class="theme-toggle" id="themeToggle" title="Toggle dark mode"></button>
+    <div class="save-state" id="saveState">saved to this browser</div>
+  </div>
 </header>
 
 <div class="view-tabs" id="viewTabs"></div>
 
 <div class="main">
+  <div class="code-panel">
+    <div class="code-block">
+      <div class="section-title">Generated code — this layer</div>
+      <textarea id="codeOut" rows="8" readonly></textarea>
+      <div class="row" style="margin-top:6px">
+        <button id="copyBtn">Copy</button>
+        <button id="resetLayerBtn">Reset layer</button>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="section-title">Export — whole render function</div>
+      <textarea id="codeAll" rows="14" readonly></textarea>
+      <button class="wide-btn primary" id="copyAllBtn" style="margin-top:6px">Copy full function</button>
+    </div>
+  </div>
   <div class="canvas-wrap">
     <div class="tool-bar" id="toolBar">
       <button class="tool-btn active" data-tool="edit" title="Edit points: click empty canvas to add a point, drag dots to move points/curves">✏️ Edit</button>
-      <button class="tool-btn" data-tool="move" title="Move shape: drag anywhere on the canvas to move the WHOLE active shape (same as middle-click-drag)">✋ Move</button>
+      <button class="tool-btn" data-tool="move" title="Move shape: drag anywhere on the canvas to move the WHOLE active shape (same as middle-click-drag). Ctrl/Cmd+click several shapes in the render-order list first to move them all together.">✋ Move</button>
     </div>
     <div class="tool-bar corner-tr" id="historyBar">
       <button class="tool-btn" id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
@@ -114,6 +163,10 @@
     <div>
       <div class="section-title">Render order (back → front)</div>
       <div class="order-list" id="orderList"></div>
+      <div class="row" id="clipboardRow" style="margin-top:6px; display:none;">
+        <button class="wide-btn primary" id="pasteShapeBtn"></button>
+        <button id="clearClipboardBtn" title="Discard the copied shape">✕</button>
+      </div>
     </div>
 
     <div>
@@ -141,21 +194,6 @@
     <div id="pointEditor"></div>
 
     <div>
-      <div class="section-title">Generated code — this layer</div>
-      <textarea id="codeOut" rows="8" readonly></textarea>
-      <div class="row" style="margin-top:6px">
-        <button id="copyBtn">Copy</button>
-        <button id="resetLayerBtn">Reset layer</button>
-      </div>
-    </div>
-
-    <div>
-      <div class="section-title">Export — whole render function</div>
-      <textarea id="codeAll" rows="14" readonly></textarea>
-      <button class="wide-btn primary" id="copyAllBtn" style="margin-top:6px">Copy full function</button>
-    </div>
-
-    <div>
       <div class="section-title">Save / load</div>
       <div class="row">
         <button id="downloadBtn">Download .json</button>
@@ -170,6 +208,30 @@
 </div>
 
 <script>
+/* ---------------- theme ---------------- */
+// the CSS already follows the OS-level dark/light setting on its own via
+// @media (prefers-color-scheme); this just layers an explicit, persisted
+// override on top via a data-theme attribute, for whichever direction the
+// user wants regardless of their system setting
+const THEME_KEY = 'pony-shape-editor-theme';
+function isDarkActive() {
+  const explicit = document.documentElement.getAttribute('data-theme');
+  if (explicit) return explicit === 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function updateThemeToggleIcon() {
+  document.getElementById('themeToggle').textContent = isDarkActive() ? '☀️' : '🌙';
+}
+const storedTheme = localStorage.getItem(THEME_KEY);
+if (storedTheme === 'light' || storedTheme === 'dark') document.documentElement.setAttribute('data-theme', storedTheme);
+updateThemeToggleIcon();
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const next = isDarkActive() ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem(THEME_KEY, next);
+  updateThemeToggleIcon();
+});
+
 /* ---------------- coordinate system ---------------- */
 const SCALE = 14, ORIGIN_X = 300, ORIGIN_Y = 390;
 const BASE_CANVAS_W = 640, BASE_CANVAS_H = 610;
@@ -205,8 +267,11 @@ const DEFAULT_LAYERS = {
     closed: false, kind: 'stroke', stroke: 'UI_LIGHT', width: 3, legIndex: 1,
     points: [{ x: -8.5, y: 5.4 }, { type: 'quad', cx: -9.2, cy: 9.5, x: -8.5, y: 12.4 }],
   },
-  // hooves are now a hand-drawn closed blob (not a circle) and no longer carry
-  // legIndex — the current sprite doesn't swing them with the leg anymore
+  // hooves are a hand-drawn closed blob (not a circle) but still carry legIndex,
+  // so they swing along with their leg on export (see codeForSwingingPath) —
+  // if you redraw/duplicate a hoof into a fresh shape, use the "Leg sync"
+  // control in the style panel to reconnect it, or the export goes back to
+  // drawing it standing still
   hoofBack: {
     closed: true, kind: 'fill', fill: '#f7c5ee', legIndex: 0,
     points: [
@@ -464,9 +529,9 @@ const VIEW_DEFAULTS = {
   up: { layers: DEFAULT_LAYERS_UP, groupMeta: DEFAULT_GROUP_META_UP, order: DEFAULT_ORDER_UP },
 };
 const VIEW_HINTS = {
-  side: 'Edit tool: click empty canvas to add the next point to the current layer, drag dark dots to move points, hollow dots to bend curves. Move tool (or middle-click-drag in either tool): drag anywhere to move the WHOLE shape at once. Click a point, then edit its numbers below or press Delete to remove it. Legs and hooves keep their walk-cycle swing animation in the export — you\'re only editing their rest pose.',
-  down: 'This is the front-facing pony (walking down on screen): body/head are ellipses (drag the center dot or the corner dot), the mane is a chain of plain dots (click to add more), and legs use a vertical lift instead of the side view\'s swing. Eyes/blush are only shown facing down.',
-  up: 'This is the back-facing pony (walking up on screen): same body/head/legs as the down view, but the tail is a rainbow dot chain down the spine and the mane is a tapered gradient stroke like the side view\'s — there\'s no face from behind.',
+  side: 'Edit tool: click empty canvas to add the next point to the current layer, drag dark dots to move points, hollow dots to bend curves. Move tool (or middle-click-drag in either tool): drag anywhere to move the WHOLE shape at once — Ctrl/Cmd+click (or Shift+click for a range) several shapes in the render-order list first to move them all together. Click a point, then edit its numbers below or press Delete to remove it. Legs and hooves keep their walk-cycle swing animation in the export — you\'re only editing their rest pose.',
+  down: 'This is the front-facing pony (walking down on screen): body/head are ellipses (drag the center dot or the corner dot), the mane is a chain of plain dots (click to add more), and legs use a vertical lift instead of the side view\'s swing. Eyes/blush are only shown facing down. Ctrl/Cmd+click (or Shift+click for a range) several shapes in the render-order list to move them together with the Move tool.',
+  up: 'This is the back-facing pony (walking up on screen): same body/head/legs as the down view, but the tail is a rainbow dot chain down the spine and the mane is a tapered gradient stroke like the side view\'s — there\'s no face from behind. Ctrl/Cmd+click (or Shift+click for a range) several shapes in the render-order list to move them together with the Move tool.',
 };
 function isFixedTwoPoint(kind) { return kind === 'circle' || kind === 'ellipse'; }
 
@@ -501,7 +566,12 @@ function newShapeName() {
 // v5 additionally splits storage into one sub-state per view (side/down/up)
 // instead of a single flat {layers, renderOrder, customMeta} — see loadInitialState().
 const SCHEMA_VERSION = 5;
-function migrateView(view, state) {
+// `version` is the top-level save's version — saveState() only ever writes a
+// version at the top of the payload (see below), never inside each per-view
+// sub-object, so reading `state.version` here was always undefined and made
+// every load look "legacy", permanently re-backfilling any built-in shape you'd
+// deliberately deleted. Callers must pass the real top-level version instead.
+function migrateView(view, state, version) {
   const defaults = VIEW_DEFAULTS[view];
   const layers = state.layers || {};
   // 'gradient' layers have gone through 2 earlier shapes: originally exactly 2
@@ -539,7 +609,7 @@ function migrateView(view, state) {
   const groupMeta = clone(defaults.groupMeta);
   Object.assign(groupMeta, state.customMeta || {});
 
-  if (!state.version || state.version < SCHEMA_VERSION) {
+  if (!version || version < SCHEMA_VERSION) {
     // legacy save (predates shape add/remove, or an even older schema, or this
     // view didn't exist yet) — backfill anything it couldn't have had yet
     Object.keys(defaults.layers).forEach(name => { if (!layers[name]) layers[name] = clone(defaults.layers[name]); });
@@ -564,15 +634,23 @@ function loadInitialState() {
       const views = {};
       if (parsed.views) {
         // v5+: already split per view
-        VIEWS.forEach(v => { views[v] = migrateView(v, parsed.views[v] || {}); });
+        VIEWS.forEach(v => { views[v] = migrateView(v, parsed.views[v] || {}, parsed.version); });
       } else {
         // pre-v5: a single flat state, and it was always the side view
-        views.side = migrateView('side', parsed);
-        VIEWS.filter(v => v !== 'side').forEach(v => { views[v] = migrateView(v, {}); });
+        views.side = migrateView('side', parsed, parsed.version);
+        // down/up didn't exist before v5, so there's nothing to preserve for them —
+        // treat as brand-new (version undefined) so they get their full defaults
+        VIEWS.filter(v => v !== 'side').forEach(v => { views[v] = migrateView(v, {}, undefined); });
       }
       return { views, activeView: VIEWS.includes(parsed.activeView) ? parsed.activeView : 'side' };
     }
-  } catch (e) { /* corrupt storage — fall through to defaults */ }
+  } catch (e) {
+    // was silently falling back to defaults on any parse/migrate error, which made a
+    // corrupt or truncated localStorage value (e.g. from a botched manual paste)
+    // indistinguishable from "nothing saved yet" — surface it instead
+    console.error('pony-shape-editor: failed to load saved state from localStorage, falling back to defaults', e);
+    alert('Could not load your saved pony from this browser\'s storage (see console for details) — showing the default pony instead.');
+  }
   const views = {};
   VIEWS.forEach(v => { views[v] = migrateView(v, {}); });
   return { views, activeView: 'side' };
@@ -590,6 +668,15 @@ let GROUP_META = viewStates[currentView].groupMeta;
 let active = viewStates[currentView].active;
 let selected = -1;
 let dragging = null;
+// group selection for moving several shapes together — transient (not saved, not part of
+// undo history), reset whenever the shape identities under it could change out from under it
+let multiSelected = new Set();
+let multiAnchor = null; // last shift-click target, for range-selecting a contiguous run
+
+// clipboard for copying one shape from one view into another (or into the same view
+// as a copy) — deliberately NOT cleared on switchView (that's the whole point of it),
+// and like multiSelected it's transient: not saved, not part of undo history
+let shapeClipboard = null; // { label, layer } — a deep clone taken at copy time
 
 // Saves the FULL current groupMeta, not just entries for user-added shapes —
 // built-ins can now be renamed and hidden/shown too, and both are meta fields
@@ -654,6 +741,7 @@ function restoreHistorySnapshot(snap) {
   });
   currentView = VIEWS.includes(parsed.activeView) ? parsed.activeView : currentView;
   ({ layers, renderOrder, groupMeta: GROUP_META, active, selected } = viewStates[currentView]);
+  multiSelected.clear(); multiAnchor = null; // an undone add/remove could leave stale names in it
   renderViewTabs(); renderOrderList(); draw(); updatePointEditor(); updateCode();
   document.getElementById('hint').textContent = VIEW_HINTS[currentView];
   saveState(); // persists the restored state to localStorage without recording a new history entry
@@ -691,7 +779,9 @@ function switchView(view) {
   viewStates[currentView] = { layers, renderOrder, groupMeta: GROUP_META, active, selected };
   currentView = view;
   ({ layers, renderOrder, groupMeta: GROUP_META, active, selected } = viewStates[view]);
+  multiSelected.clear(); multiAnchor = null; // shape names from the old view don't apply here
   renderViewTabs(); renderOrderList(); draw(); updatePointEditor(); updateCode();
+  updateClipboardUI(); // paste button's label names the view it'll paste into
   document.getElementById('hint').textContent = VIEW_HINTS[view];
 }
 function renderViewTabs() {
@@ -820,6 +910,44 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
   drawHandles();
+  drawMultiSelectOutlines();
+}
+
+// bounding box of a layer's own coordinates (points, quad control points, and a
+// gradient's line endpoints) — rough on purpose, just enough for a selection
+// outline; doesn't need to hug circle/ellipse arcs exactly
+function layerBoundsUnits(layer) {
+  const xs = [], ys = [];
+  layer.points.forEach(p => {
+    xs.push(p.x); ys.push(p.y);
+    if (p.cx !== undefined) { xs.push(p.cx); ys.push(p.cy); }
+  });
+  if (layer.kind === 'gradient' && layer.gradStart && layer.gradEnd) {
+    xs.push(layer.gradStart.x, layer.gradEnd.x);
+    ys.push(layer.gradStart.y, layer.gradEnd.y);
+  }
+  if (!xs.length) return null;
+  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+}
+// dashed group-selection box per multi-selected shape — only shown once there's an
+// actual group (2+) so a plain single click doesn't grow an extra box around the
+// same shape drawHandles() is already outlining with per-point dots
+function drawMultiSelectOutlines() {
+  if (multiSelected.size < 2) return;
+  ctx.save();
+  ctx.strokeStyle = '#2bb673';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  const PAD = 6;
+  multiSelected.forEach(name => {
+    const layer = layers[name];
+    const b = layer && layerBoundsUnits(layer);
+    if (!b) return;
+    const [x0, y0] = toPx(b.minX, b.minY);
+    const [x1, y1] = toPx(b.maxX, b.maxY);
+    ctx.strokeRect(Math.min(x0, x1) - PAD, Math.min(y0, y1) - PAD, Math.abs(x1 - x0) + PAD * 2, Math.abs(y1 - y0) + PAD * 2);
+  });
+  ctx.restore();
 }
 
 function drawHandles() {
@@ -950,19 +1078,33 @@ canvas.addEventListener('wheel', e => {
   e.preventDefault();
   setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
 }, { passive: false });
+// shapes a move-drag should carry together: the whole multi-selection when 2+ are
+// selected, otherwise just the active shape (so ordinary single-shape dragging is
+// unaffected)
+function shapeDragTargets() {
+  if (multiSelected.size > 1) return [...multiSelected].filter(name => layers[name]);
+  return active && layers[active] ? [active] : [];
+}
 function beginShapeDrag(ux, uy) {
-  const layer = layers[active];
+  const targets = shapeDragTargets();
+  if (!targets.length) return;
   shapeDrag = {
     startUx: ux, startUy: uy,
-    snapshot: layer.points.map(p => ({ x: p.x, y: p.y, cx: p.cx, cy: p.cy })),
-    // gradient's line endpoints live outside `points` — drag them along with
-    // the shape too, or the gradient would visually detach after a move
-    gradSnapshot: layer.kind === 'gradient' ? { start: { ...layer.gradStart }, end: { ...layer.gradEnd } } : null,
+    layers: targets.map(name => {
+      const layer = layers[name];
+      return {
+        name,
+        snapshot: layer.points.map(p => ({ x: p.x, y: p.y, cx: p.cx, cy: p.cy })),
+        // gradient's line endpoints live outside `points` — drag them along with
+        // the shape too, or the gradient would visually detach after a move
+        gradSnapshot: layer.kind === 'gradient' ? { start: { ...layer.gradStart }, end: { ...layer.gradEnd } } : null,
+      };
+    }),
   };
 }
 
 canvas.addEventListener('mousedown', e => {
-  if (!active || !layers[active]) return; // no shape selected (or none exist) — nothing to do
+  if (!active && multiSelected.size === 0) return; // no shape selected (or none exist) — nothing to do
   if (e.button === 1 || (e.button === 0 && tool === 'move')) {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -1004,16 +1146,18 @@ canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     const [ux, uy] = toUnit(e.clientX - rect.left, e.clientY - rect.top);
     const dx = ux - shapeDrag.startUx, dy = uy - shapeDrag.startUy;
-    const layer = layers[active];
-    layer.points.forEach((p, i) => {
-      const s = shapeDrag.snapshot[i];
-      p.x = r1(s.x + dx); p.y = r1(s.y + dy);
-      if (s.cx !== undefined) { p.cx = r1(s.cx + dx); p.cy = r1(s.cy + dy); }
+    shapeDrag.layers.forEach(({ name, snapshot, gradSnapshot }) => {
+      const layer = layers[name];
+      layer.points.forEach((p, i) => {
+        const s = snapshot[i];
+        p.x = r1(s.x + dx); p.y = r1(s.y + dy);
+        if (s.cx !== undefined) { p.cx = r1(s.cx + dx); p.cy = r1(s.cy + dy); }
+      });
+      if (gradSnapshot) {
+        layer.gradStart = { x: r1(gradSnapshot.start.x + dx), y: r1(gradSnapshot.start.y + dy) };
+        layer.gradEnd = { x: r1(gradSnapshot.end.x + dx), y: r1(gradSnapshot.end.y + dy) };
+      }
     });
-    if (shapeDrag.gradSnapshot) {
-      layer.gradStart = { x: r1(shapeDrag.gradSnapshot.start.x + dx), y: r1(shapeDrag.gradSnapshot.start.y + dy) };
-      layer.gradEnd = { x: r1(shapeDrag.gradSnapshot.end.x + dx), y: r1(shapeDrag.gradSnapshot.end.y + dy) };
-    }
     draw();
     updatePointEditor();
     updateCode();
@@ -1069,7 +1213,7 @@ function renderOrderList() {
   renderOrder.forEach((name, i) => {
     const meta = GROUP_META[name];
     const row = document.createElement('div');
-    row.className = 'order-row' + (name === active ? ' active' : '') + (meta.hidden ? ' hidden-shape' : '');
+    row.className = 'order-row' + (name === active ? ' active' : '') + (multiSelected.has(name) ? ' multi-selected' : '') + (meta.hidden ? ' hidden-shape' : '');
 
     const visBtn = document.createElement('button');
     visBtn.textContent = meta.hidden ? '🚫' : '👁';
@@ -1086,9 +1230,31 @@ function renderOrderList() {
     const nameEl = document.createElement('div');
     nameEl.className = 'name';
     nameEl.textContent = meta.label;
-    nameEl.title = 'Click to select';
-    nameEl.addEventListener('click', () => {
-      active = name; selected = -1;
+    nameEl.title = 'Click to select. Ctrl/Cmd+click to add to a group selection, Shift+click to select a range — then drag with the Move tool to move them all together.';
+    nameEl.addEventListener('click', ev => {
+      if (ev.shiftKey && multiAnchor && layers[multiAnchor]) {
+        const i0 = renderOrder.indexOf(multiAnchor), i1 = renderOrder.indexOf(name);
+        const [lo, hi] = i0 < i1 ? [i0, i1] : [i1, i0];
+        for (let k = lo; k <= hi; k++) multiSelected.add(renderOrder[k]);
+        active = name; selected = -1;
+      } else if (ev.ctrlKey || ev.metaKey) {
+        if (multiSelected.has(name)) {
+          multiSelected.delete(name);
+          if (active === name) active = [...multiSelected][0] || name;
+        } else {
+          // seed the group with whatever was already active, so the first ctrl+click
+          // after a plain click starts a real 2-shape selection instead of a 1-shape one
+          if (multiSelected.size === 0 && active && active !== name) multiSelected.add(active);
+          multiSelected.add(name);
+          active = name;
+        }
+        multiAnchor = name;
+        selected = -1;
+      } else {
+        active = name; selected = -1;
+        multiSelected.clear();
+        multiAnchor = name;
+      }
       renderOrderList(); draw(); updatePointEditor(); updateCode();
     });
     row.appendChild(nameEl);
@@ -1148,6 +1314,15 @@ function renderOrderList() {
     });
     row.appendChild(dupBtn);
 
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = '📋';
+    copyBtn.title = 'Copy this shape — switch to another view (or stay here) and click "Paste" to bring in a copy of it';
+    copyBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      copyShapeToClipboard(name);
+    });
+    row.appendChild(copyBtn);
+
     const removeBtn = document.createElement('button');
     removeBtn.textContent = '✕';
     removeBtn.title = 'Remove this shape entirely';
@@ -1157,7 +1332,8 @@ function renderOrderList() {
       delete layers[name];
       delete GROUP_META[name];
       renderOrder.splice(renderOrder.indexOf(name), 1);
-      if (active === name) { active = renderOrder[0] || null; selected = -1; }
+      multiSelected.delete(name);
+      if (active === name) { active = [...multiSelected][0] || renderOrder[0] || null; selected = -1; }
       renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
     });
     row.appendChild(removeBtn);
@@ -1178,6 +1354,7 @@ document.getElementById('addShapeBtn').addEventListener('click', () => {
   layers[name] = defaultLayerForKind(kindSelect.value);
   renderOrder.push(name);
   active = name; selected = -1;
+  multiSelected.clear();
   labelInput.value = '';
   renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
 });
@@ -1201,8 +1378,33 @@ function duplicateShape(name) {
   GROUP_META[newName] = { label: GROUP_META[name].label + ' copy', hidden: GROUP_META[name].hidden };
   renderOrder.splice(renderOrder.indexOf(name) + 1, 0, newName);
   active = newName; selected = -1;
+  multiSelected.clear();
   renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
 }
+
+/* ---------------- copy a shape into another (or the same) view ---------------- */
+function copyShapeToClipboard(name) {
+  shapeClipboard = { label: GROUP_META[name].label, layer: clone(layers[name]) };
+  updateClipboardUI();
+}
+function pasteShapeFromClipboard() {
+  if (!shapeClipboard) return;
+  const newName = newShapeName(); // fresh key — the source name may already exist in this view (e.g. every view has its own 'body')
+  layers[newName] = clone(shapeClipboard.layer);
+  GROUP_META[newName] = { label: shapeClipboard.label };
+  renderOrder.push(newName);
+  active = newName; selected = -1;
+  multiSelected.clear();
+  renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
+}
+function updateClipboardUI() {
+  const row = document.getElementById('clipboardRow');
+  const btn = document.getElementById('pasteShapeBtn');
+  row.style.display = shapeClipboard ? 'flex' : 'none';
+  if (shapeClipboard) btn.textContent = `Paste "${shapeClipboard.label}" into ${VIEW_LABELS[currentView]}`;
+}
+document.getElementById('pasteShapeBtn').addEventListener('click', pasteShapeFromClipboard);
+document.getElementById('clearClipboardBtn').addEventListener('click', () => { shapeClipboard = null; updateClipboardUI(); });
 
 const hintEl = document.getElementById('hint');
 hintEl.textContent = VIEW_HINTS[currentView];
@@ -1441,6 +1643,93 @@ function updateStyleEditor() {
     }
   }
   el.appendChild(grid);
+
+  if (layer.kind === 'stroke' || layer.kind === 'circle' || layer.kind === 'fill') {
+    appendLegSyncControls(el, layer, setAndRefresh);
+  }
+}
+
+// legs/hooves share a "legIndex" (0/1 — back/front on the side view, left/right on
+// down/up) plus a "gait" ('swing' fore/aft, the side view's convention, vs 'lift'
+// straight up, the down/up views' convention). Set on a stroke/circle/fill shape,
+// this makes the export (codeForLeg/codeForHoof/codeForSwingingPath below) replay
+// the matching leg's walk-cycle formula on it, so e.g. a hoof can be wired to move
+// with its leg. Exposed here as an explicit, visible, editable control instead of
+// something only ever set once in the hardcoded defaults — which is exactly how a
+// hoof previously lost this link the moment it got redrawn as a custom shape, with
+// no way in the UI to reconnect it.
+function appendLegSyncControls(el, layer, setAndRefresh) {
+  const title = document.createElement('div');
+  title.className = 'section-title';
+  title.style.marginTop = '10px';
+  title.textContent = 'Leg sync (walk-cycle animation)';
+  el.appendChild(title);
+
+  if (layer.kind === 'stroke') {
+    const note = document.createElement('div');
+    note.className = 'hint';
+    note.style.marginBottom = '6px';
+    note.textContent = 'For an outline shape, this only produces correct code with exactly 2 points where the second is a curve — the same structure the leg shapes themselves use.';
+    el.appendChild(note);
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'point-fields';
+
+  const enableWrap = document.createElement('label');
+  enableWrap.style.cssText = 'grid-column:1/3;font-size:12px;display:flex;gap:6px;align-items:center;color:var(--ink);';
+  const enableCb = document.createElement('input');
+  enableCb.type = 'checkbox';
+  enableCb.checked = layer.legIndex !== undefined;
+  enableCb.addEventListener('change', () => {
+    setAndRefresh(() => {
+      if (enableCb.checked) {
+        layer.legIndex = 0;
+        // default the gait to whichever this view's own legs use, so a freshly-synced
+        // shape moves the "expected" way before the user even touches the selector
+        if (currentView === 'side') delete layer.gait; else layer.gait = 'lift';
+      } else {
+        delete layer.legIndex;
+        delete layer.gait;
+      }
+    });
+    updateStyleEditor();
+  });
+  enableWrap.appendChild(enableCb);
+  enableWrap.appendChild(document.createTextNode("follow a leg's walk-cycle motion"));
+  wrap.appendChild(enableWrap);
+
+  if (layer.legIndex !== undefined) {
+    const idxWrap = document.createElement('label');
+    idxWrap.style.cssText = 'font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px;';
+    idxWrap.textContent = 'which leg';
+    const idxSel = document.createElement('select');
+    [[0, 'leg 0 (back / left)'], [1, 'leg 1 (front / right)']].forEach(([v, label]) => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = label; opt.selected = layer.legIndex === v;
+      idxSel.appendChild(opt);
+    });
+    idxSel.addEventListener('change', () => setAndRefresh(() => { layer.legIndex = parseInt(idxSel.value, 10); }));
+    idxWrap.appendChild(idxSel);
+    wrap.appendChild(idxWrap);
+
+    const gaitWrap = document.createElement('label');
+    gaitWrap.style.cssText = 'font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px;';
+    gaitWrap.textContent = 'motion';
+    const gaitSel = document.createElement('select');
+    [['swing', 'swing fore/aft (side view)'], ['lift', 'lift up/down (down/up view)']].forEach(([v, label]) => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = label; opt.selected = (layer.gait || 'swing') === v;
+      gaitSel.appendChild(opt);
+    });
+    gaitSel.addEventListener('change', () => setAndRefresh(() => {
+      if (gaitSel.value === 'lift') layer.gait = 'lift'; else delete layer.gait;
+    }));
+    gaitWrap.appendChild(gaitSel);
+    wrap.appendChild(gaitWrap);
+  }
+
+  el.appendChild(wrap);
 }
 
 /* ---------------- code generation ---------------- */
@@ -1535,18 +1824,24 @@ function codeForHoof(layer, includeDecl = true) {
   return `${decl}fillCircle(ctx, ${r1(c.x)} + swing${layer.legIndex}, ${r1(c.y)}, ${r});`;
 }
 // a hoof drawn as a hand-shaped filled blob (kind 'fill') rather than a plain
-// circle still needs to swing as a rigid body with its leg — every x in the
-// path (moveTo, and each quad's control + end point) gets the same uniform
-// swing/lift offset, translating the whole shape sideways/up without
-// distorting it
+// circle still needs to move as a rigid body with its leg — every coordinate in
+// the path (moveTo, and each quad's control + end point) gets the same uniform
+// offset, translating the whole shape without distorting it. 'swing' (side view)
+// moves fore/aft, so it offsets x; 'lift' (down/up view) moves straight up, so it
+// offsets y — matching codeForHoof's circle-hoof case just above. An earlier
+// version of this always offset x regardless of gait, which put a lifting hoof
+// sliding sideways instead of rising.
 function codeForSwingingPath(layer, includeDecl = true) {
   const decl = includeDecl ? gaitDecl(layer) + '\n' : '';
-  const v = layer.gait === 'lift' ? `lift${layer.legIndex}` : `swing${layer.legIndex}`;
-  const lines = [`ctx.beginPath();`, `ctx.moveTo(${r1(layer.points[0].x)} + ${v}, ${r1(layer.points[0].y)});`];
+  const lift = layer.gait === 'lift';
+  const v = lift ? `lift${layer.legIndex}` : `swing${layer.legIndex}`;
+  const ox = n => (lift ? `${r1(n)}` : `${r1(n)} + ${v}`);
+  const oy = n => (lift ? `${r1(n)} - ${v}` : `${r1(n)}`);
+  const lines = [`ctx.beginPath();`, `ctx.moveTo(${ox(layer.points[0].x)}, ${oy(layer.points[0].y)});`];
   for (let i = 1; i < layer.points.length; i++) {
     const p = layer.points[i];
-    if (p.type === 'line') lines.push(`ctx.lineTo(${r1(p.x)} + ${v}, ${r1(p.y)});`);
-    else if (p.type === 'quad') lines.push(`ctx.quadraticCurveTo(${r1(p.cx)} + ${v}, ${r1(p.cy)}, ${r1(p.x)} + ${v}, ${r1(p.y)});`);
+    if (p.type === 'line') lines.push(`ctx.lineTo(${ox(p.x)}, ${oy(p.y)});`);
+    else if (p.type === 'quad') lines.push(`ctx.quadraticCurveTo(${ox(p.cx)}, ${oy(p.cy)}, ${ox(p.x)}, ${oy(p.y)});`);
   }
   if (layer.closed) lines.push('ctx.closePath();');
   lines.push('ctx.fill();');
@@ -1665,12 +1960,16 @@ ctx.fill();
 ctx.restore();`;
   }
   if (layer.kind === 'gradient') {
-    const stopLines = layer.stops.slice().sort((a, b) => a.offset - b.offset).map(s => `hg.addColorStop(${r1(s.offset)}, '${s.color}');`).join('\n');
+    // named after the shape (like taperedGradientStroke's gradName below) — a fixed
+    // name here would re-declare the same const if a second gradient-fill shape
+    // exists in the export, throwing "has already been declared"
+    const gradName = name + 'Grad';
+    const stopLines = layer.stops.slice().sort((a, b) => a.offset - b.offset).map(s => `${gradName}.addColorStop(${r1(s.offset)}, '${s.color}');`).join('\n');
     return `// --- ${meta.label} ---
 ctx.save();
-const hg = ctx.createLinearGradient(${r1(layer.gradStart.x)}, ${r1(layer.gradStart.y)}, ${r1(layer.gradEnd.x)}, ${r1(layer.gradEnd.y)});
+const ${gradName} = ctx.createLinearGradient(${r1(layer.gradStart.x)}, ${r1(layer.gradStart.y)}, ${r1(layer.gradEnd.x)}, ${r1(layer.gradEnd.y)});
 ${stopLines}
-ctx.fillStyle = hg;
+ctx.fillStyle = ${gradName};
 ${path}
 ctx.fill();
 ctx.restore();`;
@@ -1789,6 +2088,7 @@ document.getElementById('resetAllBtn').addEventListener('click', () => {
     viewStates[v] = { layers: clone(defaults.layers), renderOrder: defaults.order.slice(), groupMeta: clone(defaults.groupMeta), active: defaults.groupMeta.head ? 'head' : (defaults.order[0] || null), selected: -1 };
   });
   ({ layers, renderOrder, groupMeta: GROUP_META, active, selected } = viewStates[currentView]);
+  multiSelected.clear(); multiAnchor = null;
   renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
 });
 
@@ -1815,7 +2115,8 @@ loadInput.addEventListener('change', () => {
       const parsed = JSON.parse(reader.result);
       VIEWS.forEach(v => {
         const src = parsed.views ? (parsed.views[v] || {}) : (v === 'side' ? parsed : {});
-        const st = migrateView(v, src);
+        const version = parsed.views ? parsed.version : (v === 'side' ? parsed.version : undefined);
+        const st = migrateView(v, src, version);
         viewStates[v] = { layers: st.layers, renderOrder: st.renderOrder, groupMeta: st.groupMeta, active: st.groupMeta[active] ? active : (st.groupMeta.head ? 'head' : (st.renderOrder[0] || null)), selected: -1 };
       });
       if (VIEWS.includes(parsed.activeView)) currentView = parsed.activeView;
