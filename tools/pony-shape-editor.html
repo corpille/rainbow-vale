@@ -1,0 +1,1150 @@
+<title>Pony Shape Editor</title>
+<style>
+  :root{
+    --bg:#f3f0fa; --panel:#ffffff; --ink:#3a2f55; --muted:#8b7fa3;
+    --line:#e4dcf0; --accent:#e0609c; --accent-soft:#ffdcee;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"Segoe UI","Trebuchet MS",sans-serif;
+    display:flex; flex-direction:column; height:100vh;
+  }
+  header{ padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+  header h1{ margin:0 0 4px; font-size:19px; }
+  header p{ margin:0; color:var(--muted); font-size:12.5px; max-width:90ch; line-height:1.5; }
+  header .save-state{ font-size:11px; color:var(--muted); white-space:nowrap; padding-top:4px; }
+  .main{ flex:1; display:flex; min-height:0; }
+  .canvas-wrap{ flex:1; display:flex; align-items:center; justify-content:center; background:#e8e2f2; overflow:auto; }
+  canvas{ background:#dfe9f5; border-radius:8px; cursor:crosshair; box-shadow:0 2px 10px rgba(0,0,0,.15); }
+  .sidebar{ width:380px; border-left:1px solid var(--line); background:var(--panel); padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+  .order-list{ display:flex; flex-direction:column; gap:5px; max-height:280px; overflow-y:auto; }
+  .order-row{
+    display:flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:8px;
+    padding:6px 8px; background:#fff;
+  }
+  .order-row.active{ border-color:var(--accent); background:var(--accent-soft); }
+  .order-row .name{ flex:1; font-size:12.5px; cursor:pointer; }
+  .order-row button{
+    border:1px solid var(--line); background:#fff; width:22px; height:22px; border-radius:6px;
+    cursor:pointer; font-size:11px; line-height:1; padding:0;
+  }
+  .order-row button:disabled{ opacity:.3; cursor:default; }
+  .tag{ font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:1px 5px; border-radius:999px; background:var(--accent); color:#fff; }
+  .section-title{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 6px; }
+  .hint{ font-size:12px; color:var(--muted); line-height:1.5; background:#faf7fc; border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .point-fields{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .point-fields label{ font-size:11px; color:var(--muted); display:flex; flex-direction:column; gap:3px; }
+  .point-fields input{ border:1px solid var(--line); border-radius:6px; padding:5px 6px; font-size:13px; font-variant-numeric:tabular-nums; }
+  .point-fields select{ border:1px solid var(--line); border-radius:6px; padding:5px 6px; font-size:12px; grid-column:1/3; }
+  textarea{
+    width:100%; font-family:ui-monospace,"Consolas",monospace; font-size:12px;
+    border:1px solid var(--line); border-radius:8px; padding:10px; resize:vertical; background:#faf7fc; color:var(--ink);
+  }
+  .row{ display:flex; gap:8px; }
+  .row button, .wide-btn{
+    flex:1; border:1px solid var(--line); background:#fff; color:var(--ink);
+    padding:8px 10px; border-radius:8px; font-size:12.5px; cursor:pointer; font-weight:600;
+  }
+  .row button.primary, .wide-btn.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .row button:hover, .wide-btn:hover{ filter:brightness(0.97); }
+  input[type=file]{ display:none; }
+</style>
+
+<header>
+  <div>
+    <h1>Pony Shape Editor</h1>
+    <p>
+      Click empty canvas to append a point to the selected layer. Drag a filled dot to move a point;
+      drag its small hollow handle to bend the curve into it. Click a point to select it (edit exact
+      numbers on the right, or press <b>Delete</b>/<b>Backspace</b> to remove it). Every part of the
+      pony is editable, and the render-order list controls which draws in front of which.
+    </p>
+  </div>
+  <div class="save-state" id="saveState">saved to this browser</div>
+</header>
+
+<div class="main">
+  <div class="canvas-wrap">
+    <canvas id="c" width="640" height="610"></canvas>
+  </div>
+  <div class="sidebar">
+    <div>
+      <div class="section-title">Render order (back → front)</div>
+      <div class="order-list" id="orderList"></div>
+    </div>
+
+    <div>
+      <div class="section-title">Add a shape</div>
+      <div class="row">
+        <input id="newShapeLabel" type="text" placeholder="Label (e.g. Bow)" style="flex:2;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px;" />
+        <select id="newShapeKind" style="flex:1.4;border:1px solid var(--line);border-radius:8px;padding:6px;font-size:12px;">
+          <option value="fillstroke">filled + outlined</option>
+          <option value="fill">filled only</option>
+          <option value="gradient">gradient fill</option>
+          <option value="stroke">outline only</option>
+          <option value="taperedGradientStroke">tapered rainbow stroke</option>
+          <option value="circle">circle</option>
+        </select>
+      </div>
+      <button class="wide-btn primary" id="addShapeBtn" style="margin-top:6px">+ Add shape</button>
+    </div>
+
+    <div class="hint" id="hint"></div>
+
+    <div id="styleEditor"></div>
+
+    <div id="pointEditor"></div>
+
+    <div>
+      <div class="section-title">Generated code — this layer</div>
+      <textarea id="codeOut" rows="8" readonly></textarea>
+      <div class="row" style="margin-top:6px">
+        <button id="copyBtn">Copy</button>
+        <button id="resetLayerBtn">Reset layer</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Export — whole render function</div>
+      <textarea id="codeAll" rows="14" readonly></textarea>
+      <button class="wide-btn primary" id="copyAllBtn" style="margin-top:6px">Copy full function</button>
+    </div>
+
+    <div>
+      <div class="section-title">Save / load</div>
+      <div class="row">
+        <button id="downloadBtn">Download .json</button>
+        <button id="loadBtn">Load .json</button>
+        <input type="file" id="loadInput" accept="application/json" />
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="resetAllBtn">Reset everything</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- coordinate system ---------------- */
+const SCALE = 14, ORIGIN_X = 300, ORIGIN_Y = 390;
+const toPx = (x, y) => [ORIGIN_X + x * SCALE, ORIGIN_Y + y * SCALE];
+const toUnit = (px, py) => [(px - ORIGIN_X) / SCALE, (py - ORIGIN_Y) / SCALE];
+const r1 = n => Math.round(n * 10) / 10;
+
+const RAINBOW = ['#ff6b81', '#ffab5e', '#ffe066', '#69db7c', '#66c7e8', '#9d7bff'];
+const UI_LIGHT = '#fffdfa', PONY_OUTLINE = '#e0a8c8', PINK_GLOW = '#ffb3e6';
+
+function fillCircle(ctx, x, y, rad) { ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill(); }
+
+/* ---------------- layer model ----------------
+   points[0] = {x,y} the moveTo start (or circle center, or a leg's hip point).
+   points[i>0] = {type:'line'|'quad', x, y, cx?, cy?, width?}
+   `width` on a point only matters for kind 'taperedGradientStroke' — the stroke
+   width for the segment ENDING at that point (mirrors the real sprite's "3
+   segments of decreasing lineWidth" taper trick for the tail/mane).
+   `legIndex` (0 = back leg, 1 = front leg) marks the 4 leg/hoof layers so the
+   export can re-apply the walk-cycle swing formula on top of your edited rest
+   pose, instead of losing the animation. ---------------- */
+const DEFAULT_LAYERS = {
+  legBack: {
+    closed: false, kind: 'stroke', stroke: 'UI_LIGHT', width: 3, legIndex: 0,
+    points: [{ x: -7, y: 6 }, { type: 'quad', cx: -8, cy: 9.5, x: -7, y: 13 }],
+  },
+  legFront: {
+    closed: false, kind: 'stroke', stroke: 'UI_LIGHT', width: 3, legIndex: 1,
+    points: [{ x: 1, y: 6 }, { type: 'quad', cx: 2, cy: 9.5, x: 1, y: 13 }],
+  },
+  hoofBack: {
+    closed: false, kind: 'circle', fill: '#f7e3c4', legIndex: 0,
+    points: [{ x: -7, y: 13 }, { type: 'radius', x: -5.3, y: 13 }],
+  },
+  hoofFront: {
+    closed: false, kind: 'circle', fill: '#f7e3c4', legIndex: 1,
+    points: [{ x: 1, y: 13 }, { type: 'radius', x: 2.7, y: 13 }],
+  },
+  tail: {
+    closed: false, kind: 'taperedGradientStroke', gradientReverse: true,
+    points: [
+      { x: -8, y: 0 },
+      { type: 'quad', cx: -14.3, cy: 0.7, x: -17.1, y: 4.2, width: 4 },
+      { type: 'quad', cx: -18.5, cy: 6.3, x: -15.7, y: 7.35, width: 2.4 },
+      { type: 'quad', cx: -13.6, cy: 8.05, x: -12.9, y: 5.6, width: 1.1 },
+    ],
+  },
+  body: {
+    closed: true, kind: 'fillstroke', fill: UI_LIGHT, stroke: PONY_OUTLINE,
+    points: [
+      { x: -3, y: -4 },
+      { type: 'quad', cx: 4.5, cy: -4, x: 4.5, y: 2 },
+      { type: 'quad', cx: 4.5, cy: 8, x: -3, y: 8 },
+      { type: 'quad', cx: -10.5, cy: 8, x: -10.5, y: 2 },
+      { type: 'quad', cx: -10.5, cy: -4, x: -3, y: -4 },
+    ],
+  },
+  mane: {
+    closed: false, kind: 'taperedGradientStroke', gradientReverse: false,
+    points: [
+      { x: 5, y: -7 },
+      { type: 'quad', cx: 2, cy: -6, x: 0, y: -4, width: 5 },
+      { type: 'quad', cx: -3, cy: -4.2, x: -5, y: -3.5, width: 3 },
+      { type: 'quad', cx: -7, cy: -3, x: -9, y: -1.8, width: 1 },
+    ],
+  },
+  head: {
+    closed: true, kind: 'fillstroke', fill: UI_LIGHT, stroke: PONY_OUTLINE,
+    points: [
+      { x: 1, y: -2 },
+      { type: 'quad', cx: -8, cy: -7, x: 5, y: -10.6 },
+      { type: 'quad', cx: 9.5, cy: -10.9, x: 11.2, y: -7 },
+      { type: 'quad', cx: 15, cy: -5.5, x: 14.3, y: -1.5 },
+      { type: 'quad', cx: 13.8, cy: 0.8, x: 10.3, y: 2.2 },
+      { type: 'quad', cx: 4, cy: 4.8, x: -3, y: 3.8 },
+      { type: 'quad', cx: -8, cy: 2, x: 1, y: -2 },
+    ],
+  },
+  earBack: {
+    closed: true, kind: 'fill', fill: '#d9c8f5',
+    points: [
+      { x: 1.5, y: -8.9 },
+      { type: 'quad', cx: 0, cy: -12.9, x: 4.7, y: -9.5 },
+      { type: 'quad', cx: 4, cy: -8.3, x: 1.5, y: -8.4 },
+    ],
+  },
+  earFrontOuter: {
+    closed: true, kind: 'fill', fill: '#ffc9de',
+    points: [
+      { x: 6.2, y: -9.2 },
+      { type: 'quad', cx: 5.8, cy: -13.6, x: 9.5, y: -9.8 },
+      { type: 'quad', cx: 9, cy: -8.3, x: 6.5, y: -8.5 },
+    ],
+  },
+  earFrontInner: {
+    closed: true, kind: 'fill', fill: '#ff9ad0',
+    points: [
+      { x: 6.8, y: -9.4 },
+      { type: 'quad', cx: 6.9, cy: -11.9, x: 8.6, y: -9.7 },
+      { type: 'quad', cx: 8.3, cy: -8.8, x: 7, y: -8.9 },
+    ],
+  },
+  horn: {
+    closed: true, kind: 'gradient', from: '#ffd980', to: '#ff9d5c',
+    points: [
+      { x: 5.5, y: -9.6 },
+      { type: 'line', x: 12.5, y: -17.5 },
+      { type: 'line', x: 8.8, y: -9 },
+    ],
+  },
+  eye: {
+    closed: false, kind: 'stroke', stroke: '#3a3050', width: 0.42,
+    points: [
+      { x: 11, y: -4.6 },
+      { type: 'quad', cx: 9, cy: -3.1, x: 7.1, y: -4.4 },
+    ],
+  },
+  eyeLash: {
+    closed: false, kind: 'stroke', stroke: '#3a3050', width: 0.42,
+    points: [
+      { x: 11, y: -4.6 },
+      { type: 'line', x: 11.6, y: -5.6 },
+    ],
+  },
+  blush: {
+    closed: false, kind: 'circle', fill: 'COLORS.PINK', alpha: 0.55,
+    points: [{ x: 10.2, y: -0.2 }, { type: 'radius', x: 12, y: -0.2 }],
+  },
+};
+// the 15 built-in parts — GROUP_META below starts as a copy of this but is
+// otherwise mutable at runtime, since shapes can now be added/removed
+const DEFAULT_GROUP_META = {
+  legBack: { label: 'Leg (back)' },
+  legFront: { label: 'Leg (front)' },
+  hoofBack: { label: 'Hoof (back)' },
+  hoofFront: { label: 'Hoof (front)' },
+  tail: { label: 'Tail' },
+  body: { label: 'Body' },
+  mane: { label: 'Mane' },
+  head: { label: 'Head' },
+  earBack: { label: 'Ear (back)' },
+  earFrontOuter: { label: 'Ear front (outer)' },
+  earFrontInner: { label: 'Ear front (inner)' },
+  horn: { label: 'Horn' },
+  eye: { label: 'Eye' },
+  eyeLash: { label: 'Eye lash' },
+  blush: { label: 'Blush' },
+};
+const DEFAULT_ORDER = ['legBack', 'legFront', 'hoofBack', 'hoofFront', 'tail', 'body', 'mane', 'head', 'earBack', 'earFrontOuter', 'earFrontInner', 'horn', 'eye', 'eyeLash', 'blush'];
+
+const clone = v => JSON.parse(JSON.stringify(v));
+const STORAGE_KEY = 'pony-shape-editor-v4';
+
+// starting point (kind, style, initial points) for a brand-new user-added shape.
+// Circle needs its 2 points (center + radius handle) seeded immediately — the
+// click-to-add-point flow explicitly refuses to append to a circle layer, since
+// its 2-point structure is fixed. Path kinds start with points:[] instead; the
+// very first canvas click on them is already handled as a plain moveTo.
+function defaultLayerForKind(kind) {
+  if (kind === 'circle') return { closed: false, kind: 'circle', fill: '#ffb3e6', alpha: 1, points: [{ x: 0, y: 0 }, { type: 'radius', x: 2, y: 0 }] };
+  if (kind === 'gradient') return { closed: true, kind: 'gradient', from: '#ffd980', to: '#ff9d5c', points: [] };
+  if (kind === 'taperedGradientStroke') return { closed: false, kind: 'taperedGradientStroke', gradientReverse: false, points: [] };
+  if (kind === 'stroke') return { closed: false, kind: 'stroke', stroke: '#3a3050', width: 1, points: [] };
+  if (kind === 'fill') return { closed: true, kind: 'fill', fill: '#ffb3e6', points: [] };
+  return { closed: true, kind: 'fillstroke', fill: '#fffdfa', stroke: '#e0a8c8', points: [] };
+}
+function newShapeName() {
+  let i = 1, n;
+  do { n = 'custom' + i++; } while (GROUP_META[n]);
+  return n;
+}
+
+// SCHEMA_VERSION lets migrate() tell "this save predates shape add/remove, so a
+// missing built-in just means it never existed yet" apart from "this save is
+// current-format, so a missing built-in was DELETED on purpose." Without that
+// distinction, the backfill step that upgrades old saves would also silently
+// resurrect anything the user had deliberately removed, on every reload.
+const SCHEMA_VERSION = 4;
+function migrate(state) {
+  const layers = state.layers || {};
+  let order = state.renderOrder ? state.renderOrder.slice() : [];
+  const legsIdx = order.indexOf('legs'); // v2 had one combined 'legs' entry
+  if (legsIdx !== -1) order.splice(legsIdx, 1, 'legBack', 'legFront', 'hoofBack', 'hoofFront');
+  const groupMeta = clone(DEFAULT_GROUP_META);
+  Object.assign(groupMeta, state.customMeta || {});
+
+  if (!state.version || state.version < SCHEMA_VERSION) {
+    // legacy save (predates shape add/remove, or an even older schema) —
+    // backfill anything it couldn't have had yet
+    Object.keys(DEFAULT_LAYERS).forEach(name => { if (!layers[name]) layers[name] = clone(DEFAULT_LAYERS[name]); });
+  } else {
+    // current-format save: it's internally complete, so a built-in with no
+    // matching layer was removed on purpose — drop its stale meta entry too
+    // instead of resurrecting it
+    Object.keys(groupMeta).forEach(name => { if (!layers[name]) delete groupMeta[name]; });
+  }
+  // any layer with no meta entry at all (shouldn't normally happen) still gets a
+  // usable label instead of silently vanishing from the render-order list
+  Object.keys(layers).forEach(name => { if (!groupMeta[name]) groupMeta[name] = { label: name }; });
+  Object.keys(groupMeta).forEach(name => { if (!order.includes(name)) order.push(name); });
+  order = order.filter(name => groupMeta[name] && layers[name]);
+  return { layers, renderOrder: order, groupMeta };
+}
+function loadInitialState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('pony-shape-editor-v3') || localStorage.getItem('pony-shape-editor-v2');
+    if (raw) return migrate(JSON.parse(raw));
+  } catch (e) { /* corrupt storage — fall through to defaults */ }
+  return { layers: clone(DEFAULT_LAYERS), renderOrder: DEFAULT_ORDER.slice(), groupMeta: clone(DEFAULT_GROUP_META) };
+}
+let GROUP_META = clone(DEFAULT_GROUP_META); // migrate() below needs this to exist first
+const initial = loadInitialState();
+let layers = initial.layers;
+let renderOrder = initial.renderOrder;
+GROUP_META = initial.groupMeta;
+let active = GROUP_META.head ? 'head' : (renderOrder[0] || null);
+let selected = -1;
+let dragging = null;
+
+function customMetaOf() {
+  const customMeta = {};
+  Object.keys(GROUP_META).forEach(name => { if (!DEFAULT_GROUP_META[name]) customMeta[name] = GROUP_META[name]; });
+  return customMeta;
+}
+let saveTimer = null;
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SCHEMA_VERSION, layers, renderOrder, customMeta: customMetaOf() }));
+  const el = document.getElementById('saveState');
+  el.textContent = 'saved just now';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { el.textContent = 'saved to this browser'; }, 1500);
+}
+
+/* ---------------- rendering ---------------- */
+function renderLayer(ctx, layer) {
+  if (!layer.points.length) return; // freshly added shape, nothing placed yet
+  if (layer.kind === 'circle') {
+    const [cx, cy] = [layer.points[0].x, layer.points[0].y];
+    const rad = Math.hypot(layer.points[1].x - cx, layer.points[1].y - cy);
+    ctx.save();
+    ctx.globalAlpha = layer.alpha ?? 1;
+    ctx.fillStyle = layer.fill === 'COLORS.PINK' ? '#ff9ad0' : layer.fill;
+    fillCircle(ctx, cx, cy, rad);
+    ctx.restore();
+    return;
+  }
+  if (layer.kind === 'taperedGradientStroke') {
+    const p0 = layer.points[0], pEnd = layer.points[layer.points.length - 1];
+    ctx.save();
+    const grad = ctx.createLinearGradient(p0.x, p0.y, pEnd.x, pEnd.y);
+    const base = layer.colors || RAINBOW;
+    const colors = layer.gradientReverse ? base.slice().reverse() : base;
+    colors.forEach((c, i) => grad.addColorStop(i / (colors.length - 1), c));
+    ctx.strokeStyle = grad;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let prev = p0;
+    for (let i = 1; i < layer.points.length; i++) {
+      const p = layer.points[i];
+      ctx.lineWidth = p.width || 1;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      if (p.type === 'line') ctx.lineTo(p.x, p.y); else ctx.quadraticCurveTo(p.cx, p.cy, p.x, p.y);
+      ctx.stroke();
+      prev = p;
+    }
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.beginPath();
+  const p0 = layer.points[0];
+  ctx.moveTo(p0.x, p0.y);
+  for (let i = 1; i < layer.points.length; i++) {
+    const p = layer.points[i];
+    if (p.type === 'line') ctx.lineTo(p.x, p.y);
+    else if (p.type === 'quad') ctx.quadraticCurveTo(p.cx, p.cy, p.x, p.y);
+  }
+  if (layer.closed) ctx.closePath();
+  if (layer.kind === 'fillstroke') {
+    ctx.shadowColor = PINK_GLOW; ctx.shadowBlur = 6;
+    ctx.fillStyle = layer.fill; ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = layer.stroke; ctx.lineWidth = 0.5; ctx.stroke();
+  } else if (layer.kind === 'fill') {
+    ctx.fillStyle = layer.fill; ctx.fill();
+  } else if (layer.kind === 'gradient') {
+    const tip = layer.points[1];
+    const g = ctx.createLinearGradient(p0.x, p0.y, tip.x, tip.y);
+    g.addColorStop(0, layer.from); g.addColorStop(1, layer.to);
+    ctx.fillStyle = g; ctx.fill();
+  } else if (layer.kind === 'stroke') {
+    ctx.strokeStyle = layer.stroke === 'UI_LIGHT' ? UI_LIGHT : layer.stroke;
+    ctx.lineWidth = layer.width; ctx.lineCap = 'round'; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.save();
+  ctx.strokeStyle = '#ffffff80'; ctx.lineWidth = 1;
+  for (let gx = -20; gx <= 20; gx += 5) {
+    const [px] = toPx(gx, 0);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, canvas.height); ctx.stroke();
+  }
+  for (let gy = -20; gy <= 20; gy += 5) {
+    const [, py] = toPx(0, gy);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(canvas.width, py); ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.setTransform(SCALE, 0, 0, SCALE, ORIGIN_X, ORIGIN_Y);
+  renderOrder.forEach(name => renderLayer(ctx, layers[name]));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  drawHandles();
+}
+
+function drawHandles() {
+  if (!active || !layers[active]) return;
+  const layer = layers[active];
+  if (layer.kind === 'circle') {
+    const [cpx, cpy] = toPx(layer.points[0].x, layer.points[0].y);
+    const [rpx, rpy] = toPx(layer.points[1].x, layer.points[1].y);
+    ctx.strokeStyle = '#00000040'; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(cpx, cpy); ctx.lineTo(rpx, rpy); ctx.stroke();
+    ctx.setLineDash([]);
+    drawHandleDot(cpx, cpy, selected === 0);
+    drawHandleDot(rpx, rpy, selected === 1, true);
+    return;
+  }
+  layer.points.forEach((p, i) => {
+    if (p.type === 'quad') {
+      const [cpx, cpy] = toPx(p.cx, p.cy);
+      const [ppx, ppy] = toPx(p.x, p.y);
+      const [prevx, prevy] = toPx(layer.points[i - 1].x, layer.points[i - 1].y);
+      ctx.strokeStyle = '#00000040'; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(prevx, prevy); ctx.lineTo(cpx, cpy); ctx.lineTo(ppx, ppy); ctx.stroke();
+      ctx.setLineDash([]);
+      drawHandleDot(cpx, cpy, selected === i + '-c', true);
+    }
+  });
+  layer.points.forEach((p, i) => {
+    const [px, py] = toPx(p.x, p.y);
+    drawHandleDot(px, py, selected === i);
+  });
+}
+function drawHandleDot(px, py, isSelected, isControl) {
+  ctx.beginPath();
+  ctx.arc(px, py, isControl ? 4 : 6, 0, Math.PI * 2);
+  ctx.fillStyle = isSelected ? '#e0609c' : (isControl ? '#ffffff' : '#3a2f55');
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = isControl ? '#8b7fa3' : '#ffffff';
+  ctx.stroke();
+}
+
+/* ---------------- interaction ---------------- */
+const HIT_R = 10;
+function findHandleAt(mx, my) {
+  if (!active || !layers[active]) return null;
+  const layer = layers[active];
+  if (layer.kind === 'circle') {
+    const [cpx, cpy] = toPx(layer.points[0].x, layer.points[0].y);
+    const [rpx, rpy] = toPx(layer.points[1].x, layer.points[1].y);
+    if (Math.hypot(mx - rpx, my - rpy) < HIT_R) return { idx: 1 };
+    if (Math.hypot(mx - cpx, my - cpy) < HIT_R) return { idx: 0 };
+    return null;
+  }
+  for (let i = 0; i < layer.points.length; i++) {
+    const p = layer.points[i];
+    if (p.type === 'quad') {
+      const [cpx, cpy] = toPx(p.cx, p.cy);
+      if (Math.hypot(mx - cpx, my - cpy) < HIT_R) return { idx: i, control: true };
+    }
+  }
+  for (let i = 0; i < layer.points.length; i++) {
+    const [px, py] = toPx(layer.points[i].x, layer.points[i].y);
+    if (Math.hypot(mx - px, my - py) < HIT_R) return { idx: i };
+  }
+  return null;
+}
+
+// middle-click drag: move every point of the active layer together (a whole-shape
+// translate), instead of one point/control at a time. Snapshots the layer's own
+// points (deep-ish — enough fields to restore x/y/cx/cy) plus the start position
+// in world units, then every subsequent mousemove applies the same delta to all of them.
+let shapeDrag = null; // { startUx, startUy, snapshot: [{x,y,cx,cy}, ...] }
+
+canvas.addEventListener('mousedown', e => {
+  if (!active || !layers[active]) return; // no shape selected (or none exist) — nothing to do
+  if (e.button === 1) {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const [ux, uy] = toUnit(e.clientX - rect.left, e.clientY - rect.top);
+    shapeDrag = {
+      startUx: ux, startUy: uy,
+      snapshot: layers[active].points.map(p => ({ x: p.x, y: p.y, cx: p.cx, cy: p.cy })),
+    };
+    return;
+  }
+  if (e.button !== 0) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const hit = findHandleAt(mx, my);
+  if (hit) {
+    dragging = hit;
+    selected = hit.control ? hit.idx + '-c' : hit.idx;
+  } else {
+    const layer = layers[active];
+    const [ux, uy] = toUnit(mx, my);
+    if (layer.kind === 'circle') return;
+    if (layer.points.length === 0) {
+      layer.points.push({ x: r1(ux), y: r1(uy) });
+    } else {
+      const prev = layer.points[layer.points.length - 1];
+      const cx = (prev.x + ux) / 2, cy = (prev.y + uy) / 2 - 1;
+      const p = { type: 'quad', cx: r1(cx), cy: r1(cy), x: r1(ux), y: r1(uy) };
+      if (layer.kind === 'taperedGradientStroke') p.width = prev.width || 2;
+      layer.points.push(p);
+    }
+    selected = layer.points.length - 1;
+    updateCode(); saveState();
+  }
+  draw();
+  updatePointEditor();
+});
+// a bare middle-click (no drag) can still fire the browser's autoscroll cursor in
+// some builds — belt-and-braces suppression alongside the mousedown preventDefault
+canvas.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+canvas.addEventListener('mousemove', e => {
+  if (shapeDrag) {
+    const rect = canvas.getBoundingClientRect();
+    const [ux, uy] = toUnit(e.clientX - rect.left, e.clientY - rect.top);
+    const dx = ux - shapeDrag.startUx, dy = uy - shapeDrag.startUy;
+    const layer = layers[active];
+    layer.points.forEach((p, i) => {
+      const s = shapeDrag.snapshot[i];
+      p.x = r1(s.x + dx); p.y = r1(s.y + dy);
+      if (s.cx !== undefined) { p.cx = r1(s.cx + dx); p.cy = r1(s.cy + dy); }
+    });
+    draw();
+    updatePointEditor();
+    updateCode();
+    return;
+  }
+  if (!dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const [ux, uy] = toUnit(mx, my);
+  const layer = layers[active];
+  if (layer.kind === 'circle') {
+    if (dragging.idx === 0) { layer.points[0].x = r1(ux); layer.points[0].y = r1(uy); }
+    else { layer.points[1].x = r1(ux); layer.points[1].y = r1(uy); }
+  } else if (dragging.control) {
+    layer.points[dragging.idx].cx = r1(ux);
+    layer.points[dragging.idx].cy = r1(uy);
+  } else {
+    layer.points[dragging.idx].x = r1(ux);
+    layer.points[dragging.idx].y = r1(uy);
+  }
+  draw();
+  updatePointEditor();
+  updateCode();
+});
+window.addEventListener('mouseup', () => {
+  if (dragging) saveState();
+  if (shapeDrag) saveState();
+  dragging = null;
+  shapeDrag = null;
+});
+window.addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && typeof selected === 'number'
+      && active && document.activeElement === document.body) {
+    const layer = layers[active];
+    if (layer.kind === 'circle') return;
+    if (layer.points.length <= 1) return;
+    layer.points.splice(selected, 1);
+    if (selected === 0 && layer.points.length) {
+      const { x, y } = layer.points[0];
+      layer.points[0] = { x, y };
+    }
+    selected = -1;
+    draw(); updatePointEditor(); updateCode(); saveState();
+  }
+});
+
+/* ---------------- sidebar: render-order list ---------------- */
+function renderOrderList() {
+  const el = document.getElementById('orderList');
+  el.innerHTML = '';
+  renderOrder.forEach((name, i) => {
+    const meta = GROUP_META[name];
+    const row = document.createElement('div');
+    row.className = 'order-row' + (name === active ? ' active' : '');
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'name';
+    nameEl.textContent = meta.label;
+    nameEl.addEventListener('click', () => {
+      active = name; selected = -1;
+      renderOrderList(); draw(); updatePointEditor(); updateCode();
+    });
+    row.appendChild(nameEl);
+
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = 'edit';
+    row.appendChild(tag);
+
+    const up = document.createElement('button');
+    up.textContent = '↑'; up.disabled = i === 0;
+    up.addEventListener('click', () => {
+      [renderOrder[i - 1], renderOrder[i]] = [renderOrder[i], renderOrder[i - 1]];
+      renderOrderList(); draw(); updateCode(); saveState();
+    });
+    row.appendChild(up);
+
+    const down = document.createElement('button');
+    down.textContent = '↓'; down.disabled = i === renderOrder.length - 1;
+    down.addEventListener('click', () => {
+      [renderOrder[i], renderOrder[i + 1]] = [renderOrder[i + 1], renderOrder[i]];
+      renderOrderList(); draw(); updateCode(); saveState();
+    });
+    row.appendChild(down);
+
+    const dupBtn = document.createElement('button');
+    dupBtn.textContent = '⧉';
+    dupBtn.title = 'Duplicate this shape';
+    dupBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      duplicateShape(name);
+    });
+    row.appendChild(dupBtn);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove this shape entirely';
+    removeBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      if (!confirm(`Remove "${meta.label}"? This deletes its shape entirely (not just a point).`)) return;
+      delete layers[name];
+      delete GROUP_META[name];
+      renderOrder.splice(renderOrder.indexOf(name), 1);
+      if (active === name) { active = renderOrder[0] || null; selected = -1; }
+      renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
+    });
+    row.appendChild(removeBtn);
+
+    el.appendChild(row);
+  });
+  if (!renderOrder.length) {
+    el.innerHTML = '<div class="hint">No shapes left — add one below.</div>';
+  }
+}
+
+document.getElementById('addShapeBtn').addEventListener('click', () => {
+  const labelInput = document.getElementById('newShapeLabel');
+  const kindSelect = document.getElementById('newShapeKind');
+  const label = labelInput.value.trim() || 'New shape';
+  const name = newShapeName();
+  GROUP_META[name] = { label };
+  layers[name] = defaultLayerForKind(kindSelect.value);
+  renderOrder.push(name);
+  active = name; selected = -1;
+  labelInput.value = '';
+  renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
+});
+
+// full copy of an existing shape (built-in or custom) — points, style, kind,
+// everything — inserted right after the original in the render order. Nudged
+// by 1 unit so the copy is visibly offset instead of sitting exactly on top of
+// its source.
+function duplicateShape(name) {
+  const newName = newShapeName();
+  const newLayer = clone(layers[name]);
+  newLayer.points.forEach(p => {
+    p.x += 1; p.y += 1;
+    if (p.cx !== undefined) { p.cx += 1; p.cy += 1; }
+  });
+  layers[newName] = newLayer;
+  GROUP_META[newName] = { label: GROUP_META[name].label + ' copy' };
+  renderOrder.splice(renderOrder.indexOf(name) + 1, 0, newName);
+  active = newName; selected = -1;
+  renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
+}
+
+const hintEl = document.getElementById('hint');
+hintEl.textContent = 'Click empty canvas to add the next point to the current layer. Drag dark dots to move points, hollow dots to bend curves. Middle-click-drag anywhere to move the WHOLE shape at once. Click a point, then edit its numbers below or press Delete to remove it. Legs and hooves keep their walk-cycle swing animation in the export — you\'re only editing their rest pose.';
+
+/* ---------------- sidebar: point numeric editor ---------------- */
+function updatePointEditor() {
+  const el = document.getElementById('pointEditor');
+  if (!active || !layers[active]) {
+    updateStyleEditor();
+    el.innerHTML = '<div class="hint">No shape selected — add one, or click a shape in the render-order list.</div>';
+    return;
+  }
+  updateStyleEditor();
+  const layer = layers[active];
+  el.innerHTML = '';
+  if (layer.kind === 'circle') {
+    if (selected !== 0 && selected !== 1) { el.innerHTML = '<div class="hint">Drag the center or the radius handle.</div>'; return; }
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent = selected === 0 ? 'Center' : 'Radius handle';
+    el.appendChild(title);
+    const p = layer.points[selected];
+    el.appendChild(numField('x', p.x, v => { p.x = v; draw(); updateCode(); saveState(); }));
+    el.appendChild(numField('y', p.y, v => { p.y = v; draw(); updateCode(); saveState(); }));
+    return;
+  }
+  if (typeof selected !== 'number' || !layer.points[selected]) {
+    el.innerHTML = '<div class="hint">No point selected. Click a dot on the canvas.</div>';
+    return;
+  }
+  const p = layer.points[selected];
+  const title = document.createElement('div');
+  title.className = 'section-title';
+  title.textContent = `Point ${selected}${selected === 0 ? ' (start)' : ''}`;
+  el.appendChild(title);
+  const grid = document.createElement('div');
+  grid.className = 'point-fields';
+  grid.appendChild(numField('x', p.x, v => { p.x = v; draw(); updateCode(); saveState(); }));
+  grid.appendChild(numField('y', p.y, v => { p.y = v; draw(); updateCode(); saveState(); }));
+  if (p.type) {
+    const sel = document.createElement('select');
+    ['line', 'quad'].forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t === 'line' ? 'straight line' : 'curve (quadratic)';
+      opt.selected = p.type === t;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      if (sel.value === 'quad' && p.type !== 'quad') {
+        const prev = layer.points[selected - 1];
+        p.cx = r1((prev.x + p.x) / 2); p.cy = r1((prev.y + p.y) / 2 - 1);
+      }
+      p.type = sel.value;
+      draw(); updatePointEditor(); updateCode(); saveState();
+    });
+    grid.appendChild(sel);
+    if (p.type === 'quad') {
+      grid.appendChild(numField('cx', p.cx, v => { p.cx = v; draw(); updateCode(); saveState(); }));
+      grid.appendChild(numField('cy', p.cy, v => { p.cy = v; draw(); updateCode(); saveState(); }));
+    }
+    if (layer.kind === 'taperedGradientStroke') {
+      grid.appendChild(numField('width', p.width || 1, v => { p.width = Math.max(0.2, v); draw(); updateCode(); saveState(); }));
+    }
+  }
+  el.appendChild(grid);
+}
+function numField(label, value, onChange) {
+  const wrap = document.createElement('label');
+  wrap.textContent = label;
+  const input = document.createElement('input');
+  input.type = 'number'; input.step = '0.1'; input.value = value;
+  input.addEventListener('input', () => { const v = parseFloat(input.value); if (!isNaN(v)) onChange(v); });
+  wrap.appendChild(input);
+  return wrap;
+}
+function colorField(label, value, onChange) {
+  const wrap = document.createElement('label');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);';
+  wrap.textContent = label;
+  const input = document.createElement('input');
+  input.type = 'color'; input.value = value;
+  input.style.cssText = 'width:100%;height:30px;border:1px solid var(--line);border-radius:6px;padding:2px;cursor:pointer;';
+  input.addEventListener('input', () => onChange(input.value));
+  wrap.appendChild(input);
+  return wrap;
+}
+// 'UI_LIGHT' / 'COLORS.PINK' are stored as sentinels so the export references
+// the shared constant instead of a hardcoded literal — <input type=color>
+// needs a real hex value to display though, so resolve just for the swatch
+function resolveColor(v) { return v === 'UI_LIGHT' ? '#fffdfa' : v === 'COLORS.PINK' ? '#ff9ad0' : v; }
+
+/* ---------------- sidebar: per-layer color/style editor ---------------- */
+function updateStyleEditor() {
+  const el = document.getElementById('styleEditor');
+  el.innerHTML = '';
+  if (!active || !layers[active]) return;
+  const layer = layers[active];
+  const title = document.createElement('div');
+  title.className = 'section-title';
+  title.textContent = 'Style';
+  el.appendChild(title);
+  const grid = document.createElement('div');
+  grid.className = 'point-fields';
+
+  const setAndRefresh = (fn) => { fn(); draw(); updateCode(); saveState(); };
+
+  if (layer.kind === 'fillstroke') {
+    grid.appendChild(colorField('fill', resolveColor(layer.fill), v => setAndRefresh(() => { layer.fill = v; })));
+    grid.appendChild(colorField('stroke', resolveColor(layer.stroke), v => setAndRefresh(() => { layer.stroke = v; })));
+  } else if (layer.kind === 'fill') {
+    grid.appendChild(colorField('fill', resolveColor(layer.fill), v => setAndRefresh(() => { layer.fill = v; })));
+  } else if (layer.kind === 'gradient') {
+    grid.appendChild(colorField('gradient start', layer.from, v => setAndRefresh(() => { layer.from = v; })));
+    grid.appendChild(colorField('gradient end', layer.to, v => setAndRefresh(() => { layer.to = v; })));
+  } else if (layer.kind === 'stroke') {
+    grid.appendChild(colorField('stroke', resolveColor(layer.stroke), v => setAndRefresh(() => { layer.stroke = v; })));
+    grid.appendChild(numField('width', layer.width, v => setAndRefresh(() => { layer.width = Math.max(0.1, v); })));
+  } else if (layer.kind === 'circle') {
+    grid.appendChild(colorField('fill', resolveColor(layer.fill), v => setAndRefresh(() => { layer.fill = v; })));
+    grid.appendChild(numField('alpha', layer.alpha ?? 1, v => setAndRefresh(() => { layer.alpha = Math.min(1, Math.max(0, v)); })));
+  } else if (layer.kind === 'taperedGradientStroke') {
+    const colors = layer.colors || RAINBOW;
+    colors.forEach((c, i) => {
+      grid.appendChild(colorField('stop ' + i, c, v => {
+        const firstCustomization = !layer.colors;
+        setAndRefresh(() => {
+          if (!layer.colors) layer.colors = RAINBOW.slice();
+          layer.colors[i] = v;
+        });
+        if (firstCustomization) updateStyleEditor();
+      }));
+    });
+    const reverseWrap = document.createElement('label');
+    reverseWrap.style.cssText = 'grid-column:1/3;font-size:12px;display:flex;gap:6px;align-items:center;color:var(--ink);';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = !!layer.gradientReverse;
+    cb.addEventListener('change', () => setAndRefresh(() => { layer.gradientReverse = cb.checked; }));
+    reverseWrap.appendChild(cb);
+    reverseWrap.appendChild(document.createTextNode('reverse gradient direction'));
+    grid.appendChild(reverseWrap);
+    if (layer.colors) {
+      const resetBtn = document.createElement('button');
+      resetBtn.textContent = 'Reset colors to rainbow';
+      resetBtn.style.cssText = 'grid-column:1/3;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px;font-size:12px;cursor:pointer;';
+      resetBtn.addEventListener('click', () => { setAndRefresh(() => { delete layer.colors; }); updateStyleEditor(); });
+      grid.appendChild(resetBtn);
+    }
+  }
+  el.appendChild(grid);
+}
+
+/* ---------------- code generation ---------------- */
+function pathLines(layer) {
+  const lines = [];
+  lines.push(`ctx.moveTo(${r1(layer.points[0].x)}, ${r1(layer.points[0].y)});`);
+  for (let i = 1; i < layer.points.length; i++) {
+    const p = layer.points[i];
+    if (p.type === 'line') lines.push(`ctx.lineTo(${r1(p.x)}, ${r1(p.y)});`);
+    else if (p.type === 'quad') lines.push(`ctx.quadraticCurveTo(${r1(p.cx)}, ${r1(p.cy)}, ${r1(p.x)}, ${r1(p.y)});`);
+  }
+  return lines;
+}
+function codeForLayer(layer) {
+  const lines = ['ctx.beginPath();', ...pathLines(layer)];
+  if (layer.closed) lines.push('ctx.closePath();');
+  return lines.join('\n');
+}
+function codeForTapered(layer, gradName) {
+  const p0 = layer.points[0], pEnd = layer.points[layer.points.length - 1];
+  // untouched (still the shared rainbow) → reference COLORS.RAINBOW, matching the
+  // real sprite's source exactly; customized → inline the literal hex stops instead
+  const usingDefaultRainbow = !layer.colors || JSON.stringify(layer.colors) === JSON.stringify(RAINBOW);
+  let colorsExpr;
+  if (usingDefaultRainbow) {
+    colorsExpr = layer.gradientReverse
+      ? `COLORS.RAINBOW.forEach((c, i) =>\n  ${gradName}.addColorStop(\n    i / (COLORS.RAINBOW.length - 1),\n    COLORS.RAINBOW[COLORS.RAINBOW.length - 1 - i]\n  )\n);`
+      : `COLORS.RAINBOW.forEach((c, i) => ${gradName}.addColorStop(i / (COLORS.RAINBOW.length - 1), c));`;
+  } else {
+    const finalColors = layer.gradientReverse ? layer.colors.slice().reverse() : layer.colors;
+    colorsExpr = `[${finalColors.map(c => `'${c}'`).join(', ')}].forEach((c, i, arr) => ${gradName}.addColorStop(i / (arr.length - 1), c));`;
+  }
+  const lines = [
+    `const ${gradName} = ctx.createLinearGradient(${r1(p0.x)}, ${r1(p0.y)}, ${r1(pEnd.x)}, ${r1(pEnd.y)});`,
+    colorsExpr,
+    `ctx.strokeStyle = ${gradName};`,
+    `ctx.lineCap = 'round';`,
+    `ctx.lineJoin = 'round';`,
+  ];
+  let prev = p0;
+  for (let i = 1; i < layer.points.length; i++) {
+    const p = layer.points[i];
+    lines.push(`ctx.lineWidth = ${p.width || 1};`);
+    lines.push('ctx.beginPath();');
+    lines.push(`ctx.moveTo(${r1(prev.x)}, ${r1(prev.y)});`);
+    lines.push(p.type === 'line'
+      ? `ctx.lineTo(${r1(p.x)}, ${r1(p.y)});`
+      : `ctx.quadraticCurveTo(${r1(p.cx)}, ${r1(p.cy)}, ${r1(p.x)}, ${r1(p.y)});`);
+    lines.push('ctx.stroke();');
+    prev = p;
+  }
+  return lines.join('\n');
+}
+// leg/hoof export: the edited points are the REST (swing = 0) pose; this
+// re-applies the original walk-cycle formula on top so animation still works.
+// includeDecl=true (used for the single-layer preview, which must be
+// self-contained) inlines "const swingN = ..."; the full-function export
+// passes false and hoists ONE declaration per leg index instead, since a leg
+// and its matching hoof would otherwise both declare the same const and throw
+// a SyntaxError ("has already been declared").
+function swingDecl(legIndex) {
+  return `const swing${legIndex} = moving ? Math.sin(walkPhase + ${legIndex} * Math.PI) * 2.6 : 0;`;
+}
+function codeForLeg(layer, includeDecl = true) {
+  const hip = layer.points[0], end = layer.points[1];
+  const swingVar = `swing${layer.legIndex}`;
+  return `${includeDecl ? swingDecl(layer.legIndex) + '\n' : ''}ctx.beginPath();
+ctx.moveTo(${r1(hip.x)}, ${r1(hip.y)});
+ctx.quadraticCurveTo(${r1(end.cx)} + ${swingVar} * 0.4, ${r1(end.cy)}, ${r1(end.x)} + ${swingVar}, ${r1(end.y)});
+ctx.stroke();`;
+}
+function codeForHoof(layer, includeDecl = true) {
+  const c = layer.points[0];
+  const r = r1(Math.hypot(layer.points[1].x - c.x, layer.points[1].y - c.y));
+  const swingVar = `swing${layer.legIndex}`;
+  return `${includeDecl ? swingDecl(layer.legIndex) + '\n' : ''}fillCircle(ctx, ${r1(c.x)} + ${swingVar}, ${r1(c.y)}, ${r});`;
+}
+function blockForGroup(name) {
+  const meta = GROUP_META[name];
+  const layer = layers[name];
+  if (!layer.points.length) return `// --- ${meta.label} --- (no points placed yet)`;
+  if (name === 'legBack' || name === 'legFront') {
+    const strokeExpr = layer.stroke === 'UI_LIGHT' ? 'UI_LIGHT' : `'${layer.stroke}'`;
+    return `// --- ${meta.label} ---
+ctx.save();
+ctx.strokeStyle = ${strokeExpr};
+ctx.lineWidth = ${layer.width};
+ctx.lineCap = 'round';
+${codeForLeg(layer, false)}
+ctx.restore();`;
+  }
+  if (name === 'hoofBack' || name === 'hoofFront') {
+    return `// --- ${meta.label} ---
+ctx.save();
+ctx.fillStyle = '${layer.fill}';
+${codeForHoof(layer, false)}
+ctx.restore();`;
+  }
+  if (layer.kind === 'taperedGradientStroke') {
+    return `// --- ${meta.label} ---
+ctx.save();
+${codeForTapered(layer, name + 'Grad')}
+ctx.restore();`;
+  }
+  if (layer.kind === 'circle') {
+    const r = r1(Math.hypot(layer.points[1].x - layer.points[0].x, layer.points[1].y - layer.points[0].y));
+    return `// --- ${meta.label} ---
+ctx.save();
+ctx.globalAlpha = ${layer.alpha};
+ctx.fillStyle = ${layer.fill === 'COLORS.PINK' ? 'COLORS.PINK' : `'${layer.fill}'`};
+fillCircle(ctx, ${r1(layer.points[0].x)}, ${r1(layer.points[0].y)}, ${r});
+ctx.restore();`;
+  }
+  const path = codeForLayer(layer);
+  if (layer.kind === 'fillstroke') {
+    // untouched → reference the shared UI_LIGHT/PONY_OUTLINE constants, matching
+    // the real sprite's source exactly; edited → emit the literal hex instead
+    const fillExpr = layer.fill === UI_LIGHT ? 'UI_LIGHT' : `'${layer.fill}'`;
+    const strokeExpr = layer.stroke === PONY_OUTLINE ? 'PONY_OUTLINE' : `'${layer.stroke}'`;
+    return `// --- ${meta.label} ---
+ctx.save();
+ctx.shadowColor = COLORS.PINK_GLOW;
+ctx.shadowBlur = 6;
+ctx.fillStyle = ${fillExpr};
+ctx.strokeStyle = ${strokeExpr};
+ctx.lineWidth = 0.5;
+${path}
+ctx.fill();
+ctx.stroke();
+ctx.restore();`;
+  }
+  if (layer.kind === 'fill') {
+    return `// --- ${meta.label} ---
+ctx.save();
+ctx.fillStyle = '${layer.fill}';
+${path}
+ctx.fill();
+ctx.restore();`;
+  }
+  if (layer.kind === 'gradient') {
+    return `// --- ${meta.label} ---
+ctx.save();
+const hg = ctx.createLinearGradient(${r1(layer.points[0].x)}, ${r1(layer.points[0].y)}, ${r1(layer.points[1].x)}, ${r1(layer.points[1].y)});
+hg.addColorStop(0, '${layer.from}');
+hg.addColorStop(1, '${layer.to}');
+ctx.fillStyle = hg;
+${path}
+ctx.fill();
+ctx.restore();`;
+  }
+  if (layer.kind === 'stroke') {
+    return `// --- ${meta.label} ---
+ctx.save();
+ctx.strokeStyle = ${layer.stroke === 'UI_LIGHT' ? 'UI_LIGHT' : `'${layer.stroke}'`};
+ctx.lineWidth = ${layer.width};
+ctx.lineCap = 'round';
+${path}
+ctx.stroke();
+ctx.restore();`;
+  }
+  return '';
+}
+function codeForActiveLayerPreview() {
+  if (!active || !layers[active]) return '// no shape selected';
+  const layer = layers[active];
+  if (!layer.points.length) return '// no points placed yet — click the canvas to start';
+  if (active === 'legBack' || active === 'legFront') return codeForLeg(layer);
+  if (active === 'hoofBack' || active === 'hoofFront') return codeForHoof(layer);
+  if (layer.kind === 'taperedGradientStroke') return codeForTapered(layer, active + 'Grad');
+  if (layer.kind === 'circle') {
+    const r = r1(Math.hypot(layer.points[1].x - layer.points[0].x, layer.points[1].y - layer.points[0].y));
+    return `fillCircle(ctx, ${r1(layer.points[0].x)}, ${r1(layer.points[0].y)}, ${r});`;
+  }
+  return codeForLayer(layer);
+}
+function updateCode() {
+  document.getElementById('codeOut').value = codeForActiveLayerPreview();
+  updateAllCode();
+}
+function updateAllCode() {
+  // hoist each leg index's swing computation ONCE at the top of the function —
+  // a leg and its matching hoof both need it, and declaring `const swingN`
+  // twice in the same function scope is a SyntaxError
+  const legIndexesUsed = new Set(
+    renderOrder.filter(n => layers[n] && layers[n].legIndex !== undefined).map(n => layers[n].legIndex)
+  );
+  const preamble = [...legIndexesUsed].sort().map(swingDecl);
+
+  // 'eye' and 'eyeLash' share one save/restore block in the real source — but
+  // either can now be removed independently via the shape editor, so only fold
+  // them together when BOTH are still present; otherwise each gets its own
+  // ordinary block via blockForGroup (still correct, just not the original's
+  // exact structure)
+  const bothEyePartsPresent = renderOrder.includes('eye') && renderOrder.includes('eyeLash') && layers.eye && layers.eyeLash;
+  const blocks = [];
+  for (let i = 0; i < renderOrder.length; i++) {
+    const name = renderOrder[i];
+    if (name === 'eyeLash' && bothEyePartsPresent) continue; // folded into 'eye' below
+    if (name === 'eye' && bothEyePartsPresent) {
+      const layer = layers.eye, lash = layers.eyeLash;
+      blocks.push(`// --- Eye (+ lash) ---
+ctx.save();
+ctx.strokeStyle = '${layer.stroke}';
+ctx.lineWidth = ${layer.width};
+ctx.lineCap = 'round';
+${codeForLayer(layer)}
+ctx.stroke();
+${codeForLayer(lash)}
+ctx.stroke();
+ctx.restore();`);
+      continue;
+    }
+    blocks.push(blockForGroup(name));
+  }
+  const body = [...preamble, ...blocks].join('\n\n');
+  const indented = body.split('\n').map(l => (l ? '  ' + l : l)).join('\n');
+  document.getElementById('codeAll').value = `function drawPonySide(moving, walkPhase) {
+${indented}
+}`;
+}
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  const ta = document.getElementById('codeOut');
+  ta.select();
+  navigator.clipboard?.writeText(ta.value).catch(() => document.execCommand('copy'));
+});
+document.getElementById('copyAllBtn').addEventListener('click', () => {
+  const ta = document.getElementById('codeAll');
+  ta.select();
+  navigator.clipboard?.writeText(ta.value).catch(() => document.execCommand('copy'));
+});
+document.getElementById('resetLayerBtn').addEventListener('click', () => {
+  if (!active) return;
+  // built-in part → restore its original shape; a user-added shape has no
+  // "default" to go back to, so just clear its points instead
+  layers[active] = DEFAULT_LAYERS[active] ? clone(DEFAULT_LAYERS[active]) : { ...layers[active], points: layers[active].kind === 'circle' ? layers[active].points : [] };
+  selected = -1;
+  draw(); updatePointEditor(); updateCode(); saveState();
+});
+document.getElementById('resetAllBtn').addEventListener('click', () => {
+  if (!confirm('Reset all layers and render order back to defaults? This discards everything saved in this browser, including any shapes you added.')) return;
+  layers = clone(DEFAULT_LAYERS);
+  renderOrder = DEFAULT_ORDER.slice();
+  GROUP_META = clone(DEFAULT_GROUP_META);
+  active = 'head'; selected = -1;
+  renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
+});
+
+/* ---------------- save/load to a real file ---------------- */
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ version: SCHEMA_VERSION, layers, renderOrder, customMeta: customMetaOf() }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'pony-shape.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+const loadInput = document.getElementById('loadInput');
+document.getElementById('loadBtn').addEventListener('click', () => loadInput.click());
+loadInput.addEventListener('change', () => {
+  const file = loadInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = migrate(JSON.parse(reader.result));
+      layers = parsed.layers; renderOrder = parsed.renderOrder; GROUP_META = parsed.groupMeta;
+      if (!GROUP_META[active]) active = renderOrder[0] || null;
+      selected = -1;
+      renderOrderList(); draw(); updatePointEditor(); updateCode(); saveState();
+    } catch (e) {
+      alert('Could not load that file: ' + e.message);
+    }
+  };
+  reader.readAsText(file);
+  loadInput.value = '';
+});
+
+renderOrderList();
+draw();
+updatePointEditor();
+updateCode();
+</script>

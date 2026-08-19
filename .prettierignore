@@ -1,0 +1,4 @@
+node_modules
+dist
+src/world/map-data.js
+src/world/map-data.js.bak

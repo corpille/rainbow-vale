@@ -1,0 +1,2239 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Éditeur de carte — Rainbow Vale</title>
+    <style>
+      :root {
+        --bg: #100e0b;
+        --panel: #1a1712;
+        --panel-2: #201c15;
+        --panel-border: #362f22;
+        --ink: #ece1c8;
+        --ink-dim: #93876e;
+        --ink-faint: #5f5747;
+        --gold: #d4af6a;
+        --gold-dim: #8a7550;
+        --danger: #c0594a;
+        --ok: #6fae7a;
+        --radius: 8px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* ---- top bar ---- */
+      #topbar {
+        flex-shrink: 0;
+        height: 52px;
+        background: linear-gradient(180deg, #1d1913, #161209);
+        border-bottom: 1px solid var(--panel-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+      }
+      #topbar .brand {
+        font-family: 'Georgia', 'Times New Roman', serif;
+        letter-spacing: 0.04em;
+        font-size: 16px;
+        color: var(--gold);
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      #topbar .brand small {
+        color: var(--ink-faint);
+        font-size: 11px;
+        font-family: inherit;
+      }
+      #topbar .actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      /* ---- generic controls ---- */
+      button {
+        font-family: inherit;
+        background: #2a2419;
+        color: var(--ink);
+        border: 1px solid var(--panel-border);
+        padding: 7px 11px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12.5px;
+        transition:
+          background 0.12s,
+          border-color 0.12s,
+          transform 0.06s;
+      }
+      button:hover {
+        background: #372f20;
+        border-color: var(--gold-dim);
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      button.active {
+        background: var(--gold);
+        color: #1c1608;
+        border-color: var(--gold);
+        font-weight: 600;
+      }
+      button.primary {
+        background: var(--gold);
+        color: #1c1608;
+        border-color: var(--gold);
+        font-weight: 600;
+      }
+      button.primary:hover {
+        background: #e2bd7c;
+      }
+      button.danger-ghost:hover {
+        border-color: var(--danger);
+        color: #f0b0a4;
+      }
+      button.icon-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      select,
+      input[type='range'] {
+        font-family: inherit;
+        background: #2a2419;
+        color: var(--ink);
+        border: 1px solid var(--panel-border);
+        padding: 6px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        width: 100%;
+      }
+
+      /* ---- workspace layout ---- */
+      #workspace {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+      .side-panel {
+        width: 268px;
+        flex-shrink: 0;
+        background: var(--panel);
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #leftPanel {
+        border-right: 1px solid var(--panel-border);
+      }
+      #rightPanel {
+        border-left: 1px solid var(--panel-border);
+      }
+
+      .card {
+        background: var(--panel-2);
+        border: 1px solid var(--panel-border);
+        border-radius: var(--radius);
+        padding: 11px 12px;
+      }
+      .card h2 {
+        font-size: 10.5px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--gold-dim);
+        margin: 0 0 9px 0;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .card .desc {
+        font-size: 11px;
+        color: var(--ink-dim);
+        line-height: 1.45;
+        margin: 6px 0 0;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .row > button {
+        flex: 1 1 auto;
+      }
+      .zone-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .zone-grid button {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        justify-content: flex-start;
+      }
+      .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        flex-shrink: 0;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+      }
+      label.field {
+        display: block;
+        font-size: 11px;
+        color: var(--ink-dim);
+        margin: 8px 0 4px;
+      }
+      small.hint {
+        color: var(--ink-faint);
+        font-size: 10.5px;
+        display: block;
+        margin-top: 6px;
+        line-height: 1.4;
+      }
+      .divider-thin {
+        height: 1px;
+        background: var(--panel-border);
+        margin: 2px 0;
+      }
+
+      /* ---- canvas ---- */
+      #canvasWrap {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        background: #0a0908;
+      }
+      canvas#cv {
+        display: block;
+        cursor: crosshair;
+      }
+      #hud {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        background: rgba(20, 18, 15, 0.85);
+        border: 1px solid var(--panel-border);
+        border-radius: 6px;
+        padding: 7px 11px;
+        font-size: 11px;
+        color: var(--ink-dim);
+        pointer-events: none;
+        line-height: 1.6;
+      }
+      #hud b {
+        color: var(--ink);
+      }
+      #toast {
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--gold);
+        color: #1c1608;
+        padding: 8px 18px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        opacity: 0;
+        transition: opacity 0.25s;
+        pointer-events: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      }
+      #toast.show {
+        opacity: 1;
+      }
+
+      /* ---- object palette ---- */
+      .obj-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .obj-grid button {
+        justify-content: flex-start;
+      }
+
+      /* ---- bottom status bar ---- */
+      #statusbar {
+        flex-shrink: 0;
+        background: var(--panel);
+        border-top: 1px solid var(--panel-border);
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 11.5px;
+        color: var(--ink-dim);
+      }
+      #statusbar .pill {
+        background: var(--panel-2);
+        border: 1px solid var(--panel-border);
+        border-radius: 20px;
+        padding: 4px 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      #statusbar .pill b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      #statusbar .pill.weight-warn b {
+        color: #f0a870;
+      }
+      #statusbar .spacer {
+        flex: 1;
+      }
+
+      /* ---- export drawer ---- */
+      #exportDrawer {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 420px;
+        background: var(--panel);
+        border-left: 1px solid var(--panel-border);
+        transform: translateX(100%);
+        transition: transform 0.22s ease;
+        display: flex;
+        flex-direction: column;
+        padding: 14px;
+        gap: 10px;
+        z-index: 20;
+        box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
+      }
+      #exportDrawer.open {
+        transform: translateX(0);
+      }
+      #exportDrawer h2 {
+        margin: 0;
+        font-size: 13px;
+        color: var(--gold);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      #exportBox {
+        flex: 1;
+        width: 100%;
+        background: #0a0908;
+        color: #8fd0a0;
+        font-family: 'SF Mono', Consolas, monospace;
+        font-size: 10.5px;
+        border: 1px solid var(--panel-border);
+        border-radius: 6px;
+        padding: 8px;
+        resize: none;
+        line-height: 1.5;
+      }
+      .stat-list .stat {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11.5px;
+        color: var(--ink-dim);
+        padding: 3px 0;
+      }
+      .stat-list .stat b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="topbar">
+      <div class="brand">Map Editor <small>Rainbow Vale</small></div>
+      <div class="actions">
+        <span
+          id="serverIndicator"
+          style="font-size: 11px; color: var(--ink-faint); margin-right: 6px"
+        ></span>
+        <span
+          id="autosaveIndicator"
+          style="font-size: 11px; color: var(--ink-faint); margin-right: 6px"
+        ></span>
+        <input type="file" id="importFile" accept="application/json,.json" style="display: none" />
+        <button id="btnImportFile" class="icon-btn">📂 Import file</button>
+        <button id="btnImportPaste" class="icon-btn">📋 Import from clipboard</button>
+        <button id="btnResetDefault" class="icon-btn danger-ghost">↺ Reset to shipped map</button>
+        <button id="btnSaveProject" class="icon-btn primary">💾 Save to project</button>
+        <button id="btnExport" class="icon-btn">📤 Generate export</button>
+      </div>
+    </div>
+
+    <div id="workspace">
+      <aside id="leftPanel" class="side-panel">
+        <div class="card">
+          <h2>🗺️ Zone</h2>
+          <div class="zone-grid">
+            <button class="zone-btn active" data-zone="swamp">
+              <span class="swatch" style="background: #bdf3c9"></span>Swamp
+            </button>
+            <button class="zone-btn" data-zone="cavern">
+              <span class="swatch" style="background: #d6ecff"></span>Cavern
+            </button>
+            <button class="zone-btn" data-zone="orchard">
+              <span class="swatch" style="background: #ffe1b8"></span>Orchard
+            </button>
+            <button class="zone-btn" data-zone="marsh">
+              <span class="swatch" style="background: #e3d4ff"></span>Marsh
+            </button>
+            <button class="zone-btn" data-zone="hub">
+              <span class="swatch" style="background: #ffd6ec"></span>Hub
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>⛰️ Terrain</h2>
+          <div class="row">
+            <button id="btnTypeFloor" class="active">Floor</button>
+            <button id="btnTypeWall">🧱 Wall</button>
+          </div>
+          <p class="desc">
+            <b>Empty</b> clears a tile to nothing (no floor, no wall). <b>Wall</b> paints a real,
+            stored solid tile by hand — nothing is ever added automatically. An empty tile bordered
+            by floor is a valid Solidify target in-game (right-click a floor tile to carve one for a
+            puzzle).
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>🖌️ Tool</h2>
+          <div class="row">
+            <button class="tool-btn active" data-tool="point">Point</button>
+            <button class="tool-btn" data-tool="circle">Circle</button>
+            <button class="tool-btn" data-tool="rect">Rectangle</button>
+            <button class="tool-btn" data-tool="move">Move marker</button>
+            <button class="tool-btn" data-tool="chunk">Move chunk</button>
+          </div>
+          <label class="field">Circle radius / brush width: <b id="radiusVal">3</b></label>
+          <input type="range" id="radiusSlider" min="1" max="12" value="3" />
+          <p class="desc">
+            <b>Move chunk</b>: drag a rectangle to lift everything inside it (floor, walls,
+            objects, items, doors, runes) — it's cut immediately. Move the mouse to preview
+            where it'll land, click to drop. Dropping stamps the whole rectangle: any gap in
+            the selection wipes whatever was at the destination too, it doesn't just overlay
+            on top. Right-click or Esc puts it back where it was.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>🔍 View</h2>
+          <div class="row">
+            <button id="btnZoomOut">− Zoom</button>
+            <button id="btnZoomIn">+ Zoom</button>
+            <button id="btnResetView">Recenter</button>
+          </div>
+          <small class="hint"
+            >Scroll to zoom. Middle-click + drag to pan. Right-click to erase under the
+            cursor. Ctrl+Z to undo.</small
+          >
+        </div>
+      </aside>
+
+      <main id="canvasWrap">
+        <canvas id="cv"></canvas>
+        <div id="hud"></div>
+        <div id="toast"></div>
+
+        <div id="exportDrawer">
+          <h2>Export <button id="btnCloseExport" style="padding: 3px 9px">✕</button></h2>
+          <div class="row">
+            <button id="btnCopy">📋 Copy</button>
+            <button id="btnDownload">⬇ Download .json</button>
+          </div>
+          <textarea
+            id="exportBox"
+            readonly
+            placeholder="Click «Generate export» to produce the current MAP_DATA."
+          ></textarea>
+        </div>
+      </main>
+
+      <aside id="rightPanel" class="side-panel">
+        <div class="card">
+          <h2>💧 Objects</h2>
+          <div class="obj-grid">
+            <button class="obj-btn active" data-obj="puddle">💧 Water</button>
+            <button class="obj-btn" data-obj="crate">▢ Crate</button>
+            <button class="obj-btn" data-obj="vine">🌿 Vine</button>
+            <button class="obj-btn" data-obj="lock">═ Lock</button>
+            <button class="obj-btn" data-obj="mirror_surface">▨ Mirror</button>
+            <button class="obj-btn" data-obj="sym_plate">⬥ Plate</button>
+            <button id="btnEraseObj" class="danger-ghost">✕ Erase object</button>
+          </div>
+          <label class="field">Mirror orientation (which 2 sides bounce a spell):</label>
+          <select id="mirrorOrientation">
+            <option value="NE">NE — down→right, left→up</option>
+            <option value="ES">ES — left→down, up→right</option>
+            <option value="SW">SW — up→left, right→down</option>
+            <option value="WN">WN — right→up, down→left</option>
+          </select>
+          <p class="desc">
+            Plates are placed independently, one at a time. Use <b>Pair</b> below to decide which
+            two work together, and <b>Link</b> to connect a pair to a lock.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>🧩 Plate Groups</h2>
+          <div class="row">
+            <button id="btnGroupTool">⬥⬥⬥ Group</button>
+            <button id="btnLinkLockTool">🔗 Link lock</button>
+          </div>
+          <p class="desc" style="margin: 6px 0 0">
+            <b>Group</b> — click a lone plate to add it to the <b>active group</b> below (starts
+            one automatically if none is active yet); click a plate already in it to remove it
+            again; click a plate from a <i>different</i> group to switch to that one instead.
+            <b>Link lock</b> — click a lock to link/unlink it with the active group.
+          </p>
+          <div class="divider-thin" style="margin: 9px 0"></div>
+          <div id="groupPanel"></div>
+        </div>
+
+        <div class="card">
+          <h2>✨ Items</h2>
+          <div class="row">
+            <button id="btnAddItem">+ Item</button>
+            <button id="btnEraseItem" class="danger-ghost">✕ Erase item</button>
+          </div>
+          <p class="desc">
+            A single collectible concept — click "+ Item" then click/drag on the map to place, its
+            zone inferred from the floor beneath it. What guards it (a nature gate, a puzzle...) is
+            just whatever you build around it.
+          </p>
+        </div>
+      </aside>
+    </div>
+
+    <div id="statusbar">
+      <div class="pill">zoom: <b id="stZoom">—</b></div>
+      <div class="pill">tile: <b id="stTile">—</b></div>
+      <div class="pill">
+        map weight: <b id="stWeightRaw">—</b> raw / <b id="stWeightGzip">…</b> gzip
+      </div>
+      <div class="spacer"></div>
+      <div class="pill">walls <b id="stWalls">0</b></div>
+      <div class="pill">objects <b id="stObjects">0</b></div>
+      <div class="pill">items <b id="stItems">0</b></div>
+      <div class="pill">links <b id="stLinks">0</b></div>
+    </div>
+
+    <script>
+      /* ============================================================
+   STARTING DATA — the game's current map (MAP_DATA)
+   ============================================================ */
+      const DEFAULT_MAP_DATA = {
+        bounds: [-48, -56, 45, 53],
+        gridStr:
+          '...............................................mmmm..........................................................................................mmmm........................................................................................mmmmm.....................................................................................M....mmmmm......m...m.......................................................................mmMMmmMM.mmmmmmmmmmm.mmm......................................................................mmmmmmm.mmmmmmmmmmmmmmmm.....................................................................mmmmmmmmmmmmMmmmmmmmmmmm......................................................................mmmm.mmmmmmmmmmmmmmmmmmmm.......................................................................mm.mm..m..mmmmmm.mmmmmm........................................................................m.mm.mmmm.mmmmmmmmmmmm........................................................................mmmmmmmmmmmmmmmmmmmmmmm.........................................................................mmmMmmmmmmmmmmm.mmm............................................................................m..mMM..mm.mmmmmmmm...........................................................................m...MMMMM..mmmmmmmm...................................................................................MMmmmmmmmm......................................................................................Mmmmmmmmm.....................................................................................mmmmmmmmm.....................................................................................mmmmmmmmm......................................................................................mmmmmmm......................................................................................mmmmmmmmm......................................................................................mm..mMmmmm.mm.m...............................................................................Mm..mmm.mmmmmmmm..............................................................................MMM.mmmmmmmmmmmmm......................................................................mm.....MMM.mmmmmmmmmmm........................................................................mm.....M...mmm.mmm.mmm.mm...................................................................mmmmm....M.mmmmmmmmm.mmmmmmm.................................................................mmmmmm....MMMmmmmmmmmmmmmmmmmmm...............................................................mmmmmm.......mmmmmmmmmmmmmmmmm..................................................................mmmm........mmmmmmm..mm.mm.......................................b..........................mmmmm.........mmmmmmmmmmmm.......................................bbb...........................mmmmm.......mmmmmmmmmmmmm.......................................bbbbb..........................mmmm.........mm.mmmmmmmM........................................bbbb..........................mm.....mmm.mmmmmmmm.mmmM.............................bb.....B..bbbbbb..BB.bB..................mmm.....mmmmmmm.mmmmmmmM..........v..................bbBBbbBbBBBbbbbbbBbBBbbbbBbb.............mmmm...mmmmmmmmmmmmmmmm..vv.....vvvv.vvvvvvv.......bbbbbbbbBbbbbbbbbbbbbbbbbbbbb.............mmmmm..mmmmmmmmmmmmmmmmm..vvvvvvvvvvvvvvvvvvvvvv...bbbbbbbbbbbbbbbbbbbbbbbbbbbbb...............mmm.....mmm.mmmmmmmmmmm...vvvvvvvvvvvvvvvvvvvvV.....bbbbbbbbbbb..bbbbbbbbbbbbbbb...............mm.....mmmm....mmm.mmmm.Vvvv.vvvVvvvvvvv.vvvvV.bb..bb..bb....b..bbbbb.bb.bbbbbb.............mmmm.....mmm.....mmmMmmmm.Vvvvvvv.vvvvvvvvvvvvv.bbbbbbbb..........B......b...bbbb.............mmmm....mmmm..mmmmmmmmmmm.Vvvv.vvvvvvvvvvvvvvvv..bbbbbbbbb........B.........bbbb...............mmmm.m...mm.mmm....mmm..vvvvvvvvvvvvvvvvvvvvvV..bbbbbbbb.........B......bb.bbbbb..............mmmmmmmmmmm.mmm........vVvvvvvvvvvvvvvvvvvvvvv..bb.bb.b..........B......bb.bbbbB.............mmmmmmmmmmmmmmmmm..vv..Vvv..vvvv...vvvvvvvvvvvv..bbb.bbbb.........B......bbbbbbbb.............mmmmmmmmmmmmmmmmm..vvvvvvv..........v.....vvvvv..bbbbbbb..........B.....bbbbbbbbbb.............mm...mmmmmmmmMmmVVvvvvvvvvv..............Vvvvv.bbbbbbbbb.........B.....bbbb.bbbbb.............._.mmmmmmmmmmmmVVvvvvvvvvv..vv.v.........vvvvv..bb.bbbbbbb.b.....B.......bb.bbb................_mmmmmmmvvmvmvv.vvvv.vvv..vvvvv..Vv...vvvvvv......bbbbbbbbbb....BB....bbbbb.b................._.mmmm.mvvvvvvvvvvvvvvvvvvvv.vvv..vvvvvvVvvv.......bbbBbbbbb.....B....bbbb...................._..mmmmmvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv.....bbbbbbbbbb....BB.....bbb...................._........vvv.vvvvvvvvvvvvvvvvvvvv.v..vvvvvvv......bbbbbbb.bbb...B.......bb...............hhh.._........vvv.vv...vv.vvvvvvvvvvvVVv..vv.vv............bbbbbbbbbbBB....bbbb..............hhhhhhhhhhhhh.vvvvv........vvvvvvvvvvvV......................bbbbbbbbbBB....bbbbb..............hhhhhhhhhhhhvvvvvvv......vvvvvvvvvvvvv......................bbbbbbbbbB......bbbb.bb...........hhhhhhhhhhhh.vvvvv......vvvvvvvvvvvvvvv....................bbb.bbb..bb......bb..bbb............hhhhhhhhhhh.vvvv........vvv.vvvv.vvv..........................bbbbbbbbbbbbbbbbbbbbb...........hhhhhhhhhh..vvvvvv......vvvvvvvvvvvv...........................bbbbbbbbbbbbbbbbbbbbb_________hhhhhhhhhh___vvvvv.......vvvvvvvvvvvvv..........................bb..bbbbbbbbbbbbbbbbb........hhhhhhhhhhhh...vvv.........vvvvvvvVvvvv..........................bBbbbbbbbbb.bbbbbbb..........hhhhhhhhhhhhh..vvvV........vv.vvvvvvv...........................bbbbbbbbbbbbbbbbbbbb..........hhhhhhhhhhhhh.vvvvVVV......vv.vvvvvvvv...........................bbbbbbbbbbbbbbbbbbbb..........hhhhhhhhhhh.vvvvvvV.........vvvvvvvvvvv........................bbbbbbbbbbbbbbbb.bbbb..........hhhh._hhhh..vvvvvvV..........vvvvvvvvv.........................bb..bbbbbbb..bbbbbbbb..........hhh.._.hhh.....vvvVvv.........vvvvvvv......................................bbbbbbbb........j..jj..._..h.....vvvvvvv.........vvvvvvv......................................bbbbbbbbbb.jjj..j..jj..._.......vvvvvvvv.........vvvvvvvvv.....................................bbbbbbbb.jjjjjjjjjjjjjj_.......vvvvvvvv........vvvvvvvvvv.....................................bbb.bbb..jjjjjjjjjjjjjj_.......vvv...vv......vv.vVvvvvv......................................bbbbbbbb...jjjjjjjjjjj.._........vvvvvvv....vvvv.vvvv.........................................bbbbbbbbb.jjjjj.j...jj.._.......vvvvvvvvv....vvvvvvvv.........................................bbbb.bbbb.jjjjjjjjjjjjj._.......vvvvvvvvv....vvvvvvv............................................bbBbb.B.jjjjjjjjjjjjj._.......vvv..vv..vvvvvvvvvv..........................................bbbbbBbbbb.jjjjjjjj.jjj.._........v...vvvvvvvvvvvvV............................................bbbbbbbbb..j.jjjjj..jj.._............vvvvvvvvvvv.V.............................................bbbbbbb.......jjjjjjj.._............vvvvvvvvvvvv..............................................bb..bb......jjjjjjjjjj._............vv...vvvvv.vv.............................................b............jjjj.jjjj._.....................................................................................jj.jjjj._j..................................................................................jjjjjjjjjjjj..................................................................................jjjjjjjjJjjj...................................................................................jjjjjjjjjjj...............................................................................j..Jjjjj.jjjjjJ...............................................................................jjjjjjj.....jjjjjjjj..........................................................................jjjjjjjj...jjjjjjjjj..........................................................................jjj.jjj....jjjj.jjj...........................................................................jj..jjjj..jjjjj.jjj...........................................................................jjjjjjjjjjjjjjjjjjjj.........................................................................Jjjjjjjjjjjjjjjjjjjjjj........................................................................jjjjjjjj.jjjjjjjjjjj...j..j......................................................................jj.jj..jjjj.j.jjj..jj..jj.........................................................................j........jjjjjjjjjjjj..................................................................................jjjjjjjjjjjjjj...............................................................................jjjjjjjjjjjjjjj................................................................................jjjjj.jjjjjJ.J................................................................................jjjjjjjjjjjj.J................................................................................jjjjjjjjjjjjjj.................................................................................jjjjjjjjjjjjj................................................................................jjjjjjjjjjj..J.................................................................................jjjjjjj....JJ...............................................................................jjjjjjjjjjj..J.................................................................................jjjjjjjj....J..................................................................................jjjjjj....jJ...................................................................................jjjjjjjjjjJJ.....................................................................................jjjjjjj.J.....................................................................................jjjJ.jj.J.....................................................................................jjj..jjjJ.....................................................................................jjjjjjjjJ...................................................................................jjjjjjjjj.......................................................................................jjjjjjjj......................................................................................jjj..jj............................................................................................jj................................',
+        doors: [
+          [0, -12],
+          [0, 21],
+          [8, 0],
+          [-15, 0],
+        ],
+        primitiveSpots: [
+          [-9, -52],
+          [13, 53],
+          [45, -21],
+          [-41, -23],
+        ],
+        items: [
+          [4, -16, 0],
+          [11, 42, 1],
+          [34, -13, 2],
+          [-36, -10, 3],
+        ],
+        objects: [
+          [14, -21, 8],
+          [15, -22, 6],
+          [14, -17, 6],
+          [0, -12, 2],
+          [19, -32, 8],
+          [20, -31, 6],
+          [4, -15, 1],
+          [4, -14, 1],
+          [5, -14, 1],
+          [3, -14, 1],
+          [4, -13, 1],
+          [6, -14, 1],
+          [5, -13, 1],
+          [5, -15, 1],
+          [3, -13, 1],
+          [3, -15, 1],
+          [4, -12, 1],
+          [4, -16, 1],
+          [6, -13, 1],
+          [13, 53, 6],
+          [15, 34, 1],
+          [10, 42, 0],
+          [33, -8, 6],
+          [20, 15, 8],
+          [21, 16, 6],
+          [24, 17, 6],
+          [12, 2, 6],
+          [8, 0, 0],
+          [34, -14, 3],
+          [-36, -1, 6],
+          [-41, -20, 8],
+          [-42, -21, 6],
+          [-41, -14, 6],
+          [-41, -23, 6],
+          [-17, -19, 8],
+          [-18, -20, 6],
+          [-15, 0, 3],
+          [-36, -9, 3],
+          [40, -21, 1],
+          [41, -21, 1],
+          [42, -21, 1],
+          [43, -21, 1],
+          [44, -21, 1],
+          [40, -20, 1],
+          [41, -20, 1],
+          [42, -20, 1],
+          [43, -20, 1],
+          [44, -20, 1],
+          [45, -20, 1],
+        ],
+        verrouLinks: [],
+      };
+
+      const ZORDER = ['swamp', 'cavern', 'orchard', 'marsh'];
+      // darkened for the editor's near-black canvas, but still keyed off each zone's actual
+      // room.base hue (colors.js/world-zones.js) so it reads as that zone, not an arbitrary tone
+      const ZONE_COLOR = {
+        hub: '#4a2e3a',
+        swamp: '#2e4a38',
+        cavern: '#1e2c3e',
+        orchard: '#4a3624',
+        marsh: '#332a4a',
+      };
+      const NEUTRAL_COLOR = '#2e3136';
+      const OBSTACLE_COLOR = {
+        swamp: '#1f3a28',
+        cavern: '#1c2e3a',
+        orchard: '#4a2e18',
+        marsh: '#2e2140',
+      }; // darkened room.dark
+      const OBSTACLE_CHAR_ZONES = new Set(['swamp', 'cavern', 'orchard', 'marsh']); // hub has no rock texture
+
+      // code 3 (pit) is retired — Solidify grows floor directly on void tiles now (right-click
+      // erase to carve one). Codes 6/7 (target/grouped_target) are retired too.
+      const TYPE_CODE = { vine: 0, puddle: 1, crate: 2, lock: 4, mirror_surface: 8, sym_plate: 9 };
+      const CODE_TYPE = {};
+      Object.entries(TYPE_CODE).forEach(([k, v]) => (CODE_TYPE[v] = k));
+
+      // gridStr char -> [roomId, objType]: a floor tile's char is its room, optionally
+      // fused with the one purely-positional object (no extra data) sitting on it —
+      // puddle/vine/crate/lock never need MAP_DATA.objects at all this way. Must match
+      // src/world/map-loader.js's FLOOR_CHARS exactly, key-for-key.
+      const FLOOR_CHARS = {
+        h: ['hub'],
+        m: ['swamp'],
+        j: ['cavern'],
+        v: ['orchard'],
+        b: ['marsh'],
+        M: ['swamp', 'puddle'],
+        J: ['cavern', 'puddle'],
+        V: ['orchard', 'puddle'],
+        B: ['marsh', 'puddle'],
+        n: ['swamp', 'vine'],
+        k: ['cavern', 'vine'],
+        o: ['orchard', 'vine'],
+        g: ['marsh', 'vine'],
+        e: ['swamp', 'crate'],
+        i: ['cavern', 'crate'],
+        p: ['orchard', 'crate'],
+        q: ['marsh', 'crate'],
+        r: ['swamp', 'lock'],
+        s: ['cavern', 'lock'],
+        t: ['orchard', 'lock'],
+        u: ['marsh', 'lock'],
+      };
+      const POSITIONAL_TYPES = new Set(['puddle', 'vine', 'crate', 'lock']);
+      const CHAR_FOR_ROOM = {}; // roomId -> bare floor char
+      const CHAR_FOR_OBJ = {}; // "roomId|type" -> char, for the POSITIONAL_TYPES only
+      Object.entries(FLOOR_CHARS).forEach(([c, [room, type]]) => {
+        if (type) CHAR_FOR_OBJ[room + '|' + type] = c;
+        else CHAR_FOR_ROOM[room] = c;
+      });
+
+
+      // colors match each object's actual render color (render-world.js), not arbitrary
+      // schematic tones — e.g. crate is the lavender gift-box gradient, not plain wood
+      const OBJ_STYLE = {
+        puddle: { color: '#6f86dd', label: '💧' }, // renderPuddleField's blue-violet magic pool
+        crate: { color: '#a878d8', label: '▢' }, // renderCrate's lavender gift-box gradient
+        vine: { color: '#4caf6b', label: '/' }, // renderVine's stroke green
+        lock: { color: '#c080f0', label: '═' }, // COLORS.PURPLE — the crystal-seal gem
+        mirror_surface: { color: '#b8a0f0', label: '▨' }, // renderMirror's gem gradient
+        sym_plate: { color: '#e0c060', label: '⬥' }, // toggles PURPLE/GREEN in-game; gold stays a fixed, distinct marker
+      };
+
+      // each group gets its own color so overlapping groups read apart on a busy map;
+      // a lone (ungrouped) plate keeps the plain gold from OBJ_STYLE so it visually
+      // stands out as "not grouped yet". Picked by the group's own numeric id, so the
+      // same group always gets the same color across reloads (ids come from pairCounter).
+      const GROUP_PALETTE = [
+        '#5eeb9c',
+        '#66d1ff',
+        '#ff6fa8',
+        '#c48aff',
+        '#ffb347',
+        '#ff6b6b',
+        '#4dd0e1',
+        '#f4e04d',
+      ];
+      function groupColor(pairRef) {
+        if (!pairRef) return OBJ_STYLE.sym_plate.color;
+        const n = parseInt(pairRef.id.slice(1), 10) || 0;
+        return GROUP_PALETTE[n % GROUP_PALETTE.length];
+      }
+      function hexToRgba(hex, alpha) {
+        const n = parseInt(hex.slice(1), 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+      }
+
+      // which corner each orientation occupies, matching MIRROR_REFLECT in world-objects.js:
+      // NE/SW bounce along "\", ES/WN along "/", clipped into the named corner (NE = top-right, etc.)
+      const MIRROR_CORNER = { NE: [1, -1], SW: [-1, 1], ES: [1, 1], WN: [-1, -1] };
+      // each orientation's 2 letters ARE its 2 open sides (a beam bounces N<->E for "NE") —
+      // same fact MIRROR_REFLECT encodes, just read directly off the name
+      const MIRROR_DIR = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+      function drawMirrorGlyph(sx, sy, orientation) {
+        orientation = orientation || 'NE';
+        const [sxs, sys] = MIRROR_CORNER[orientation] || MIRROR_CORNER.NE;
+        const c = tilePx * 0.5;
+        // full corner-to-corner diagonal, matching renderMirror in render-world.js, so the
+        // icon matches what the game actually draws
+        ctx.save();
+        ctx.strokeStyle = '#101018';
+        ctx.lineWidth = Math.max(1.5, tilePx * 0.09);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(sx - sxs * c, sy + sys * c);
+        ctx.lineTo(sx + sxs * c, sy - sys * c);
+        ctx.stroke();
+        ctx.restore();
+
+        // arrowhead on each side a beam enters/exits, pointing outward — shows at a
+        // glance which two directions this mirror connects
+        ctx.save();
+        ctx.fillStyle = '#fff2c4';
+        orientation.split('').forEach(letter => {
+          const [dx, dy] = MIRROR_DIR[letter] || [0, 0];
+          const tipX = sx + dx * c * 0.95,
+            tipY = sy + dy * c * 0.95;
+          const baseX = sx + dx * c * 0.6,
+            baseY = sy + dy * c * 0.6;
+          const perpX = -dy,
+            perpY = dx;
+          const w = tilePx * 0.11;
+          ctx.beginPath();
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(baseX + perpX * w, baseY + perpY * w);
+          ctx.lineTo(baseX - perpX * w, baseY - perpY * w);
+          ctx.closePath();
+          ctx.fill();
+        });
+        ctx.restore();
+      }
+
+      /* ============================================================
+   STATE
+   ============================================================ */
+      function key(x, y) {
+        return x + ',' + y;
+      }
+
+      let grid = new Map(); // "x,y" -> {type:'floor', roomId?}
+      let objectsMap = new Map(); // "x,y" -> {type, pair?}  (pair = object shared between 2 plates)
+      let obstacles = []; // {x,y,roomId} solid tiles tinted by zone (walls)
+      let doors = []; // [{x,y,roomId}]
+      let primitiveSpots = []; // [{x,y,zoneId}]
+      let items = []; // [{x,y,zoneId}] — merged item/vault concept, purely a collectible marker
+      let lockLinks = []; // [{lockKey, pairRef}] — live, editable lock<->pair links
+      let pairCounter = 0;
+
+      let camera = { x: 0, y: 0 };
+      let tilePx = 18;
+      let currentZone = 'swamp';
+      let currentTerrainType = 'floor';
+      let currentObj = 'puddle';
+      let currentTool = 'point';
+      let brushRadius = 3;
+
+      let isPanning = false,
+        panStart = null,
+        camStart = null;
+      let isPainting = false;
+      let isErasing = false;
+      let rectStart = null;
+      let movingMarker = null; // {kind, obj}
+      let linkMode = null; // 'group' | 'link' | null — which of the 2 plate-group tools is armed
+      const LINK_MODE_LABEL = { group: 'group plates', link: 'link lock↔group' };
+      // the ONE group being built/edited right now — every Group/Link click acts on this,
+      // so there's always a single unambiguous answer to "what am I editing?" (shown live
+      // in the panel + highlighted on the map), instead of separate create/select/add tools
+      let activeGroup = null; // pairRef, or null when nothing is active
+      let chunkRectStart = null; // tile where a "Move chunk" selection drag began
+      let chunkCarry = null; // {x0,y0,x1,y1, gridCells,obsCells,objCells,itemCells,doorCells,runeCells} — cut, awaiting drop
+
+      /* ============================================================
+   UNDO — one snapshot per user gesture (a whole drag/click, not per mousemove tick)
+   ============================================================ */
+      const UNDO_LIMIT = 50;
+      let undoStack = [];
+
+      // a plain deep-clone would split a sym_plate's shared .pair marker into independent
+      // copies per plate, silently breaking group membership on restore — clone every
+      // plate's pair through the same pairClones map instead, so plates that shared a
+      // reference before still share one (a different, but single, object) after
+      function snapshotState() {
+        const pairClones = new Map();
+        const objectsClone = new Map();
+        objectsMap.forEach((o, k) => {
+          if (o.type === 'sym_plate' && o.pair) {
+            if (!pairClones.has(o.pair)) pairClones.set(o.pair, { ...o.pair });
+            objectsClone.set(k, { ...o, pair: pairClones.get(o.pair) });
+          } else {
+            objectsClone.set(k, { ...o });
+          }
+        });
+        return {
+          grid: new Map(grid),
+          objectsMap: objectsClone,
+          obstacles: obstacles.map(o => ({ ...o })),
+          doors: doors.map(o => ({ ...o })),
+          primitiveSpots: primitiveSpots.map(o => ({ ...o })),
+          items: items.map(o => ({ ...o })),
+          lockLinks: lockLinks.map(l => ({ lockKey: l.lockKey, pairRef: pairClones.get(l.pairRef) || l.pairRef })),
+          pairCounter,
+        };
+      }
+
+      function pushUndo() {
+        undoStack.push(snapshotState());
+        if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+      }
+
+      function undo() {
+        if (!undoStack.length) {
+          showToast('Nothing to undo');
+          return;
+        }
+        // mid-gesture chunk state doesn't belong to any snapshot — drop it rather than
+        // leave it dangling against a map it no longer matches. activeGroup is a direct
+        // object reference into objectsMap's pair markers too — restoring a snapshot swaps
+        // in freshly-cloned pair objects, so the old reference would silently match nothing
+        chunkCarry = null;
+        chunkRectStart = null;
+        activeGroup = null;
+        const snap = undoStack.pop();
+        grid = snap.grid;
+        objectsMap = snap.objectsMap;
+        obstacles = snap.obstacles;
+        doors = snap.doors;
+        primitiveSpots = snap.primitiveSpots;
+        items = snap.items;
+        lockLinks = snap.lockLinks;
+        pairCounter = snap.pairCounter;
+        render();
+        updateStats();
+        renderGroupPanel();
+        showToast('Undo (' + undoStack.length + ' left)');
+      }
+
+      const cv = document.getElementById('cv');
+      const ctx = cv.getContext('2d');
+
+      /* ============================================================
+   LOADING from MAP_DATA
+   ============================================================ */
+      function loadMapData(d) {
+        grid.clear();
+        objectsMap.clear();
+        obstacles = [];
+        doors = [];
+        primitiveSpots = [];
+        items = [];
+        lockLinks = [];
+        undoStack = []; // a freshly loaded map has no meaningful "before" to undo into
+        chunkCarry = null;
+        chunkRectStart = null;
+        activeGroup = null;
+
+        const [minX, minY, maxX, maxY] = d.bounds;
+        const OBSTACLE_ZONE = { 1: 'swamp', 2: 'cavern', 3: 'orchard', 4: 'marsh' };
+        let idx = 0;
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            const c = d.gridStr[idx++];
+            if (c === '.') continue;
+            const oz = OBSTACLE_ZONE[c];
+            if (oz) {
+              obstacles.push({ x, y, roomId: oz });
+              continue;
+            }
+            const def = FLOOR_CHARS[c];
+            if (!def) continue;
+            grid.set(key(x, y), { type: 'floor', roomId: def[0] });
+            if (def[1]) objectsMap.set(key(x, y), { type: def[1] });
+          }
+        }
+
+        ZORDER.forEach((z, i) => {
+          if (d.doors && d.doors[i]) doors.push({ x: d.doors[i][0], y: d.doors[i][1], roomId: z });
+          if (d.primitiveSpots && d.primitiveSpots[i])
+            primitiveSpots.push({
+              x: d.primitiveSpots[i][0],
+              y: d.primitiveSpots[i][1],
+              zoneId: z,
+            });
+        });
+        (d.items || []).forEach(p => items.push({ x: p[0], y: p[1], zoneId: ZORDER[p[2]] }));
+
+        const pairsById = {};
+        const MIRROR_ORIENTATIONS = ['NE', 'ES', 'SW', 'WN'];
+        (d.objects || []).forEach(o => {
+          const [x, y, typeCode, extra] = o;
+          const type = CODE_TYPE[typeCode];
+          if (!type) return;
+          if (type === 'sym_plate') {
+            if (extra === undefined) {
+              objectsMap.set(key(x, y), { type, pair: null });
+            } else {
+              if (!pairsById[extra]) pairsById[extra] = { id: 'p' + extra };
+              objectsMap.set(key(x, y), { type, pair: pairsById[extra] });
+              pairCounter = Math.max(pairCounter, extra + 1);
+            }
+          } else if (type === 'mirror_surface') {
+            objectsMap.set(key(x, y), { type, orientation: MIRROR_ORIENTATIONS[extra] || 'NE' });
+          } else {
+            objectsMap.set(key(x, y), { type });
+          }
+        });
+
+        // rebuild live lock<->pair links from the raw verrouLinks format [lockX, lockY, pairId]
+        (d.verrouLinks || []).forEach(link => {
+          const [lx, ly, pairId] = link;
+          const lockKey = key(lx, ly);
+          if (!objectsMap.has(lockKey)) return;
+          const pairRef = pairsById[pairId];
+          if (!pairRef) return;
+          lockLinks.push({ lockKey, pairRef });
+        });
+
+        camera.x = primitiveSpots.length
+          ? Math.round(primitiveSpots.reduce((s, p) => s + p.x, 0) / primitiveSpots.length)
+          : 0;
+        camera.y = primitiveSpots.length
+          ? Math.round(primitiveSpots.reduce((s, p) => s + p.y, 0) / primitiveSpots.length)
+          : 0;
+        renderGroupPanel();
+      }
+
+      /* ============================================================
+   RENDERING
+   ============================================================ */
+      function resizeCanvas() {
+        const wrap = document.getElementById('canvasWrap');
+        cv.width = wrap.clientWidth;
+        cv.height = wrap.clientHeight;
+      }
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+        render();
+      });
+
+      function screenToTile(sx, sy) {
+        const wx = camera.x + (sx - cv.width / 2) / tilePx;
+        const wy = camera.y + (sy - cv.height / 2) / tilePx;
+        return { x: Math.floor(wx + 0.5), y: Math.floor(wy + 0.5) };
+      }
+      function tileToScreen(x, y) {
+        return {
+          sx: cv.width / 2 + (x - camera.x) * tilePx,
+          sy: cv.height / 2 + (y - camera.y) * tilePx,
+        };
+      }
+
+      function render() {
+        ctx.fillStyle = '#0a0908';
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        const tilesX = Math.ceil(cv.width / tilePx) + 2,
+          tilesY = Math.ceil(cv.height / tilePx) + 2;
+        const x0 = Math.floor(camera.x - tilesX / 2),
+          x1 = Math.ceil(camera.x + tilesX / 2);
+        const y0 = Math.floor(camera.y - tilesY / 2),
+          y1 = Math.ceil(camera.y + tilesY / 2);
+
+        const obstacleMap = new Map();
+        obstacles.forEach(o => obstacleMap.set(key(o.x, o.y), o.roomId));
+
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            const k = key(x, y);
+            const cell = grid.get(k);
+            const { sx, sy } = tileToScreen(x, y);
+            if (cell) {
+              const color = ZONE_COLOR[cell.roomId] || NEUTRAL_COLOR;
+              ctx.fillStyle = color;
+              ctx.fillRect(sx - tilePx / 2, sy - tilePx / 2, tilePx - 1, tilePx - 1);
+            } else if (obstacleMap.has(k)) {
+              const zoneId = obstacleMap.get(k);
+              ctx.fillStyle = OBSTACLE_COLOR[zoneId] || '#1a1a1a';
+              ctx.globalAlpha = 0.55;
+              ctx.fillRect(sx - tilePx / 2, sy - tilePx / 2, tilePx - 1, tilePx - 1);
+              ctx.globalAlpha = 1;
+            }
+          }
+        }
+
+        // objects
+        objectsMap.forEach((o, k) => {
+          const [x, y] = k.split(',').map(Number);
+          if (x < x0 - 1 || x > x1 + 1 || y < y0 - 1 || y > y1 + 1) return;
+          const { sx, sy } = tileToScreen(x, y);
+          const style = OBJ_STYLE[o.type] || { color: '#fff', label: '?' };
+          ctx.fillStyle = o.type === 'sym_plate' ? groupColor(o.pair) : style.color;
+          ctx.beginPath();
+          ctx.arc(sx, sy, tilePx * 0.32, 0, 7);
+          ctx.fill();
+          if (o.type === 'mirror_surface') {
+            drawMirrorGlyph(sx, sy, o.orientation);
+          } else if (tilePx > 10) {
+            ctx.fillStyle = '#111';
+            ctx.font = tilePx * 0.5 + 'px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(style.label, sx, sy + 1);
+          }
+        });
+
+        // lock <-> plate pair links (dashed lines, tinted to match their group's color)
+        ctx.save();
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([5, 4]);
+        lockLinks.forEach(link => {
+          if (!objectsMap.has(link.lockKey)) return;
+          const [lx, ly] = link.lockKey.split(',').map(Number);
+          const lp = tileToScreen(lx, ly);
+          ctx.strokeStyle = hexToRgba(groupColor(link.pairRef), 0.65);
+          objectsMap.forEach((o, k) => {
+            if (o.type !== 'sym_plate' || o.pair !== link.pairRef) return;
+            const [px, py] = k.split(',').map(Number);
+            const pp = tileToScreen(px, py);
+            ctx.beginPath();
+            ctx.moveTo(lp.sx, lp.sy);
+            ctx.lineTo(pp.sx, pp.sy);
+            ctx.stroke();
+          });
+        });
+        ctx.restore();
+        // highlight the active group's plates, and any lock(s) it's linked to, so it's
+        // always visually obvious what the Group/Link tools are about to act on
+        if (activeGroup) {
+          const color = groupColor(activeGroup);
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3;
+          groupMembers(activeGroup).forEach(m => {
+            const { sx, sy } = tileToScreen(m.x, m.y);
+            ctx.beginPath();
+            ctx.arc(sx, sy, tilePx * 0.55, 0, 7);
+            ctx.stroke();
+          });
+          ctx.setLineDash([3, 3]);
+          linksForGroup(activeGroup).forEach(l => {
+            const [lx, ly] = l.lockKey.split(',').map(Number);
+            const { sx, sy } = tileToScreen(lx, ly);
+            ctx.beginPath();
+            ctx.arc(sx, sy, tilePx * 0.55, 0, 7);
+            ctx.stroke();
+          });
+          ctx.restore();
+        }
+
+        // markers
+        function marker(x, y, color, label) {
+          const { sx, sy } = tileToScreen(x, y);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(sx, sy, tilePx * 0.42, 0, 7);
+          ctx.stroke();
+          if (tilePx > 10) {
+            ctx.fillStyle = color;
+            ctx.font = 'bold ' + tilePx * 0.4 + 'px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, sx, sy - tilePx * 0.55);
+          }
+        }
+        doors.forEach(d => marker(d.x, d.y, '#7ab0ff', 'door'));
+        primitiveSpots.forEach(p => marker(p.x, p.y, '#ffd85a', 'rune'));
+        items.forEach(p => marker(p.x, p.y, '#5affb0', 'item'));
+
+        // circle/rectangle tool preview
+        if ((currentTool === 'circle' || currentTool === 'rect') && hoverTile) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          ctx.lineWidth = 1.5;
+          const { sx, sy } = tileToScreen(hoverTile.x, hoverTile.y);
+          if (currentTool === 'circle') {
+            ctx.beginPath();
+            ctx.arc(sx, sy, brushRadius * tilePx, 0, 7);
+            ctx.stroke();
+          } else if (rectStart) {
+            const a = tileToScreen(rectStart.x, rectStart.y);
+            ctx.strokeRect(
+              Math.min(a.sx, sx),
+              Math.min(a.sy, sy),
+              Math.abs(sx - a.sx),
+              Math.abs(sy - a.sy)
+            );
+          }
+        }
+
+        // "Move chunk": selection rectangle while dragging it out, or a ghost of the
+        // carried tiles/objects/markers at the drop offset once it's been cut
+        if (currentTool === 'chunk' && chunkRectStart && hoverTile) {
+          const a = tileToScreen(chunkRectStart.x, chunkRectStart.y);
+          const b = tileToScreen(hoverTile.x, hoverTile.y);
+          ctx.strokeStyle = '#ffe066';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(Math.min(a.sx, b.sx), Math.min(a.sy, b.sy), Math.abs(b.sx - a.sx), Math.abs(b.sy - a.sy));
+        }
+        if (currentTool === 'chunk' && chunkCarry) {
+          const dx = (hoverTile ? hoverTile.x : chunkCarry.x0) - chunkCarry.x0;
+          const dy = (hoverTile ? hoverTile.y : chunkCarry.y0) - chunkCarry.y0;
+          ctx.globalAlpha = 0.55;
+          chunkCarry.gridCells.forEach(c => {
+            const { sx, sy } = tileToScreen(c.x + dx, c.y + dy);
+            ctx.fillStyle = ZONE_COLOR[c.cell.roomId] || NEUTRAL_COLOR;
+            ctx.fillRect(sx - tilePx / 2, sy - tilePx / 2, tilePx - 1, tilePx - 1);
+          });
+          chunkCarry.obsCells.forEach(o => {
+            const { sx, sy } = tileToScreen(o.x + dx, o.y + dy);
+            ctx.fillStyle = OBSTACLE_COLOR[o.roomId] || '#1a1a1a';
+            ctx.fillRect(sx - tilePx / 2, sy - tilePx / 2, tilePx - 1, tilePx - 1);
+          });
+          ctx.globalAlpha = 1;
+          chunkCarry.objCells.forEach(c => {
+            const { sx, sy } = tileToScreen(c.x + dx, c.y + dy);
+            const style = OBJ_STYLE[c.o.type] || { color: '#fff', label: '?' };
+            ctx.fillStyle = style.color;
+            ctx.beginPath();
+            ctx.arc(sx, sy, tilePx * 0.32, 0, 7);
+            ctx.fill();
+          });
+          chunkCarry.itemCells.forEach(p => marker(p.x + dx, p.y + dy, '#5affb0', 'item'));
+          chunkCarry.doorCells.forEach(d => marker(d.x + dx, d.y + dy, '#7ab0ff', 'door'));
+          chunkCarry.runeCells.forEach(p => marker(p.x + dx, p.y + dy, '#ffd85a', 'rune'));
+          const ta = tileToScreen(chunkCarry.x0 + dx, chunkCarry.y0 + dy);
+          const tb = tileToScreen(chunkCarry.x1 + dx, chunkCarry.y1 + dy);
+          ctx.strokeStyle = '#ffe066';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(
+            Math.min(ta.sx, tb.sx) - tilePx / 2,
+            Math.min(ta.sy, tb.sy) - tilePx / 2,
+            Math.abs(tb.sx - ta.sx) + tilePx,
+            Math.abs(tb.sy - ta.sy) + tilePx
+          );
+        }
+
+        updateHud();
+      }
+
+      let hoverTile = null;
+
+      function updateHud() {
+        const hud = document.getElementById('hud');
+        let extra = '';
+        if (linkMode) extra = `<br>mode: <b>${LINK_MODE_LABEL[linkMode] || linkMode}</b>`;
+        hud.innerHTML = hoverTile
+          ? `tile: <b>${hoverTile.x}, ${hoverTile.y}</b><br>zoom: <b>${tilePx}px</b>${extra}`
+          : `zoom: <b>${tilePx}px</b>${extra}`;
+        const stZoom = document.getElementById('stZoom');
+        if (stZoom) stZoom.textContent = Math.round(tilePx) + 'px';
+        const stTile = document.getElementById('stTile');
+        if (stTile) stTile.textContent = hoverTile ? hoverTile.x + ', ' + hoverTile.y : '—';
+      }
+
+      /* ============================================================
+   EDITING
+   ============================================================ */
+      function setTerrain(x, y) {
+        const k = key(x, y);
+        if (currentTerrainType === 'wall') {
+          grid.delete(k);
+          objectsMap.delete(k);
+          if (!obstacles.some(o => o.x === x && o.y === y))
+            obstacles.push({ x, y, roomId: currentZone });
+          return;
+        }
+        const type = currentTerrainType;
+        const oi = obstacles.findIndex(o => o.x === x && o.y === y);
+        if (oi >= 0) obstacles.splice(oi, 1);
+        else grid.set(k, { type, roomId: currentZone });
+      }
+
+      function placeObjectAt(x, y) {
+        const k = key(x, y);
+        if (!grid.has(k)) return; // needs floor underneath
+        if (currentObj === 'sym_plate') {
+          objectsMap.set(k, { type: 'sym_plate', pair: null }); // lone plate — pair it later with the Pair tool
+          return;
+        }
+        if (currentObj === 'mirror_surface') {
+          const orientation = document.getElementById('mirrorOrientation').value;
+          objectsMap.set(k, { type: 'mirror_surface', orientation });
+          return;
+        }
+        objectsMap.set(k, { type: currentObj });
+      }
+
+      // erase whatever's under the cursor: object first, then item, then wall/terrain
+      function eraseAt(t) {
+        if (objectsMap.has(key(t.x, t.y))) eraseObjectAt(t.x, t.y);
+        else if (items.some(p => p.x === t.x && p.y === t.y)) eraseItemAt(t.x, t.y);
+        else {
+          const oi = obstacles.findIndex(o => o.x === t.x && o.y === t.y);
+          if (oi >= 0) obstacles.splice(oi, 1);
+          else {
+            grid.delete(key(t.x, t.y));
+          }
+        }
+      }
+
+      function eraseObjectAt(x, y) {
+        const o = objectsMap.get(key(x, y));
+        if (o && o.type === 'sym_plate') {
+          // also drop any lock links pointing at this pair once it's broken
+          const remaining = [...objectsMap.entries()].filter(
+            ([k2, o2]) => o2.type === 'sym_plate' && o2.pair === o.pair && k2 !== key(x, y)
+          );
+          if (!remaining.length) lockLinks = lockLinks.filter(l => l.pairRef !== o.pair);
+        }
+        if (o && o.type === 'lock') {
+          lockLinks = lockLinks.filter(l => l.lockKey !== key(x, y));
+        }
+        objectsMap.delete(key(x, y));
+      }
+
+      // "Move chunk": lifts everything inside a rectangle out of the live map (cut) so it
+      // can be dropped elsewhere. Object VALUES are carried by reference, not rebuilt — a
+      // moved sym_plate keeps the same shared .pair marker, so group membership survives
+      // untouched; only a moved lock needs its lockLinks entry's lockKey updated, since
+      // that's the one link keyed by position rather than by object reference.
+      function cutChunk(xa, ya, xb, yb) {
+        const x0 = Math.min(xa, xb),
+          x1 = Math.max(xa, xb);
+        const y0 = Math.min(ya, yb),
+          y1 = Math.max(ya, yb);
+        const inBox = (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+
+        const gridCells = [];
+        grid.forEach((cell, k) => {
+          const [x, y] = k.split(',').map(Number);
+          if (inBox(x, y)) gridCells.push({ x, y, cell });
+        });
+        gridCells.forEach(c => grid.delete(key(c.x, c.y)));
+
+        const obsCells = obstacles.filter(o => inBox(o.x, o.y));
+        obstacles = obstacles.filter(o => !inBox(o.x, o.y));
+
+        const objCells = [];
+        objectsMap.forEach((o, k) => {
+          const [x, y] = k.split(',').map(Number);
+          if (inBox(x, y)) objCells.push({ x, y, o });
+        });
+        objCells.forEach(c => objectsMap.delete(key(c.x, c.y)));
+
+        const itemCells = items.filter(p => inBox(p.x, p.y));
+        items = items.filter(p => !inBox(p.x, p.y));
+        const doorCells = doors.filter(d => inBox(d.x, d.y));
+        doors = doors.filter(d => !inBox(d.x, d.y));
+        const runeCells = primitiveSpots.filter(p => inBox(p.x, p.y));
+        primitiveSpots = primitiveSpots.filter(p => !inBox(p.x, p.y));
+
+        return { x0, y0, x1, y1, gridCells, obsCells, objCells, itemCells, doorCells, runeCells };
+      }
+
+      // drops a cutChunk() result offset by (dx,dy); (0,0) is how a cancel restores it
+      // exactly. Clears the WHOLE destination rectangle first — a true stamp, not a
+      // sparse overlay — so a gap in the cut selection (a void tile, or a spot with no
+      // object) overwrites whatever was at the destination too, instead of leaving the
+      // destination's old terrain/objects peeking through underneath.
+      function pasteChunk(carry, dx, dy) {
+        const dx0 = carry.x0 + dx,
+          dx1 = carry.x1 + dx;
+        const dy0 = carry.y0 + dy,
+          dy1 = carry.y1 + dy;
+        const inDestBox = (x, y) => x >= dx0 && x <= dx1 && y >= dy0 && y <= dy1;
+        for (let y = dy0; y <= dy1; y++) {
+          for (let x = dx0; x <= dx1; x++) {
+            if (objectsMap.has(key(x, y))) eraseObjectAt(x, y); // also drops any lockLinks it held
+            grid.delete(key(x, y));
+          }
+        }
+        obstacles = obstacles.filter(o => !inDestBox(o.x, o.y));
+        items = items.filter(p => !inDestBox(p.x, p.y));
+        doors = doors.filter(d => !inDestBox(d.x, d.y));
+        primitiveSpots = primitiveSpots.filter(p => !inDestBox(p.x, p.y));
+
+        carry.gridCells.forEach(c => grid.set(key(c.x + dx, c.y + dy), c.cell));
+        carry.obsCells.forEach(o => obstacles.push({ x: o.x + dx, y: o.y + dy, roomId: o.roomId }));
+        carry.objCells.forEach(c => {
+          const nx = c.x + dx,
+            ny = c.y + dy;
+          const newKey = key(nx, ny);
+          if (c.o.type === 'lock') {
+            const oldKey = key(c.x, c.y);
+            lockLinks.forEach(l => {
+              if (l.lockKey === oldKey) l.lockKey = newKey;
+            });
+          }
+          objectsMap.set(newKey, c.o);
+        });
+        carry.itemCells.forEach(p => items.push({ x: p.x + dx, y: p.y + dy, zoneId: p.zoneId }));
+        carry.doorCells.forEach(d => doors.push({ x: d.x + dx, y: d.y + dy, roomId: d.roomId }));
+        carry.runeCells.forEach(p =>
+          primitiveSpots.push({ x: p.x + dx, y: p.y + dy, zoneId: p.zoneId })
+        );
+      }
+
+      function cancelChunkCarry() {
+        if (!chunkCarry) return;
+        pasteChunk(chunkCarry, 0, 0); // same coords it was cut from
+        chunkCarry = null;
+      }
+
+      function applyBrushCircle(cx, cy, r, fn) {
+        for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) {
+          for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+            if (Math.hypot(dx, dy) <= r) fn(cx + dx, cy + dy);
+          }
+        }
+      }
+      function applyBrushRect(x0, y0, x1, y1, fn) {
+        const xa = Math.min(x0, x1),
+          xb = Math.max(x0, x1),
+          ya = Math.min(y0, y1),
+          yb = Math.max(y0, y1);
+        for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) fn(x, y);
+      }
+
+      function currentApplyFn() {
+        if (activeMode === 'terrain') return setTerrain;
+        if (activeMode === 'eraseObj') return eraseObjectAt;
+        if (activeMode === 'item') return addItemAt;
+        if (activeMode === 'eraseItem') return eraseItemAt;
+        return placeObjectAt;
+      }
+
+      let activeMode = 'terrain'; // 'terrain' | 'object' | 'eraseObj' | 'item' | 'eraseItem'
+
+      function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        clearTimeout(showToast._h);
+        showToast._h = setTimeout(() => t.classList.remove('show'), 1600);
+      }
+
+      /* ---- items ---- */
+      function zoneAt(x, y) {
+        const cell = grid.get(key(x, y));
+        return cell ? cell.roomId : null;
+      }
+      // painted like any other tool (currentApplyFn) — no per-tile toast, since a drag can
+      // call this many times a second. Skips tiles that already have one instead of stacking dupes.
+      function addItemAt(x, y) {
+        const zoneId = zoneAt(x, y);
+        if (!zoneId || zoneId === 'hub') return;
+        if (items.some(p => p.x === x && p.y === y)) return;
+        items.push({ x, y, zoneId });
+      }
+      function eraseItemAt(x, y) {
+        items = items.filter(p => !(p.x === x && p.y === y));
+      }
+
+      /* ---- plate groups: one "active group" everything acts on ---- */
+      function groupMembers(pairRef) {
+        const out = [];
+        objectsMap.forEach((o, k) => {
+          if (o.type === 'sym_plate' && o.pair === pairRef) {
+            const [x, y] = k.split(',').map(Number);
+            out.push({ k, x, y });
+          }
+        });
+        return out;
+      }
+      function linksForGroup(pairRef) {
+        return lockLinks.filter(l => l.pairRef === pairRef);
+      }
+      // every distinct group currently on the map, for the panel's "switch to" list
+      function allGroups() {
+        const seen = new Set();
+        const out = [];
+        objectsMap.forEach(o => {
+          if (o.type === 'sym_plate' && o.pair && !seen.has(o.pair)) {
+            seen.add(o.pair);
+            out.push(o.pair);
+          }
+        });
+        return out;
+      }
+      // a lock link pointing at a group that's been emptied out is dead weight —
+      // drop it the moment its last member leaves, from whichever path caused that
+      function pruneEmptyGroupLinks(pairRef) {
+        if (!groupMembers(pairRef).length) lockLinks = lockLinks.filter(l => l.pairRef !== pairRef);
+      }
+      // Group tool: one click does whichever of add/remove/switch makes sense for what
+      // was clicked — no separate "create" vs "add to existing" vs "select" tools to pick between
+      function tryGroupClick(x, y) {
+        const o = objectsMap.get(key(x, y));
+        if (!o || o.type !== 'sym_plate') {
+          showToast('Click a plate');
+          return;
+        }
+        if (o.pair && o.pair !== activeGroup) {
+          activeGroup = o.pair;
+          renderGroupPanel();
+          showToast('Switched to group ' + activeGroup.id + ' (' + groupMembers(activeGroup).length + ' plates)');
+          return;
+        }
+        if (o.pair && o.pair === activeGroup) {
+          o.pair = null;
+          pruneEmptyGroupLinks(activeGroup);
+          if (!groupMembers(activeGroup).length) activeGroup = null;
+          renderGroupPanel();
+          showToast('Removed from group');
+          return;
+        }
+        if (!activeGroup) activeGroup = { id: 'p' + pairCounter++ };
+        const members = groupMembers(activeGroup);
+        if (members.length >= 4) {
+          showToast('A group can have at most 4 plates — Deselect to start another');
+          return;
+        }
+        o.pair = activeGroup;
+        renderGroupPanel();
+        showToast('Added to group (' + (members.length + 1) + '/4)');
+      }
+      // Link tool: toggles a lock's link with the active group — no more clicking lock
+      // then plate (or the reverse) in a fiddly 2-step dance, the group is already known
+      function tryLinkClick(x, y) {
+        if (!activeGroup) {
+          showToast('Group a plate first — that becomes the active group to link');
+          return;
+        }
+        const k = key(x, y);
+        const o = objectsMap.get(k);
+        if (!o || o.type !== 'lock') {
+          showToast('Click a lock');
+          return;
+        }
+        const idx = lockLinks.findIndex(l => l.lockKey === k && l.pairRef === activeGroup);
+        if (idx >= 0) {
+          lockLinks.splice(idx, 1);
+          showToast('Lock unlinked');
+        } else {
+          lockLinks.push({ lockKey: k, pairRef: activeGroup });
+          showToast('Lock linked to group ' + activeGroup.id);
+        }
+        renderGroupPanel();
+      }
+      function removeMemberFromGroup(k) {
+        const o = objectsMap.get(k);
+        if (!o || o.type !== 'sym_plate' || !o.pair) return;
+        pushUndo();
+        const pairRef = o.pair;
+        o.pair = null;
+        pruneEmptyGroupLinks(pairRef);
+        if (!groupMembers(pairRef).length && activeGroup === pairRef) activeGroup = null;
+        render();
+        updateStats();
+        renderGroupPanel();
+        showToast('Plate removed from group');
+      }
+      function removeGroupLink(lockKey, pairRef) {
+        pushUndo();
+        lockLinks = lockLinks.filter(l => !(l.lockKey === lockKey && l.pairRef === pairRef));
+        render();
+        updateStats();
+        renderGroupPanel();
+        showToast('Lock unlinked');
+      }
+      function deleteActiveGroup() {
+        if (!activeGroup) return;
+        pushUndo();
+        objectsMap.forEach(o => {
+          if (o.type === 'sym_plate' && o.pair === activeGroup) o.pair = null;
+        });
+        lockLinks = lockLinks.filter(l => l.pairRef !== activeGroup);
+        activeGroup = null;
+        render();
+        updateStats();
+        renderGroupPanel();
+        showToast('Group deleted');
+      }
+      function renderGroupPanel() {
+        const box = document.getElementById('groupPanel');
+        if (!box) return;
+        const others = allGroups().filter(g => g !== activeGroup);
+        let html = '';
+        if (!activeGroup) {
+          html +=
+            '<div style="color:var(--ink-faint)">No active group — click a lone plate to start one.</div>';
+        } else {
+          const members = groupMembers(activeGroup);
+          const links = linksForGroup(activeGroup);
+          const color = groupColor(activeGroup);
+          html +=
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
+            '<span class="swatch" style="background:' + color + '"></span>' +
+            '<b>' + activeGroup.id + '</b> — ' + members.length + '/4 plates' +
+            '<button id="btnDeselectGroup" style="margin-left:auto;padding:3px 8px">✕ Deselect</button>' +
+            '</div>';
+          members.forEach(m => {
+            html +=
+              '<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 0">' +
+              '<span>plate (' + m.x + ', ' + m.y + ')</span>' +
+              '<button data-k="' + m.k + '" class="danger-ghost btn-remove-member" style="padding:3px 8px">✕</button>' +
+              '</div>';
+          });
+          html += '<div class="divider-thin" style="margin:8px 0"></div>';
+          if (links.length) {
+            links.forEach(l => {
+              const [lx, ly] = l.lockKey.split(',').map(Number);
+              html +=
+                '<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 0">' +
+                '<span>🔗 lock (' + lx + ', ' + ly + ')</span>' +
+                '<button data-lock="' + l.lockKey + '" class="danger-ghost btn-remove-link" style="padding:3px 8px">✕</button>' +
+                '</div>';
+            });
+          } else {
+            html += '<div style="color:var(--ink-faint)">No lock linked yet.</div>';
+          }
+          html +=
+            '<button id="btnDeleteGroup" class="danger-ghost" style="margin-top:8px;width:100%">🗑 Delete group</button>';
+        }
+        if (others.length) {
+          html += '<div class="divider-thin" style="margin:8px 0"></div>';
+          html += '<div style="color:var(--ink-faint);margin-bottom:4px">Other groups:</div>';
+          html += '<div class="row">';
+          others.forEach(g => {
+            html +=
+              '<button data-switch="' + g.id + '" class="btn-switch-group" style="display:flex;align-items:center;gap:5px">' +
+              '<span class="swatch" style="background:' + groupColor(g) + '"></span>' +
+              g.id + ' (' + groupMembers(g).length + '/4)</button>';
+          });
+          html += '</div>';
+        }
+        box.innerHTML = html;
+        const groupsById = {};
+        allGroups().forEach(g => (groupsById[g.id] = g));
+        box.querySelectorAll('.btn-remove-member').forEach(btn =>
+          btn.addEventListener('click', () => removeMemberFromGroup(btn.dataset.k))
+        );
+        box.querySelectorAll('.btn-remove-link').forEach(btn =>
+          btn.addEventListener('click', () => removeGroupLink(btn.dataset.lock, activeGroup))
+        );
+        box.querySelectorAll('.btn-switch-group').forEach(btn =>
+          btn.addEventListener('click', () => {
+            activeGroup = groupsById[btn.dataset.switch];
+            renderGroupPanel();
+            render();
+          })
+        );
+        const deselectBtn = document.getElementById('btnDeselectGroup');
+        if (deselectBtn)
+          deselectBtn.addEventListener('click', () => {
+            activeGroup = null;
+            renderGroupPanel();
+            render();
+          });
+        const deleteBtn = document.getElementById('btnDeleteGroup');
+        if (deleteBtn) deleteBtn.addEventListener('click', deleteActiveGroup);
+      }
+
+      /* ============================================================
+   MOUSE
+   ============================================================ */
+      cv.addEventListener('contextmenu', e => e.preventDefault());
+
+      cv.addEventListener('mousedown', e => {
+        const t = screenToTile(e.offsetX, e.offsetY);
+        if (e.button === 1) {
+          e.preventDefault();
+          isPanning = true;
+          panStart = { x: e.clientX, y: e.clientY };
+          camStart = { x: camera.x, y: camera.y };
+          return;
+        }
+        if (e.button === 2) {
+          if (currentTool === 'chunk' && chunkCarry) {
+            cancelChunkCarry();
+            render();
+            updateStats();
+            showToast('Chunk move canceled');
+            return;
+          }
+          pushUndo();
+          isErasing = true;
+          eraseAt(t);
+          render();
+          updateStats();
+          return;
+        }
+        if (e.button !== 0) return;
+
+        if (linkMode === 'group') {
+          pushUndo();
+          tryGroupClick(t.x, t.y);
+          render();
+          return;
+        }
+        if (linkMode === 'link') {
+          pushUndo();
+          tryLinkClick(t.x, t.y);
+          render();
+          return;
+        }
+
+        if (currentTool === 'chunk') {
+          if (chunkCarry) {
+            const dx = t.x - chunkCarry.x0,
+              dy = t.y - chunkCarry.y0;
+            pasteChunk(chunkCarry, dx, dy);
+            chunkCarry = null;
+            updateStats();
+            render();
+            showToast('Chunk moved');
+          } else {
+            chunkRectStart = t;
+          }
+          return;
+        }
+        if (currentTool === 'move') {
+          const m = findMarkerNear(t.x, t.y);
+          if (m) pushUndo();
+          movingMarker = m;
+          return;
+        }
+        if (currentTool === 'point') {
+          pushUndo();
+          isPainting = true;
+          currentApplyFn()(t.x, t.y);
+          render();
+          return;
+        }
+        if (currentTool === 'circle') {
+          pushUndo();
+          applyBrushCircle(t.x, t.y, brushRadius, currentApplyFn());
+          render();
+          return;
+        }
+        if (currentTool === 'rect') {
+          rectStart = t;
+          return;
+        }
+      });
+
+      cv.addEventListener('mousemove', e => {
+        hoverTile = screenToTile(e.offsetX, e.offsetY);
+        if (isPanning) {
+          camera.x = camStart.x - (e.clientX - panStart.x) / tilePx;
+          camera.y = camStart.y - (e.clientY - panStart.y) / tilePx;
+        } else if (isPainting && currentTool === 'point') {
+          currentApplyFn()(hoverTile.x, hoverTile.y);
+        } else if (isErasing) {
+          eraseAt(hoverTile);
+        } else if (movingMarker) {
+          if (movingMarker.kind === 'object') {
+            const newKey = key(hoverTile.x, hoverTile.y);
+            const oldKey = key(movingMarker.x, movingMarker.y);
+            if (newKey !== oldKey && grid.has(newKey) && !objectsMap.has(newKey)) {
+              objectsMap.delete(oldKey);
+              objectsMap.set(newKey, movingMarker.value);
+              movingMarker.x = hoverTile.x;
+              movingMarker.y = hoverTile.y;
+            }
+          } else {
+            movingMarker.obj.x = hoverTile.x;
+            movingMarker.obj.y = hoverTile.y;
+          }
+        }
+        render();
+      });
+
+      window.addEventListener('mouseup', e => {
+        if (e.button === 1) {
+          isPanning = false;
+        }
+        if (e.button === 2) {
+          if (isErasing) updateStats();
+          isErasing = false;
+        }
+        if (e.button === 0) {
+          isPainting = false;
+          if (currentTool === 'rect' && rectStart) {
+            const t = hoverTile || rectStart;
+            pushUndo();
+            applyBrushRect(rectStart.x, rectStart.y, t.x, t.y, currentApplyFn());
+            rectStart = null;
+            render();
+          }
+          if (currentTool === 'chunk' && chunkRectStart) {
+            const t = hoverTile || chunkRectStart;
+            pushUndo();
+            const carry = cutChunk(chunkRectStart.x, chunkRectStart.y, t.x, t.y);
+            chunkRectStart = null;
+            const n =
+              carry.gridCells.length +
+              carry.obsCells.length +
+              carry.objCells.length +
+              carry.itemCells.length +
+              carry.doorCells.length +
+              carry.runeCells.length;
+            if (n) {
+              chunkCarry = carry;
+              showToast(`Lifted ${n} tiles — click to drop, right-click/Esc to cancel`);
+            } else {
+              undoStack.pop(); // nothing actually changed — don't waste an undo slot
+              showToast('Nothing in that selection');
+            }
+            updateStats();
+            render();
+          }
+          if (movingMarker) {
+            showToast(
+              (movingMarker.kind === 'object' ? movingMarker.value.type : movingMarker.kind) +
+                ' moved'
+            );
+            movingMarker = null;
+          }
+        }
+      });
+
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          if (chunkCarry) {
+            cancelChunkCarry();
+            showToast('Chunk move canceled');
+            render();
+            updateStats();
+          } else if (chunkRectStart) {
+            chunkRectStart = null;
+            render();
+          }
+          return;
+        }
+        // let a native textarea/input (e.g. the export box) handle its own Ctrl+Z
+        const tag = e.target && e.target.tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          undo();
+        }
+      });
+
+      cv.addEventListener(
+        'wheel',
+        e => {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+          tilePx = Math.max(4, Math.min(48, tilePx * factor));
+          render();
+        },
+        { passive: false }
+      );
+
+      function findMarkerNear(x, y) {
+        const all = [
+          ...doors.map(o => ({ obj: o, kind: 'door' })),
+          ...primitiveSpots.map(o => ({ obj: o, kind: 'rune' })),
+          ...items.map(o => ({ obj: o, kind: 'item' })),
+        ];
+        let best = null,
+          bd = Infinity;
+        all.forEach(m => {
+          const d = Math.hypot(m.obj.x - x, m.obj.y - y);
+          if (d < bd && d < 2) {
+            bd = d;
+            best = m;
+          }
+        });
+
+        // objects live in a Map keyed by tile, not a plain {x,y} record, so they need
+        // their own lookup and move strategy
+        objectsMap.forEach((o, k) => {
+          const [ox, oy] = k.split(',').map(Number);
+          const d = Math.hypot(ox - x, oy - y);
+          if (d < bd && d < 2) {
+            bd = d;
+            best = { kind: 'object', value: o, x: ox, y: oy };
+          }
+        });
+        return best;
+      }
+
+      /* ============================================================
+   UI — buttons
+   ============================================================ */
+      function clearAllModesUi() {
+        document
+          .querySelectorAll(
+            '.zone-btn,.obj-btn,#btnTypeFloor,#btnTypeWall,#btnEraseObj,#btnGroupTool,#btnLinkLockTool,#btnAddItem,#btnEraseItem'
+          )
+          .forEach(x => x.classList.remove('active'));
+        linkMode = null;
+      }
+
+      document.querySelectorAll('.zone-btn').forEach(b =>
+        b.addEventListener('click', () => {
+          clearAllModesUi();
+          b.classList.add('active');
+          currentZone = b.dataset.zone;
+          activeMode = 'terrain';
+          document
+            .getElementById(currentTerrainType === 'floor' ? 'btnTypeFloor' : 'btnTypeWall')
+            .classList.add('active');
+        })
+      );
+      document.getElementById('btnTypeFloor').addEventListener('click', function () {
+        currentTerrainType = 'floor';
+        activeMode = 'terrain';
+        setActiveTerrainBtn(this);
+      });
+      document.getElementById('btnTypeWall').addEventListener('click', function () {
+        currentTerrainType = 'wall';
+        activeMode = 'terrain';
+        setActiveTerrainBtn(this);
+      });
+      function setActiveTerrainBtn(btn) {
+        linkMode = null;
+        [document.getElementById('btnTypeFloor'), document.getElementById('btnTypeWall')].forEach(
+          b => b.classList.remove('active')
+        );
+        btn.classList.add('active');
+        document
+          .querySelectorAll('.obj-btn,#btnEraseObj,#btnGroupTool,#btnLinkLockTool')
+          .forEach(x => x.classList.remove('active'));
+      }
+
+      document.querySelectorAll('.obj-btn').forEach(b =>
+        b.addEventListener('click', () => {
+          clearAllModesUi();
+          b.classList.add('active');
+          currentObj = b.dataset.obj;
+          activeMode = 'object';
+        })
+      );
+      document.getElementById('btnEraseObj').addEventListener('click', function () {
+        clearAllModesUi();
+        activeMode = 'eraseObj';
+        this.classList.add('active');
+      });
+
+      document.getElementById('btnGroupTool').addEventListener('click', function () {
+        clearAllModesUi();
+        linkMode = 'group';
+        this.classList.add('active');
+        showToast(
+          activeGroup
+            ? 'Click plates to add/remove from group ' + activeGroup.id
+            : 'Click a lone plate to start a group'
+        );
+      });
+      document.getElementById('btnLinkLockTool').addEventListener('click', function () {
+        clearAllModesUi();
+        linkMode = 'link';
+        this.classList.add('active');
+        showToast(
+          activeGroup ? 'Click a lock to link/unlink group ' + activeGroup.id : 'Group a plate first'
+        );
+      });
+
+      // same mode-select pattern as .obj-btn: arm the tool, then click/drag to paint —
+      // replaces the old immediate hover-and-click, which didn't follow the app's model
+      document.getElementById('btnAddItem').addEventListener('click', function () {
+        clearAllModesUi();
+        activeMode = 'item';
+        this.classList.add('active');
+      });
+      document.getElementById('btnEraseItem').addEventListener('click', function () {
+        clearAllModesUi();
+        activeMode = 'eraseItem';
+        this.classList.add('active');
+      });
+
+      document.querySelectorAll('.tool-btn').forEach(b =>
+        b.addEventListener('click', () => {
+          document.querySelectorAll('.tool-btn').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          if (currentTool === 'chunk' && b.dataset.tool !== 'chunk') {
+            cancelChunkCarry(); // switching away mid-carry would otherwise strand those tiles nowhere
+            chunkRectStart = null;
+          }
+          currentTool = b.dataset.tool;
+          rectStart = null;
+        })
+      );
+
+      document.getElementById('radiusSlider').addEventListener('input', function () {
+        brushRadius = +this.value;
+        document.getElementById('radiusVal').textContent = this.value;
+      });
+
+      document.getElementById('btnZoomIn').addEventListener('click', () => {
+        tilePx = Math.min(48, tilePx * 1.25);
+        render();
+      });
+      document.getElementById('btnZoomOut').addEventListener('click', () => {
+        tilePx = Math.max(4, tilePx / 1.25);
+        render();
+      });
+      document.getElementById('btnResetView').addEventListener('click', () => {
+        if (primitiveSpots.length) {
+          camera.x = primitiveSpots[0].x;
+          camera.y = primitiveSpots[0].y;
+        }
+        tilePx = 18;
+        render();
+      });
+
+      /* ============================================================
+   STATS
+   ============================================================ */
+      function updateStats() {
+        const rawSize = JSON.stringify(computeExport()).length;
+        document.getElementById('stWeightRaw').textContent = rawSize + ' B';
+        document.getElementById('stWalls').textContent = obstacles.length;
+        document.getElementById('stObjects').textContent = objectsMap.size;
+        document.getElementById('stItems').textContent = items.length;
+        document.getElementById('stLinks').textContent = lockLinks.length;
+        scheduleGzipWeight();
+        scheduleAutosave();
+      }
+
+      let gzipWeightTimer = null;
+      function scheduleGzipWeight() {
+        clearTimeout(gzipWeightTimer);
+        gzipWeightTimer = setTimeout(computeGzipWeight, 300);
+      }
+      async function computeGzipWeight() {
+        const el = document.getElementById('stWeightGzip');
+        if (!el) return;
+        if (typeof CompressionStream === 'undefined') {
+          el.textContent = 'n/a';
+          return;
+        }
+        try {
+          const json = JSON.stringify(computeExport());
+          const bytes = new TextEncoder().encode(json);
+          const cs = new CompressionStream('gzip');
+          const writer = cs.writable.getWriter();
+          writer.write(bytes);
+          writer.close();
+          const compressed = await new Response(cs.readable).arrayBuffer();
+          const el2 = document.getElementById('stWeightGzip'); // re-fetch in case stats redrew meanwhile
+          if (el2) el2.textContent = compressed.byteLength + ' B';
+        } catch (e) {
+          if (el) el.textContent = 'error';
+        }
+      }
+
+      /* ============================================================
+   EXPORT
+   ============================================================ */
+      function computeExport() {
+        let minX = Infinity,
+          maxX = -Infinity,
+          minY = Infinity,
+          maxY = -Infinity;
+        grid.forEach((v, k) => {
+          const [x, y] = k.split(',').map(Number);
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        });
+        obstacles.forEach(o => {
+          minX = Math.min(minX, o.x);
+          maxX = Math.max(maxX, o.x);
+          minY = Math.min(minY, o.y);
+          maxY = Math.max(maxY, o.y);
+        });
+
+        const OBSTACLE_CHAR = { swamp: '1', cavern: '2', orchard: '3', marsh: '4' };
+        const obstacleByPos = new Map();
+        obstacles.forEach(o => obstacleByPos.set(key(o.x, o.y), o.roomId));
+
+        let gridStr = '';
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            const k = key(x, y);
+            const cell = grid.get(k);
+            if (cell) {
+              // an object sitting on this tile (puddle/vine/crate/lock) folds into the
+              // char itself instead of the objects array below — see FLOOR_CHARS
+              const occ = objectsMap.get(k);
+              const objChar = occ && CHAR_FOR_OBJ[cell.roomId + '|' + occ.type];
+              gridStr += objChar || CHAR_FOR_ROOM[cell.roomId] || '.';
+              continue;
+            }
+            const oz = obstacleByPos.get(k);
+            gridStr += oz ? OBSTACLE_CHAR[oz] || '.' : '.';
+          }
+        }
+
+        const pairIds = new Map();
+        let pc = 0;
+        objectsMap.forEach(o => {
+          if (o.type === 'sym_plate' && o.pair && !pairIds.has(o.pair)) pairIds.set(o.pair, pc++);
+        });
+        const MIRROR_ORIENTATION_CODE = { NE: 0, ES: 1, SW: 2, WN: 3 };
+        const objects = [];
+        objectsMap.forEach((o, k) => {
+          if (POSITIONAL_TYPES.has(o.type)) return; // encoded into gridStr above, not here
+          const [x, y] = k.split(',').map(Number);
+          const entry = [x, y, TYPE_CODE[o.type]];
+          if (o.type === 'sym_plate' && o.pair) entry.push(pairIds.get(o.pair));
+          if (o.type === 'mirror_surface') entry.push(MIRROR_ORIENTATION_CODE[o.orientation] ?? 0);
+          objects.push(entry);
+        });
+
+        // verrouLinks: rebuilt live from lockLinks, dropping any link whose lock or pair no longer exists
+        const verrouLinks = [];
+        lockLinks.forEach(link => {
+          if (!objectsMap.has(link.lockKey)) return;
+          if (!pairIds.has(link.pairRef)) return;
+          const [lx, ly] = link.lockKey.split(',').map(Number);
+          verrouLinks.push([lx, ly, pairIds.get(link.pairRef)]);
+        });
+
+        const doorsArr = ZORDER.map(z => {
+          const d = doors.find(dd => dd.roomId === z);
+          return d ? [d.x, d.y] : [0, 0];
+        });
+        const primSpots = ZORDER.map(z => {
+          const p = primitiveSpots.find(pp => pp.zoneId === z);
+          return p ? [p.x, p.y] : [0, 0];
+        });
+        const hidden = items.map(p => [p.x, p.y, ZORDER.indexOf(p.zoneId)]);
+
+        return {
+          bounds: [minX, minY, maxX, maxY],
+          gridStr,
+          doors: doorsArr,
+          primitiveSpots: primSpots,
+          items: hidden,
+          objects,
+          verrouLinks,
+        };
+      }
+
+      document.getElementById('btnExport').addEventListener('click', () => {
+        const data = computeExport();
+        document.getElementById('exportBox').value = JSON.stringify(data);
+        document.getElementById('exportDrawer').classList.add('open');
+        showToast('Export généré');
+        updateStats();
+      });
+      document.getElementById('btnCloseExport').addEventListener('click', () => {
+        document.getElementById('exportDrawer').classList.remove('open');
+      });
+      document.getElementById('btnCopy').addEventListener('click', () => {
+        const box = document.getElementById('exportBox');
+        if (!box.value) {
+          showToast("Génère l'export d'abord");
+          return;
+        }
+        box.select();
+        document.execCommand('copy');
+        showToast('Copié dans le presse-papier');
+      });
+      document.getElementById('btnDownload').addEventListener('click', () => {
+        const box = document.getElementById('exportBox');
+        if (!box.value) {
+          showToast("Génère l'export d'abord");
+          return;
+        }
+        const blob = new Blob([box.value], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'map_data_edited.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      /* ============================================================
+   PERSISTENCE — survive a refresh, import/export between sessions
+   ============================================================ */
+      const AUTOSAVE_KEY = 'sunkenTemple_mapEditor_autosave';
+
+      function saveToLocalStorage() {
+        try {
+          localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(computeExport()));
+          const el = document.getElementById('autosaveIndicator');
+          if (el) el.textContent = 'saved ' + new Date().toLocaleTimeString();
+        } catch (e) {
+          /* storage full or unavailable — silently skip, export/download still works */
+        }
+      }
+      let autosaveTimer = null;
+      function scheduleAutosave() {
+        clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(saveToLocalStorage, 500);
+      }
+
+      function importData(data, sourceLabel) {
+        try {
+          loadMapData(data);
+          resizeCanvas();
+          render();
+          updateStats();
+          showToast('Imported from ' + sourceLabel);
+        } catch (e) {
+          showToast('Import failed: invalid map data');
+        }
+      }
+
+      document.getElementById('btnImportFile').addEventListener('click', () => {
+        document.getElementById('importFile').click();
+      });
+      document.getElementById('importFile').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            importData(JSON.parse(reader.result), 'file');
+          } catch (e) {
+            showToast('That file is not valid JSON');
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+      document.getElementById('btnImportPaste').addEventListener('click', async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          importData(JSON.parse(text), 'clipboard');
+        } catch (e) {
+          showToast("Couldn't read clipboard — try Import file instead");
+        }
+      });
+      document.getElementById('btnResetDefault').addEventListener('click', () => {
+        if (
+          !confirm('Discard the current map and reload the shipped default? This cannot be undone.')
+        )
+          return;
+        try {
+          localStorage.removeItem(AUTOSAVE_KEY);
+        } catch (e) {}
+        importData(DEFAULT_MAP_DATA, 'shipped default');
+      });
+
+      /* ============================================================
+   PROJECT SERVER — save/load directly against src/world/map-data.json
+   via tools/editor-server.js, when it's running (npm run editor)
+   ============================================================ */
+      let serverAvailable = false;
+
+      async function checkServer() {
+        try {
+          const res = await fetch('/api/map-data', { method: 'GET' });
+          serverAvailable = res.ok;
+        } catch (e) {
+          serverAvailable = false;
+        }
+        const el = document.getElementById('serverIndicator');
+        if (el)
+          el.textContent = serverAvailable
+            ? '🟢 connected to project'
+            : '⚪ standalone (no server)';
+        return serverAvailable;
+      }
+
+      document.getElementById('btnSaveProject').addEventListener('click', async () => {
+        if (!serverAvailable) {
+          showToast('No project server — run "npm run editor" and reload this page');
+          return;
+        }
+        try {
+          const res = await fetch('/api/map-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(computeExport()),
+          });
+          const data = await res.json();
+          if (data.ok) showToast('Saved to src/world/map-data.json');
+          else showToast('Save failed: ' + data.error);
+        } catch (e) {
+          showToast('Save failed — is the server still running?');
+        }
+      });
+
+      /* ============================================================
+   INIT
+   ============================================================ */
+      (async function initialLoad() {
+        await checkServer();
+        if (serverAvailable) {
+          try {
+            const res = await fetch('/api/map-data');
+            const serverData = await res.json();
+            loadMapData(serverData);
+            showToast('Loaded from src/world/map-data.json');
+            resizeCanvas();
+            tilePx = 10;
+            render();
+            updateStats();
+            return;
+          } catch (e) {
+            /* fall through to local/default below */
+          }
+        }
+        let restored = null;
+        try {
+          const saved = localStorage.getItem(AUTOSAVE_KEY);
+          if (saved) restored = JSON.parse(saved);
+        } catch (e) {
+          restored = null;
+        }
+        loadMapData(restored || DEFAULT_MAP_DATA);
+        if (restored) showToast('Restored your last session (standalone mode)');
+        resizeCanvas();
+        tilePx = 10;
+        render();
+        updateStats();
+      })();
+    </script>
+  </body>
+</html>

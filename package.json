@@ -1,0 +1,26 @@
+{
+  "name": "rainbow-vale",
+  "version": "1.0.0",
+  "description": "js13k entry — Rainbow Vale",
+  "scripts": {
+    "build": "node build.js",
+    "build:fast": "node build.js --no-pack",
+    "build:raw": "node build.js --no-minify --no-pack",
+    "watch": "node build.js --watch",
+    "dev": "node tools/dev-server.js",
+    "editor": "node tools/editor-server.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "roadroller": "^2.1.0",
+    "terser": "^5.49.0"
+  }
+}
