@@ -7,9 +7,9 @@ import { ctx, startColorWave } from '../render/render-world.js';
 import { playPickup } from './music.js';
 
 export const player = {
-  x: HUB.cx + 2,
+  x: HUB.cx,
   y: HUB.cy,
-  dispX: HUB.cx + 2,
+  dispX: HUB.cx,
   dispY: HUB.cy,
   facing: 'right',
   visualFacing: 'right', // sprite-only facing, see dirStack below — stabler than `facing` when moving diagonally

@@ -17,7 +17,7 @@ export function drawPlayer() {
   ctx.save();
   ctx.globalAlpha = 0.25;
   ctx.fillStyle = '#000000';
-  fillEllipse(ctx, 0, 13, 9, 3);
+  fillEllipse(ctx, 0, 15, 9, 3);
   ctx.restore();
 
   const moving = Math.hypot(player.x - player.dispX, player.y - player.dispY) > 0.02;
@@ -68,57 +68,50 @@ function drawPonySide(moving, walkPhase) {
   ctx.stroke();
   ctx.restore();
 
-  // --- Hoof Right ---
+  // --- Hoof (back) ---
   ctx.save();
   ctx.fillStyle = '#f7c5ee';
   ctx.beginPath();
-  ctx.moveTo(2.3, 11.8);
-  ctx.quadraticCurveTo(3.7, 13.7, 2.7, 13.9);
-  ctx.quadraticCurveTo(1.6, 14.3, 0, 14.1);
-  ctx.quadraticCurveTo(-0.7, 13.2, -0.6, 12.1);
+  ctx.moveTo(2.3 + swing0, 11.8);
+  ctx.quadraticCurveTo(3.7 + swing0, 13.7, 2.7 + swing0, 13.9);
+  ctx.quadraticCurveTo(1.6 + swing0, 14.3, 0 + swing0, 14.1);
+  ctx.quadraticCurveTo(-0.7 + swing0, 13.2, -0.6 + swing0, 12.1);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 
-  // --- Hoof left ---
+  // --- Hoof (front) ---
   ctx.save();
   ctx.fillStyle = '#f7c5ee';
   ctx.beginPath();
-  ctx.moveTo(-7.2, 11.8);
-  ctx.quadraticCurveTo(-5.8, 13.7, -6.8, 13.9);
-  ctx.quadraticCurveTo(-7.9, 14.3, -9.5, 14.1);
-  ctx.quadraticCurveTo(-10.2, 13.2, -10.1, 12.1);
+  ctx.moveTo(-7.2 + swing1, 11.8);
+  ctx.quadraticCurveTo(-5.8 + swing1, 13.7, -6.8 + swing1, 13.9);
+  ctx.quadraticCurveTo(-7.9 + swing1, 14.3, -9.5 + swing1, 14.1);
+  ctx.quadraticCurveTo(-10.2 + swing1, 13.2, -10.1 + swing1, 12.1);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 
   // --- Tail ---
   ctx.save();
-  const tailGrad = ctx.createLinearGradient(-7.7, -1.3, -18.3, 4);
-  COLORS.RAINBOW.forEach((c, i) => tailGrad.addColorStop(i / (COLORS.RAINBOW.length - 1), c));
-  ctx.strokeStyle = tailGrad;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 3.6;
+  const hg = ctx.createLinearGradient(-10.5, -0.5, -17.1, 6.8);
+  hg.addColorStop(0, '#ff6b81');
+  hg.addColorStop(0.1, '#ffab5e');
+  hg.addColorStop(0.3, '#ffe066');
+  hg.addColorStop(0.5, '#69db7c');
+  hg.addColorStop(0.8, '#66c7e8');
+  hg.addColorStop(1, '#9d7bff');
+  ctx.fillStyle = hg;
   ctx.beginPath();
-  ctx.moveTo(-7.7, -1.3);
-  ctx.quadraticCurveTo(-10.8, -0.6, -13.5, 2);
-  ctx.stroke();
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(-13.5, 2);
-  ctx.quadraticCurveTo(-14.4, 3.5, -15.6, 5.4);
-  ctx.stroke();
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.moveTo(-15.6, 5.4);
-  ctx.quadraticCurveTo(-16.2, 6.9, -17.9, 6.9);
-  ctx.stroke();
-  ctx.lineWidth = 1.1;
-  ctx.beginPath();
-  ctx.moveTo(-17.9, 6.9);
-  ctx.quadraticCurveTo(-19.9, 6.5, -18.3, 4);
-  ctx.stroke();
+  ctx.moveTo(-10.3, 2.8);
+  ctx.quadraticCurveTo(-11.5, 4.3, -13.2, 6.1);
+  ctx.quadraticCurveTo(-17.8, 9.3, -20.2, 5.5);
+  ctx.quadraticCurveTo(-21.1, 2.2, -16.7, 1.4);
+  ctx.quadraticCurveTo(-18.9, 1.9, -18.7, 3.6);
+  ctx.quadraticCurveTo(-17.3, 6.7, -14.2, 1.1);
+  ctx.quadraticCurveTo(-12.8, -3.4, -9, -2.7);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 
   // --- Body ---
@@ -138,35 +131,6 @@ function drawPonySide(moving, walkPhase) {
   ctx.quadraticCurveTo(2.9, -2.1, 4.2, -0.6);
   ctx.closePath();
   ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-
-  // --- Mane ---
-  ctx.save();
-  const maneGrad = ctx.createLinearGradient(5, -7, -9, -1.8);
-  COLORS.RAINBOW.forEach((c, i) =>
-    maneGrad.addColorStop(
-      i / (COLORS.RAINBOW.length - 1),
-      COLORS.RAINBOW[COLORS.RAINBOW.length - 1 - i]
-    )
-  );
-  ctx.strokeStyle = maneGrad;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(5, -7);
-  ctx.quadraticCurveTo(2, -6, 0, -4);
-  ctx.stroke();
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, -4);
-  ctx.quadraticCurveTo(-3, -4.2, -5, -3.5);
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-5, -3.5);
-  ctx.quadraticCurveTo(-7, -3, -9, -1.8);
   ctx.stroke();
   ctx.restore();
 
@@ -214,25 +178,41 @@ function drawPonySide(moving, walkPhase) {
   ctx.fill();
   ctx.restore();
 
-  // --- Ear front (inner) ---
+  // --- Mane ---
   ctx.save();
-  ctx.fillStyle = '#ff9ad0';
+  const lg = ctx.createLinearGradient(3.5, -13.5, -5.5, -3.8);
+  lg.addColorStop(0, '#ff6b81');
+  lg.addColorStop(0.3, '#ffab5e');
+  lg.addColorStop(0.5, '#ffe066');
+  lg.addColorStop(0.7, '#69db7c');
+  lg.addColorStop(0.8, '#66c7e8');
+  lg.addColorStop(1, '#9d7bff');
+  ctx.fillStyle = lg;
   ctx.beginPath();
-  ctx.moveTo(-14.5, -5.5);
+  ctx.moveTo(8.1, -7.9);
+  ctx.quadraticCurveTo(3.6, -6.3, 1.9, -6.3);
+  ctx.quadraticCurveTo(-0.2, -1.8, 1.1, -0.3);
+  ctx.quadraticCurveTo(4.9, 1.3, 5.3, 2.9);
+  ctx.quadraticCurveTo(5.8, 5.5, 3.6, 6.6);
+  ctx.quadraticCurveTo(3.6, 4.7, 1.6, 3.5);
+  ctx.quadraticCurveTo(-6.3, -1.3, 0.1, -9);
+  ctx.quadraticCurveTo(5.3, -12.9, 11.7, -9.9);
+  ctx.quadraticCurveTo(13.2, -9.3, 13.3, -10.8);
+  ctx.quadraticCurveTo(13.4, -8, 9.5, -8.1);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 
   // --- Horn ---
   ctx.save();
-  const hg = ctx.createLinearGradient(6.7, -8.5, 13.9, -15.1);
-  hg.addColorStop(0, '#ffd980');
-  hg.addColorStop(1, '#ff9d5c');
-  ctx.fillStyle = hg;
+  const hornGradient = ctx.createLinearGradient(6.7, -8.5, 13.9, -15.1);
+  hornGradient.addColorStop(0, '#ffd980');
+  hornGradient.addColorStop(1, '#ff9d5c');
+  ctx.fillStyle = hornGradient;
   ctx.beginPath();
-  ctx.moveTo(6.7, -8.5);
-  ctx.lineTo(13.9, -15.1);
+  ctx.moveTo(13.9, -15.1);
   ctx.lineTo(9.2, -7.2);
+  ctx.quadraticCurveTo(7.2, -7.2, 6.7, -8.5);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -258,156 +238,14 @@ function drawPonySide(moving, walkPhase) {
   ctx.fillStyle = '#ff9ad0';
   fillCircle(ctx, 4.6, -1.6, 1.3);
   ctx.restore();
-}
 
-// side-view pony (left/right): legs mid-stride, rainbow tail off the back,
-// forward-leaning horn
-function drawPonySideOld(moving, walkPhase) {
-  // legs: a gentle curve even at rest, swinging into a front/back walk cycle while
-  // actually moving
-  const feet = [-7, 1].map((lx, i) => {
-    const swing = moving ? Math.sin(walkPhase + i * Math.PI) * 2.6 : 0;
-    const restBend = i === 0 ? -1 : 1;
-    return { lx, fx: lx + swing, bend: lx + restBend + swing * 0.4 };
-  });
+  // --- Ear front (inner) ---
   ctx.save();
-  ctx.strokeStyle = UI_LIGHT;
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  feet.forEach(f => {
-    ctx.beginPath();
-    ctx.moveTo(f.lx, 6);
-    ctx.quadraticCurveTo(f.bend, 9.5, f.fx, 13);
-    ctx.stroke();
-  });
-  ctx.restore();
-  ctx.save();
-  ctx.fillStyle = '#f7e3c4';
-  feet.forEach(f => fillCircle(ctx, f.fx, 13, 1.7));
-  ctx.restore();
-
-  // tail: a stroked ribbon, not a filled shape, so it can curl over itself at the tip
-  // without the pinch/self-intersection artifacts a fill produced. Drawn as 3 segments
-  // of decreasing lineWidth along the same curve, since canvas strokes can't taper on
-  // their own.
-  ctx.save();
-  const tailGrad = ctx.createLinearGradient(-8, 1, -15.7, 7);
-  COLORS.RAINBOW.forEach((c, i) =>
-    tailGrad.addColorStop(
-      i / (COLORS.RAINBOW.length - 1),
-      COLORS.RAINBOW[COLORS.RAINBOW.length - 1 - i]
-    )
-  );
-  ctx.strokeStyle = tailGrad;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 4;
+  ctx.fillStyle = '#ff9ad0';
   ctx.beginPath();
-  ctx.moveTo(-8, 0);
-  ctx.quadraticCurveTo(-14.3, 0.7, -17.1, 4.2);
-  ctx.stroke();
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(-17.1, 4.2);
-  ctx.quadraticCurveTo(-18.5, 6.3, -15.7, 7.35);
-  ctx.stroke();
-  ctx.lineWidth = 1.1;
-  ctx.beginPath();
-  ctx.moveTo(-15.7, 7.35);
-  ctx.quadraticCurveTo(-13.6, 8.05, -12.9, 5.6);
-  ctx.stroke();
-  ctx.restore();
-  // body + neck: soft pink glow + thin outline so the silhouette pops against any
-  // background, including the desaturated pre-rune world (plain white on gray was
-  // nearly invisible)
-  ctx.save();
-  ctx.shadowColor = COLORS.PINK_GLOW;
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = UI_LIGHT;
-  ctx.strokeStyle = PONY_OUTLINE;
-  ctx.lineWidth = 0.5;
-  fillEllipse(ctx, -3, 2, 7.5, 6);
-  ctx.stroke();
-  ctx.restore();
-  // rainbow mane: a thick stroked ribbon, not a chain of circles, so it reads as one
-  // flowing lock instead of a row of blobs. Starts between the ears and follows the
-  // body's top curve rather than cutting down into it.
-  ctx.save();
-  const maneGrad = ctx.createLinearGradient(5, -7, -9, -1.8);
-  COLORS.RAINBOW.forEach((c, i) => maneGrad.addColorStop(i / (COLORS.RAINBOW.length - 1), c));
-  ctx.strokeStyle = maneGrad;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  // same tapering trick as the tail: 3 segments of decreasing lineWidth
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(5, -7);
-  ctx.quadraticCurveTo(2, -6, 0, -4);
-  ctx.stroke();
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, -4);
-  ctx.quadraticCurveTo(-3, -4.2, -5, -3.5);
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-5, -3.5);
-  ctx.quadraticCurveTo(-7, -3, -9, -1.8);
-  ctx.stroke();
-  ctx.restore();
-  // head: rounder cranium tapering into a snout, not a plain oval, so it reads as a
-  // pony's head rather than a blob
-  ctx.save();
-  ctx.shadowColor = COLORS.PINK_GLOW;
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = UI_LIGHT;
-  ctx.strokeStyle = PONY_OUTLINE;
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(1, -2.5);
-  ctx.quadraticCurveTo(0, -8, 6, -7.5);
-  ctx.quadraticCurveTo(12, -7, 13.5, -3);
-  ctx.quadraticCurveTo(14.5, -1, 12.5, 1);
-  ctx.quadraticCurveTo(9, 3, 4, 2.5);
-  ctx.quadraticCurveTo(0, 2, 1, -2.5);
+  ctx.moveTo(-14.5, -5.5);
   ctx.closePath();
   ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-  // ears flanking the horn
-  ctx.save();
-  ctx.fillStyle = '#ffeaf5';
-  ctx.beginPath();
-  ctx.moveTo(3, -6.5);
-  ctx.lineTo(1.5, -10.5);
-  ctx.lineTo(5, -7.3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(7.5, -6.8);
-  ctx.lineTo(9.5, -10.2);
-  ctx.lineTo(9, -6.5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-  // horn: fixed to the head, leaning forward off the forehead rather than straight
-  // up; gold, not pink
-  ctx.save();
-  ctx.fillStyle = '#ffd166';
-  ctx.beginPath();
-  ctx.moveTo(4.8, -7);
-  ctx.lineTo(10.5, -12);
-  ctx.lineTo(7.8, -6.4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-  // eye + blush, on the front of the head
-  ctx.save();
-  ctx.fillStyle = '#3a3050';
-  fillCircle(ctx, 10, -3, 1.1);
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = COLORS.PINK;
-  fillCircle(ctx, 9.5, 0.5, 1.6);
   ctx.restore();
 }
 
