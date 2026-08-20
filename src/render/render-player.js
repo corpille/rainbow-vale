@@ -1,5 +1,5 @@
 /* ============ Player sprite: side view and front/back view, walk cycle ============ */
-import { COLORS, PONY_OUTLINE, UI_LIGHT } from '../core/colors.js';
+import { COLORS, PONY_OUTLINE, UI_LIGHT, VIOLET } from '../core/colors.js';
 import { BASE_TILE, TILE, fillCircle, fillEllipse } from '../core/engine-core.js';
 import { player } from '../core/player.js';
 import { canvas, ctx } from './render-world.js';
@@ -8,6 +8,10 @@ import { canvas, ctx } from './render-world.js';
 // only the gradient LINE (start/end point) differs per shape — so they share one
 // offset scheme instead of each call re-declaring its own addColorStop list
 const RAINBOW_STOPS = [0, 0.3, 0.5, 0.7, 0.8, 1];
+// repeated 4x/3x below (ears, eye outlines) — local consts so Terser's toplevel
+// mangling shrinks each call site to a single-char reference instead of the literal
+const EAR_LILAC = '#d9c8f5';
+const EYE_INK = '#3a3050';
 function rainbowGradient(x0, y0, x1, y1) {
   const g = ctx.createLinearGradient(x0, y0, x1, y1);
   COLORS.RAINBOW.forEach((c, i) => g.addColorStop(RAINBOW_STOPS[i], c));
@@ -198,13 +202,13 @@ function drawPonyDown(moving, walkPhase) {
   drawFrontBackHead();
 
   // --- Ear (right) ---
-  fillShape('#d9c8f5', [
+  fillShape(EAR_LILAC, [
     [4.4, -10.7],
     [4, -15.4, 2.5, -11.2],
   ]);
 
   // --- Ear (left) ---
-  fillShape('#d9c8f5', [
+  fillShape(EAR_LILAC, [
     [-3.5, -10.8],
     [-4.2, -15.1, -5.3, -10.7],
   ]);
@@ -229,13 +233,13 @@ function drawPonyDown(moving, walkPhase) {
   ]);
 
   // --- Left eye ---
-  strokeShape('#3a3050', 0.4, [
+  strokeShape(EYE_INK, 0.4, [
     [-3.3, -6.3],
     [-2.3, -5, -1.4, -6.3],
   ]);
 
   // --- Right Eye ---
-  strokeShape('#3a3050', 0.4, [
+  strokeShape(EYE_INK, 0.4, [
     [0.9, -6.3],
     [1.9, -5, 2.7, -6.4],
   ]);
@@ -249,7 +253,7 @@ function drawPonyDown(moving, walkPhase) {
   // --- Side Mane ---
   const sideManeGrad = ctx.createLinearGradient(-6.3, -6.5, -4.7, -0.3);
   sideManeGrad.addColorStop(0, '#66c7e8');
-  sideManeGrad.addColorStop(1, '#9d7bff');
+  sideManeGrad.addColorStop(1, VIOLET);
   fillShape(sideManeGrad, [
     [-5.5, -4.3],
     [-6.3, -4, -5.6, -1.3],
@@ -342,14 +346,14 @@ function drawPonySide(moving, walkPhase) {
   ]);
 
   // --- Ear (back) ---
-  fillShape('#d9c8f5', [
+  fillShape(EAR_LILAC, [
     [0.3, -10.1],
     [-1.7, -15.8, 3.5, -11.6],
     [2.8, -10.4, 0.5, -10.2],
   ]);
 
   // --- Ear front (outer) ---
-  fillShape('#d9c8f5', [
+  fillShape(EAR_LILAC, [
     [5.9, -11.9],
     [8, -16.6, 8, -11.8],
     [7, -10.8, 6.1, -11.8],
@@ -379,7 +383,7 @@ function drawPonySide(moving, walkPhase) {
   ]);
 
   // --- Eye (+ lash) ---
-  strokeShape('#3a3050', 0.3, () => {
+  strokeShape(EYE_INK, 0.3, () => {
     ctx.beginPath();
     tracePath([
       [8.8, -7],

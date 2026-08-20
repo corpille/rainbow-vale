@@ -146,12 +146,8 @@ const TERSER_OPTIONS = {
     toplevel: true,
     properties: {
       reserved: [
-        // zone/room ids
-        'hub',
-        'swamp',
-        'cavern',
-        'orchard',
-        'marsh',
+        // zone/room ids are single chars (h/m/j/v/b) matching the map-encoding characters
+        // below, so no separate entries are needed here — those cover both
         // rune shapes (engine-core RUNE_SHAPES / ui-panel RUNE_SHAPE)
         'star',
         'gem',
@@ -177,12 +173,10 @@ const TERSER_OPTIONS = {
         'HALF_CIRCLE',
         'CONE',
         'DIAGONAL',
-        'CONTACT_DEFAULT',
         'PIERCE',
         'BOUNCE',
         'SPREAD',
         'MIRROR',
-        'NONE',
         // map-encoding characters (map-loader.js FLOOR_CHARS, keyed by gridStr's literal
         // chars — same failure mode as KEY_MAP below: a renamed key here just means
         // FLOOR_CHARS[c] silently returns undefined for that tile at runtime, so anything
@@ -191,6 +185,9 @@ const TERSER_OPTIONS = {
         // uppercase variants (M/J/V/B) plus vine/crate/lock's dedicated letters
         // (n/k/o/g, e/i/p/q, r/s/t/u) without updating this list — silently lost every
         // puddle tile and half the vine/crate/lock tiles to property mangling.
+        // h/m/j/v/b do double duty as the zone ids themselves (HUB.id, ZONE_DEFS ids,
+        // RUNE_ACCENT/RUNE_SHAPE/ZONE_SYMBOL/ZONE_DECOR_FN keys, roomById, ZORDER,
+        // OBSTACLE_ZONE) — one reservation covers both uses.
         'h',
         'm',
         'j',

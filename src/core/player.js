@@ -1,5 +1,5 @@
 /* ============ Player & camera ============ */
-import { COLORS } from './colors.js';
+import { COLORS, WHITE } from './colors.js';
 import { gameState } from './engine-core.js';
 import { DIRS4, HUB, ZONES, grid, key, objectsMap } from '../world/world-zones.js';
 import { collected, items, primitiveSpots } from '../world/map-loader.js';
@@ -124,7 +124,7 @@ function doMove(dir) {
     const spotKey = p.zoneId + ':' + p.x + ',' + p.y;
     if (!collectedItems.has(spotKey) && tx === p.x && ty === p.y) {
       collectedItems.add(spotKey);
-      startColorWave('hub', HUB.cx, HUB.cy); // and from the altar, a little more with each item
+      startColorWave('h', HUB.cx, HUB.cy); // and from the altar, a little more with each item
       screenFlash = { color: COLORS.PINK_GLOW, until: performance.now() + 500 };
       playPickup();
     }
@@ -139,6 +139,6 @@ function doMove(dir) {
     ty === HUB.cy
   ) {
     hubActivated = true;
-    screenFlash = { color: '#ffffff', until: performance.now() + 900 };
+    screenFlash = { color: WHITE, until: performance.now() + 900 };
   }
 }

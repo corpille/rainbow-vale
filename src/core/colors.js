@@ -24,3 +24,5 @@ export const FONT = 'Helvetica, Arial, sans-serif';
 export const UI_LIGHT = '#fffdfa';
 export const TRANSPARENT = '#00000000'; // fade-to-nothing gradient stop, reused by several glows
 export const PONY_OUTLINE = '#e0a8c8'; // pony body/head highlight stroke, shared by both sprite views
+export const WHITE = '#ffffff'; // pure white — highlights, strokes, "revealed" states across several files
+export const VIOLET = '#9d7bff'; // amethyst accent — rainbow's last stop, gem/crystal gradients, mane highlights

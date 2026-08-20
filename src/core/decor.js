@@ -1,5 +1,5 @@
 /* ============ Real decor per zone (carried over from the prototypes, TILE=42 scale) ============ */
-import { COLORS } from './colors.js';
+import { COLORS, VIOLET, WHITE } from './colors.js';
 import { BASE_TILE, fillCircle, fillEllipse, radialFade } from './engine-core.js';
 
 // blurred elliptical shadow shared by several decors, factored out here
@@ -11,7 +11,7 @@ function softShadow(ctx, x, y, rx, ry, alpha, color) {
   ctx.restore();
 }
 
-const PETAL_PALETTE = ['#ff8fa8', '#ffd166', '#9d7bff', '#66d9c2'];
+const PETAL_PALETTE = ['#ff8fa8', '#ffd166', VIOLET, '#66d9c2'];
 export function drawFlowerStalksBig(ctx, x, y) {
   softShadow(ctx, x, y + 3, 14, 5, 0.15, '#4a9a5f');
   for (let i = 0; i < 5; i++) {
@@ -35,7 +35,7 @@ export function drawFlowerStalksBig(ctx, x, y) {
 }
 const MUSHROOM_PALETTES = [
   { cap: '#ff8fb0', glow: '#ffc2d6', hi: '#fff0f5' },
-  { cap: '#9d7bff', glow: '#c9b3ff', hi: '#efe6ff' },
+  { cap: VIOLET, glow: '#c9b3ff', hi: '#efe6ff' },
   { cap: '#66d9c2', glow: '#a3f5e0', hi: '#eafff9' },
   { cap: '#ffd166', glow: '#ffe9a3', hi: '#fff7e0' },
 ];
@@ -72,7 +72,7 @@ export function drawMushroomClusterBig(ctx, x, y, seed) {
   }
 }
 
-const GEM_PALETTE = ['#ff8fa3', '#9d7bff', '#66d9c2'];
+const GEM_PALETTE = ['#ff8fa3', VIOLET, '#66d9c2'];
 export function drawCrystalClusterBig(ctx, x, y) {
   const cy = y + 8;
   softShadow(ctx, x, cy + 4, 18, 6, 0.18, '#e0c8ff');
@@ -98,7 +98,7 @@ export function drawCrystalClusterBig(ctx, x, y) {
     ctx.beginPath();
     ctx.moveTo(0, -h);
     ctx.lineTo(0, 0);
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = WHITE;
     ctx.globalAlpha = 0.8;
     ctx.lineWidth = 1.4;
     ctx.stroke();

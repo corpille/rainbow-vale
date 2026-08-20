@@ -3,14 +3,14 @@
 // here — a real cycle, but harmless: isVoid is a closure, never called until every file
 // has already finished its own top-level setup.
 import { obstacleByTile } from './map-loader.js';
+import { WHITE } from '../core/colors.js';
 
 export const grid = new Map();
 export const key = (x, y) => x + ',' + y;
 export const unkey = k => k.split(',').map(Number);
 
 export const HUB = {
-  id: 'hub',
-  name: 'Rainbow Glade',
+  id: 'h',
   cx: 0,
   cy: 0,
   w: 13,
@@ -27,16 +27,19 @@ const SLOTS = [
 ];
 // only cavern/orchard ends up spatially close — an inevitable compromise with 4 slots
 const SLOT_ORDER = [0, 2, 1, 3];
-// ids stay as-is internally; the vale's public faces are: swamp = Clover Fields (Breeze),
-// cavern = Cloud Cavern (Frost), orchard = Sunbeam Grove (Sunbeam), marsh = Starlight Marsh (Crystal)
+// ids are single chars matching FLOOR_CHARS' grid codes in map-loader.js (m/j/v/b already
+// mean swamp/cavern/orchard/marsh there) — reusing them as the zone id itself needs no new
+// Terser reservation, since those letters are reserved anyway. Public faces: swamp = Clover
+// Fields (Breeze), cavern = Cloud Cavern (Frost), orchard = Sunbeam Grove (Sunbeam),
+// marsh = Starlight Marsh (Crystal)
 const ZONE_DEFS = [
-  { id: 'swamp', base: '#bdf3c9', dark: '#6fcf97', blob: '#e8fff0' },
-  { id: 'cavern', base: '#d6ecff', dark: '#8fc9f0', blob: '#ffffff' },
-  { id: 'orchard', base: '#ffe1b8', dark: '#ffb066', blob: '#fff3d6' },
-  { id: 'marsh', base: '#e3d4ff', dark: '#a98af0', blob: '#f6ecff' },
+  { id: 'm', base: '#bdf3c9', dark: '#6fcf97', blob: '#e8fff0' }, // swamp
+  { id: 'j', base: '#d6ecff', dark: '#8fc9f0', blob: WHITE }, // cavern
+  { id: 'v', base: '#ffe1b8', dark: '#ffb066', blob: '#fff3d6' }, // orchard
+  { id: 'b', base: '#e3d4ff', dark: '#a98af0', blob: '#f6ecff' }, // marsh
 ];
 export const ZONES = ZONE_DEFS.map((z, i) => ({ ...z, w: 25, h: 25, ...SLOTS[SLOT_ORDER[i]] }));
-export const roomById = { hub: HUB };
+export const roomById = { h: HUB };
 ZONES.forEach(z => (roomById[z.id] = z));
 
 export const Nature = { BURN: 'BURN', FREEZE: 'FREEZE', PUSH: 'PUSH', SOLIDIFY: 'SOLIDIFY' };

@@ -1,5 +1,5 @@
 /* ============ Per-frame scene draw: tiles, highlights, interactive objects, markers ============ */
-import { COLORS, UI_LIGHT } from '../core/colors.js';
+import { COLORS, UI_LIGHT, WHITE } from '../core/colors.js';
 import {
   BASE_TILE,
   TILE,
@@ -198,7 +198,7 @@ export function drawSpellPreview(originPxX, originPxY) {
   });
   ctx.shadowColor = COLORS.PINK_GLOW;
   ctx.shadowBlur = 14 + pulse * 6;
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = WHITE;
   ctx.lineWidth = 3;
   ctx.globalAlpha = 1;
   ctx.setLineDash([6, 4]);
@@ -370,7 +370,7 @@ export function drawHubAltar(originPxX, originPxY) {
       py2 = apy + Math.sin(a) * TILE * 0.85;
     ctx.save();
     ctx.fillStyle = i < collectedItems.size ? COLORS.PINK_GLOW : '#ffffff26';
-    ctx.strokeStyle = i < collectedItems.size ? '#ffffff' : '#ffffff40';
+    ctx.strokeStyle = i < collectedItems.size ? WHITE : '#ffffff40';
     ctx.lineWidth = 1;
     if (i < collectedItems.size) {
       ctx.shadowColor = COLORS.PINK_WARM;
@@ -391,7 +391,7 @@ export function drawDoors(originPxX, originPxY) {
     if (offscreen(px, py)) return;
     const done = collected.has(d.roomId);
     const haloColor = done ? RUNE_ACCENT[d.roomId] + '52' : COLORS.PINK_GLOW + '38';
-    const glyphColor = done ? '#ffffff' : COLORS.PINK_WARM;
+    const glyphColor = done ? WHITE : COLORS.PINK_WARM;
     const glowColor = done ? RUNE_ACCENT[d.roomId] : COLORS.PINK_WARM;
     ctx.save();
     ctx.fillStyle = radialFade(ctx, px, py, TILE * 1.2, haloColor);

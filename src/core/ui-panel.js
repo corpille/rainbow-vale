@@ -1,5 +1,5 @@
 /* ============ Always-on spell bar — Nature (slot1) / Shape (slot2) / Modifier (slot3) ============ */
-import { COLORS, FONT } from './colors.js';
+import { COLORS, FONT, WHITE } from './colors.js';
 import { gameState, iconGlyph } from './engine-core.js';
 import { SYMBOL_TO_ROLE, ZONES } from '../world/world-zones.js';
 import { resolvePhrase } from '../world/spell-shapes.js';
@@ -8,16 +8,16 @@ import { SYMBOL_TO_ZONE, ZONE_SYMBOL, collected } from '../world/map-loader.js';
 import { player } from './player.js';
 import { canvas } from '../render/render-world.js';
 
-const RUNE_KEYS = ZONES.map(z => z.id); // '1'->swamp, '2'->cavern, '3'->orchard, '4'->marsh
-export const RUNE_SHAPE = { swamp: 'star', cavern: 'gem', orchard: 'flower', marsh: 'drop' }; // icon per zone
+const RUNE_KEYS = ZONES.map(z => z.id); // '1'->swamp(m), '2'->cavern(j), '3'->orchard(v), '4'->marsh(b)
+export const RUNE_SHAPE = { m: 'star', j: 'gem', v: 'flower', b: 'drop' }; // icon per zone
 // vivid (not pastel) per-zone accent for the rune glyphs — brighter/more saturated than
 // the zone's own soft tile palette so it reads against the bar's light background:
 // Breeze mint, Frost sky-blue, Sunbeam hot pink, Crystal violet
 export const RUNE_ACCENT = {
-  swamp: '#5eeb9c',
-  cavern: '#66d1ff',
-  orchard: '#ff6fa8',
-  marsh: '#c48aff',
+  m: '#5eeb9c',
+  j: '#66d1ff',
+  v: '#ff6fa8',
+  b: '#c48aff',
 };
 // plain-language names shown under a slot once it's filled
 const DESC_NATURE = { FREEZE: 'Frost', PUSH: 'Breeze', BURN: 'Sunbeam', SOLIDIFY: 'Crystal' };
@@ -51,7 +51,7 @@ export function panelRect(c, x, y, w, h, r) {
 function cloudPill(c, x, y, w, h, r) {
   c.save();
   c.fillStyle = '#fff9f2ee';
-  c.strokeStyle = '#ffffff';
+  c.strokeStyle = WHITE;
   c.lineWidth = 1.5;
   panelRect(c, x, y, w, h, r);
   c.fill();

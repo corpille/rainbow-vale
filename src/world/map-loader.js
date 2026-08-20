@@ -24,8 +24,8 @@ import { verrouLinks } from './spell-shapes.js';
 // MAP_DATA isn't a real import: build.js delta-encodes map-data.json's objects array and
 // splices the result in here at build time — it only exists post-build, never as a real export.
 /*BUILD:MAP_DATA*/
-const ZORDER = ['swamp', 'cavern', 'orchard', 'marsh'];
-export const ZONE_SYMBOL = { swamp: '~', cavern: '\u2744', orchard: '\u25b2', marsh: '\u25a0' };
+const ZORDER = ['m', 'j', 'v', 'b'];
+export const ZONE_SYMBOL = { m: '~', j: '\u2744', v: '\u25b2', b: '\u25a0' };
 export const SYMBOL_TO_ZONE = {}; // reverse of ZONE_SYMBOL - ui-panel needs "which zone is this filled rune"
 Object.entries(ZONE_SYMBOL).forEach(([zoneId, sym]) => (SYMBOL_TO_ZONE[sym] = zoneId));
 export const doors = [];
@@ -52,31 +52,31 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   // mirror_surface/sym_plate carry extra data (orientation, pair id) so they still go
   // through MAP_DATA.objects below.
   const FLOOR_CHARS = {
-    h: ['hub'],
-    m: ['swamp'],
-    j: ['cavern'],
-    v: ['orchard'],
-    b: ['marsh'],
-    M: ['swamp', createPuddle],
-    J: ['cavern', createPuddle],
-    V: ['orchard', createPuddle],
-    B: ['marsh', createPuddle],
-    n: ['swamp', createVine],
-    k: ['cavern', createVine],
-    o: ['orchard', createVine],
-    g: ['marsh', createVine],
-    e: ['swamp', createCrate],
-    i: ['cavern', createCrate],
-    p: ['orchard', createCrate],
-    q: ['marsh', createCrate],
-    r: ['swamp', createLock],
-    s: ['cavern', createLock],
-    t: ['orchard', createLock],
-    u: ['marsh', createLock],
+    h: ['h'],
+    m: ['m'],
+    j: ['j'],
+    v: ['v'],
+    b: ['b'],
+    M: ['m', createPuddle],
+    J: ['j', createPuddle],
+    V: ['v', createPuddle],
+    B: ['b', createPuddle],
+    n: ['m', createVine],
+    k: ['j', createVine],
+    o: ['v', createVine],
+    g: ['b', createVine],
+    e: ['m', createCrate],
+    i: ['j', createCrate],
+    p: ['v', createCrate],
+    q: ['b', createCrate],
+    r: ['m', createLock],
+    s: ['j', createLock],
+    t: ['v', createLock],
+    u: ['b', createLock],
   };
   // rocks ('1'-'4', one per zone) don't go into the grid — tracked separately as
   // obstacles, just stored inline in gridStr instead of their own array
-  const OBSTACLE_ZONE = { 1: 'swamp', 2: 'cavern', 3: 'orchard', 4: 'marsh' };
+  const OBSTACLE_ZONE = { 1: 'm', 2: 'j', 3: 'v', 4: 'b' };
   // decor is cosmetic only (no gameplay/connectivity role), so instead of storing a
   // per-instance array it's placed by a coordinate hash below: ~1% of each zone's floor
   // tiles (whichever aren't already occupied by a positional object) get that zone's
@@ -86,10 +86,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   // this file's header warns against (nothing about layout, solvability, or
   // connectivity depends on it).
   const ZONE_DECOR_FN = {
-    swamp: drawFlowerStalksBig,
-    cavern: drawCrystalClusterBig,
-    orchard: drawBloomTreeBig,
-    marsh: drawMushroomClusterBig,
+    m: drawFlowerStalksBig,
+    j: drawCrystalClusterBig,
+    v: drawBloomTreeBig,
+    b: drawMushroomClusterBig,
   };
   const DECOR_DENSITY = 100; // 1 in DECOR_DENSITY eligible tiles gets decor
   let idx = 0;

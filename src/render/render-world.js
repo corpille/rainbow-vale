@@ -1,5 +1,5 @@
 /* ============ Canvas setup, per-tile bitmap cache, interactive-object shapes ============ */
-import { COLORS } from '../core/colors.js';
+import { COLORS, VIOLET, WHITE } from '../core/colors.js';
 import {
   BASE_TILE,
   BLOB_SETS,
@@ -85,6 +85,15 @@ window.addEventListener('resize', resizeCanvas);
    bitmaps per room, once. The per-frame loop below just blits a variant by tile position —
    nothing recomputed per frame, nothing to precompute before the game can start. ============ */
 
+// the mirror surface and the lock's crystal both use this same amethyst-to-violet
+// gradient, just aimed along a different line each time
+function gemGradient(x0, y0, x1, y1) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, '#e8a8f0');
+  g.addColorStop(1, VIOLET);
+  return g;
+}
+
 function renderVine(obj, px, py) {
   ctx.save();
   ctx.strokeStyle = '#4caf6b';
@@ -115,7 +124,7 @@ export function renderPuddle(c, obj, px, py) {
     px + BASE_TILE * 0.5,
     py + BASE_TILE * 0.5
   );
-  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0, WHITE);
   grad.addColorStop(1, '#bfe0ff');
   c.fillStyle = grad;
   c.fillRect(px - BASE_TILE * 0.5, py - BASE_TILE * 0.5, BASE_TILE, BASE_TILE);
@@ -254,7 +263,7 @@ function renderCrate(obj, px, py) {
   ctx.strokeRect(px - s, py - s, s * 2, s * 2);
   ctx.restore();
   ctx.save();
-  const ribbon = obj.frozen ? '#ffffff' : COLORS.PINK;
+  const ribbon = obj.frozen ? WHITE : COLORS.PINK;
   ctx.strokeStyle = ribbon;
   ctx.lineWidth = s * 0.28;
   ctx.beginPath();
@@ -290,10 +299,7 @@ function renderMirror(px, py, orientation) {
   const p2x = cornerX,
     p2y = py - sys * c;
   ctx.save();
-  const gemGrad = ctx.createLinearGradient(p1x, p1y, p2x, p2y);
-  gemGrad.addColorStop(0, '#e8a8f0');
-  gemGrad.addColorStop(1, '#9d7bff');
-  ctx.fillStyle = gemGrad;
+  ctx.fillStyle = gemGradient(p1x, p1y, p2x, p2y);
   ctx.beginPath();
   ctx.moveTo(cornerX, cornerY);
   ctx.lineTo(p1x, p1y);
@@ -344,15 +350,12 @@ function renderLockGate(px, py) {
   ctx.save();
   ctx.shadowColor = COLORS.ICE_BLUE;
   ctx.shadowBlur = 12 + pulse * 4;
-  const gg = ctx.createLinearGradient(
+  ctx.fillStyle = gemGradient(
     px - BASE_TILE * 0.18,
     py - BASE_TILE * 0.18,
     px + BASE_TILE * 0.18,
     py + BASE_TILE * 0.22
   );
-  gg.addColorStop(0, '#e8a8f0');
-  gg.addColorStop(1, '#9d7bff');
-  ctx.fillStyle = gg;
   gemPath(ctx, px, py, BASE_TILE * 0.21);
   ctx.fill();
   ctx.strokeStyle = '#ffffffaa';
@@ -407,7 +410,7 @@ export function renderInteractiveObject(obj, x, y, originPxX, originPxY) {
 function grayFilter(roomId) {
   const maxGray = 0.9;
   const t =
-    roomId === 'hub'
+    roomId === 'h'
       ? totalItems > 0
         ? collectedItems.size / totalItems
         : maxGray
