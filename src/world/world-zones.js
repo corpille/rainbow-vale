@@ -86,6 +86,14 @@ export function validatePhrase(runes) {
 
 export const objectsMap = new Map(); // "x,y" -> interactive object (Vine, Puddle, Crate)
 
+// bumped whenever a puddle's water/frozen/evaporated state actually changes (see
+// createPuddle's reactTo in world-objects.js) — lets renderPonds (render-world.js)
+// know its cached connected-pond groups need rebuilding, instead of every frame
+export let puddleEpoch = 0;
+export function bumpPuddleEpoch() {
+  puddleEpoch++;
+}
+
 export const worldRunes = {
   inBounds: (x, y) => grid.has(key(x, y)),
   objectAt: (x, y) => objectsMap.get(key(x, y)) || null,

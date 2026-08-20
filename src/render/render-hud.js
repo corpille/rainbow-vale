@@ -1,8 +1,8 @@
 /* ============ Screen effects, start menu, main draw() loop, page-level DOM wiring ============ */
 import { COLORS, FONT, TRANSPARENT, UI_LIGHT } from '../core/colors.js';
 import { BASE_TILE, TILE, gameState, iconGlyph, starPath } from '../core/engine-core.js';
-import { ZONES } from '../world/world-zones.js';
-import { drawTouchStick, hubActivated, player, screenFlash } from '../core/player.js';
+import { ZONES, isBlockingFor, worldRunes } from '../world/world-zones.js';
+import { hubActivated, player, screenFlash } from '../core/player.js';
 import { startMusic } from '../core/music.js';
 import { RUNE_ACCENT, RUNE_SHAPE, drawComboOverlay, inRect, panelRect } from '../core/ui-panel.js';
 import { canvas, ctx, generateTileVariants } from './render-world.js';
@@ -66,6 +66,16 @@ function drawDuskBg(bottomColor) {
   ctx.fillRect(0, 0, w, h);
 }
 
+// the glowing title text every overlay screen (menu/intro/ending) opens with —
+// same pink fill + warm shadow, only the text/position/size/glow amount differ
+function glowTitle(x, y, text, fontPx, shadow) {
+  ctx.fillStyle = COLORS.PINK_GLOW;
+  ctx.shadowColor = COLORS.PINK_WARM;
+  ctx.shadowBlur = shadow;
+  ctx.font = `700 ${fontPx}px ${FONT}`;
+  ctx.fillText(text, x, y);
+  ctx.shadowBlur = 0;
+}
 // the pill-shaped Play/Start buttons — same look, only the label differs
 function drawPillButton(rect, label, scale) {
   panelRect(ctx, rect.x, rect.y, rect.w, rect.h, rect.h / 2);
@@ -109,12 +119,7 @@ function drawMenuOverlay() {
   });
 
   const titleY = archY + 90 * scale;
-  ctx.fillStyle = COLORS.PINK_GLOW;
-  ctx.shadowColor = COLORS.PINK_WARM;
-  ctx.shadowBlur = 16 * scale;
-  ctx.font = `700 ${46 * scale}px ${FONT}`;
-  ctx.fillText('Rainbow Vale', w / 2, titleY);
-  ctx.shadowBlur = 0;
+  glowTitle(w / 2, titleY, 'Rainbow Vale', 46 * scale, 16 * scale);
 
   // the four runes to gather, same icon/color as the combo panel; row width clamped
   // to 80% of viewport so it never overflows on narrow phones
@@ -145,8 +150,8 @@ function drawMenuOverlay() {
 
 let introBtn = null; // {x,y,w,h} — see the pointerdown handler below
 // between menu and gameplay: what's going on, and the 3-step goal loop, so a first-time
-// player isn't dropped in with zero context (the C-key combo mechanic especially needs
-// a sentence — nothing else hints at it before this)
+// player isn't dropped in with zero context (the phrase-then-cast combo mechanic
+// especially needs a sentence — nothing else hints at it before this)
 function drawIntroOverlay() {
   const w = canvas.width,
     h = canvas.height,
@@ -156,19 +161,14 @@ function drawIntroOverlay() {
 
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.PINK_GLOW;
-  ctx.shadowColor = COLORS.PINK_WARM;
-  ctx.shadowBlur = 12 * scale;
-  ctx.font = `700 ${26 * scale}px ${FONT}`;
-  ctx.fillText('The Vale has lost its color', w / 2, h * 0.28);
-  ctx.shadowBlur = 0;
+  glowTitle(w / 2, h * 0.28, 'The Vale has lost its color', 26 * scale, 12 * scale);
 
   ctx.fillStyle = UI_LIGHT;
   ctx.font = `${15 * scale}px ${FONT}`;
   const lineY = h * 0.28 + 40 * scale,
     lineGap = 27 * scale;
   [
-    "Collect each zone's rune, then press C to cast spells and clear your path.",
+    "Collect each zone's rune, press 1-4 to add it to your phrase, then Space to cast.",
     'Bring hidden treasures back to the altar.',
   ].forEach((line, i) => ctx.fillText(line, w / 2, lineY + i * lineGap));
 
@@ -209,12 +209,7 @@ function drawEndingOverlay() {
   const pulse = Math.sin(t / 450);
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.PINK_GLOW;
-  ctx.shadowColor = COLORS.PINK_WARM;
-  ctx.shadowBlur = (18 + pulse * 6) * scale;
-  ctx.font = `700 ${(38 + pulse * 2) * scale}px ${FONT}`;
-  ctx.fillText('The Vale is Restored', w / 2, h / 2 - 20 * scale);
-  ctx.shadowBlur = 0;
+  glowTitle(w / 2, h / 2 - 20 * scale, 'The Vale is Restored', (38 + pulse * 2) * scale, (18 + pulse * 6) * scale);
   ctx.fillStyle = UI_LIGHT;
   ctx.font = `${16 * scale}px ${FONT}`;
   ctx.fillText('Thank you for playing', w / 2, h / 2 + 20 * scale);
@@ -234,8 +229,41 @@ function draw() {
   const dt0 = Math.min(48, now0 - (draw._last || now0));
   draw._last = now0;
   const follow = 1 - Math.pow(0.0025, dt0 / 1000); // ~framerate-independent
+  const prevDispX = player.dispX,
+    prevDispY = player.dispY;
   player.dispX += (player.x - player.dispX) * follow;
   player.dispY += (player.y - player.dispY) * follow;
+  // two quick perpendicular steps (diagonal movement) can land close enough together
+  // that the camera glides in a straight line between them — cutting through whichever
+  // corner tile neither step actually entered. If that corner is a wall, freeze the
+  // blocked axis for a handful of frames — long enough to read as one axis finishing
+  // before the next starts, not just a 1-frame blip too brief to notice. A frame count
+  // (not "wait until the other axis settles") matters during a held diagonal: the other
+  // axis's target keeps advancing with every repeat step, so it would never count as
+  // "settled" and the hold would never release
+  // _hold's sign picks the axis (+ = x, - = y), its magnitude the frames left
+  const blocked = (x, y) => !worldRunes.inBounds(x, y) || isBlockingFor(x, y);
+  if (draw._hold > 0) {
+    player.dispX = prevDispX;
+    draw._hold--;
+  } else if (draw._hold < 0) {
+    player.dispY = prevDispY;
+    draw._hold++;
+  } else {
+    const rx0 = Math.round(prevDispX),
+      ry0 = Math.round(prevDispY),
+      rx1 = Math.round(player.dispX),
+      ry1 = Math.round(player.dispY);
+    if (rx0 !== rx1 && ry0 !== ry1) {
+      if (blocked(rx1, ry0)) {
+        player.dispX = prevDispX;
+        draw._hold = 8;
+      } else if (blocked(rx0, ry1)) {
+        player.dispY = prevDispY;
+        draw._hold = -8;
+      }
+    }
+  }
   if (Math.abs(player.x - player.dispX) < 0.01) player.dispX = player.x;
   if (Math.abs(player.y - player.dispY) < 0.01) player.dispY = player.y;
 
@@ -262,7 +290,6 @@ function draw() {
   drawPlayer();
   drawScreenFlash();
   drawVignette();
-  drawTouchStick();
 
   if (hubActivated) drawEndingOverlay();
   else drawComboOverlay();

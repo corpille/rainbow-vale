@@ -17,7 +17,15 @@ import {
   textureFill,
   tileAO,
 } from '../core/engine-core.js';
-import { grid, roomById, unkey } from '../world/world-zones.js';
+import {
+  CARDINAL_OFFSETS,
+  grid,
+  key,
+  objectsMap,
+  puddleEpoch,
+  roomById,
+  unkey,
+} from '../world/world-zones.js';
 import { collected, decorInstances, obstacles } from '../world/map-loader.js';
 // player.js imports ctx/startColorWave from this file — a genuine but harmless import
 // cycle. resizeCanvas() below only reaches these via grayFilter inside
@@ -47,14 +55,13 @@ export function offscreen(px, py, pad = TILE) {
 // shorter side keeps the amount of world visible consistent across a phone, a 1080p
 // window, and 4K — instead of a fixed-pixel TILE showing wildly more or less map as
 // raw viewport pixels grow.
-const REF_MIN_DIM = 600; // lower = bigger TILE = camera feels closer to the player
+// 420 (down from 600) roughly halves drawWorldTiles' per-frame cost — fewer, bigger
+// tiles to blit — while still showing a solid chunk of the map; tried 350 too but that
+// zoomed in enough to feel cramped against the spell bar's screen-bottom real estate
+const REF_MIN_DIM = 420; // lower = bigger TILE = camera feels closer to the player
 function resizeCanvas() {
-  // visualViewport tracks the true visible area as mobile browser chrome (address bar,
-  // toolbar) animates in/out; innerWidth/innerHeight lag during that animation, which
-  // was leaving the canvas briefly mis-sized
-  const vv = window.visualViewport;
-  canvas.width = vv ? vv.width : window.innerWidth;
-  canvas.height = vv ? vv.height : window.innerHeight;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
   const newTile = Math.max(
     16,
     Math.round((BASE_TILE * Math.min(canvas.width, canvas.height)) / REF_MIN_DIM)
@@ -72,7 +79,6 @@ function resizeCanvas() {
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
-if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas);
 
 /* ============ Tile variants: instead of baking the whole map into one offscreen canvas
    up front (which used to freeze the page on first load), pre-render 3 floor + 3 wall
@@ -125,53 +131,109 @@ export function renderPuddle(c, obj, px, py) {
   c.restore();
 }
 
-// liquid "water" puddle: a blue-violet pool with ripples and drifting sparkles, drawn
-// per-frame (unlike the static frozen state) so they can animate. Decoration positions
-// are cached on the object itself, computed once.
-function renderPuddleField(obj, px, py) {
-  if (!obj.waterDeco) {
-    obj.waterDeco = {
-      ripples: [-BASE_TILE * 0.18, BASE_TILE * 0.22],
-      sparkles: [
-        { ox: -BASE_TILE * 0.28, oy: -BASE_TILE * 0.22, r: 1.3, phase: 0 },
-        { ox: BASE_TILE * 0.24, oy: BASE_TILE * 0.12, r: 1.6, phase: 2.1 },
-        { ox: -BASE_TILE * 0.05, oy: BASE_TILE * 0.3, r: 1, phase: 4.2 },
-      ],
-    };
-  }
-  const { ripples, sparkles } = obj.waterDeco;
-  const t = performance.now();
-  const half = BASE_TILE * 0.5;
-  // fixed blue-violet, never keyed by position or time, so the whole pool reads as one
-  // sheet instead of a patchwork — a position-keyed hue looked mismatched across tiles,
-  // a time-keyed one made the color drift and read busy
-  ctx.save();
-  ctx.globalAlpha = 0.42;
-  ctx.fillStyle = 'hsl(220, 68%, 68%)';
-  ctx.fillRect(px - half, py - half, BASE_TILE, BASE_TILE);
-  ctx.restore();
-  // gentle ripple lines so it clearly reads as a water surface, not just a color wash
-  ctx.save();
-  ctx.strokeStyle = '#ffffff90';
-  ctx.lineWidth = 1.3;
-  ripples.forEach((oy0, i) => {
-    const oy = py + oy0;
-    ctx.beginPath();
-    ctx.moveTo(px - half, oy);
-    ctx.quadraticCurveTo(px, oy + Math.sin(t / 800 + i * 2) * 3, px + half, oy);
-    ctx.stroke();
+// liquid "water" puddles used to animate independently per tile (own ripple phase,
+// own 3 sparkles) — cheap for one tile, but a connected pond of them is both a lot of
+// per-frame draw calls AND reads as a patchwork of independently-drifting squares
+// instead of the "one continuous sheet" the fixed (non-position-keyed) color was
+// already going for. Flood-filling connected water tiles into one shared pond fixes
+// both: one fill instead of one per tile, and a handful of ripples/sparkles scaled to
+// the pond's size instead of a full set per tile. Rebuilt only when a puddle's state
+// actually changes (puddleEpoch), not every frame.
+let pondGroups = [];
+let pondGroupsEpoch = -1;
+function computePondGroups() {
+  pondGroups = [];
+  const visited = new Set();
+  objectsMap.forEach((obj, k) => {
+    if (obj.type !== 'puddle' || obj.state !== 'water' || visited.has(k)) return;
+    const tiles = [];
+    const stack = [k];
+    visited.add(k);
+    while (stack.length) {
+      const ck = stack.pop();
+      const [cx, cy] = unkey(ck);
+      tiles.push({ x: cx, y: cy });
+      CARDINAL_OFFSETS.forEach(([dx, dy]) => {
+        const nk = key(cx + dx, cy + dy);
+        if (visited.has(nk)) return;
+        const nobj = objectsMap.get(nk);
+        if (nobj && nobj.type === 'puddle' && nobj.state === 'water') {
+          visited.add(nk);
+          stack.push(nk);
+        }
+      });
+    }
+    // ripples and sparkles both scaled to the pond's size (capped) and placed off an
+    // anchor tile's own coordinates, so positions/phases stay stable across rebuilds
+    // without needing a stored RNG seed
+    const n = tiles.length;
+    const ripples = [];
+    for (let i = 0; i < Math.min(3, 1 + Math.floor(n / 8)); i++) {
+      ripples.push(tiles[(i * 11 + 5) % n]);
+    }
+    const sparkles = [];
+    for (let i = 0; i < Math.min(10, 3 + Math.floor(n / 3)); i++) {
+      const tile = tiles[(i * 7 + 3) % n];
+      const h1 = Math.abs(Math.sin(tile.x * 12.9898 + tile.y * 78.233 + i * 37.1));
+      const h2 = Math.abs(Math.sin(h1 * 6180.5 + i));
+      sparkles.push({
+        x: tile.x,
+        y: tile.y,
+        ox: (h1 - 0.5) * BASE_TILE * 0.7,
+        oy: (h2 - 0.5) * BASE_TILE * 0.7,
+        r: 1 + h1 * 0.7,
+        phase: h2 * Math.PI * 6,
+      });
+    }
+    pondGroups.push({ tiles, ripples, sparkles });
   });
-  ctx.restore();
-  // whimsical twinkles, drifting slowly upward
-  sparkles.forEach(s => {
-    const yy = ((((s.oy + half - t / 90) % BASE_TILE) + BASE_TILE) % BASE_TILE) - half;
-    const alpha = 0.55 + Math.sin(s.phase + t / 380) * 0.35;
+}
+// draws every currently-'water' pond as one shared sheet — see computePondGroups
+export function renderPonds(originPxX, originPxY) {
+  if (puddleEpoch !== pondGroupsEpoch) {
+    computePondGroups();
+    pondGroupsEpoch = puddleEpoch;
+  }
+  const t = performance.now();
+  const s = TILE / BASE_TILE;
+  const half = TILE / 2;
+  pondGroups.forEach(group => {
+    // fixed blue-violet, never keyed by position or time, so the whole pool reads as
+    // one sheet instead of a patchwork
     ctx.save();
-    ctx.globalAlpha = Math.max(0.2, alpha);
-    ctx.fillStyle = '#fff9ff';
-    starPath(ctx, px + s.ox, py + yy, s.r * 2.3, 4, 0.3);
+    ctx.globalAlpha = 0.42;
+    ctx.fillStyle = 'hsl(220, 68%, 68%)';
+    ctx.beginPath();
+    group.tiles.forEach(({ x, y }) => ctx.rect(originPxX + x * TILE, originPxY + y * TILE, TILE, TILE));
     ctx.fill();
     ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = '#ffffff90';
+    ctx.lineWidth = 1.3 * s;
+    group.ripples.forEach((r, i) => {
+      const px = originPxX + r.x * TILE + half,
+        py = originPxY + r.y * TILE + half;
+      ctx.beginPath();
+      ctx.moveTo(px - half, py);
+      ctx.quadraticCurveTo(px, py + Math.sin(t / 800 + i * 2) * 3 * s, px + half, py);
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    // whimsical twinkles, drifting slowly upward
+    group.sparkles.forEach(sp => {
+      const baseX = originPxX + sp.x * TILE + half + sp.ox * s,
+        baseY = originPxY + sp.y * TILE + half;
+      const yy = ((((sp.oy * s + half - t / 90) % TILE) + TILE) % TILE) - half;
+      const alpha = 0.55 + Math.sin(sp.phase + t / 380) * 0.35;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0.2, alpha);
+      ctx.fillStyle = '#fff9ff';
+      starPath(ctx, baseX, baseY + yy, sp.r * 2.3 * s, 4, 0.3);
+      ctx.fill();
+      ctx.restore();
+    });
   });
 }
 
@@ -324,8 +386,8 @@ export function renderInteractiveObject(obj, x, y, originPxX, originPxY) {
   ctx.scale(TILE / BASE_TILE, TILE / BASE_TILE);
   if (obj.type === 'vine') {
     if (!obj.destroyed) renderVine(obj, 0, 0);
-  } else if (obj.type === 'puddle') {
-    if (obj.state === 'water') renderPuddleField(obj, 0, 0);
+    // 'water' puddles render separately as one shared pond per connected group — see
+    // renderPonds — instead of one independent animation per tile here
   } else if (obj.type === 'crate') {
     renderCrate(obj, 0, 0);
   } else if (obj.type === 'mirror_surface') {

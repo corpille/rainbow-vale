@@ -82,7 +82,7 @@ function getCellsArc(px, py, dx, dy, maxRange, angleMaxDeg, nature, withPierce) 
       // (unless Pierce), so the radius+angle fill can't reach straight through corners
       if (!withPierce && isBlocked({ x: px, y: py }, { x, y }, nature)) continue;
       const reachable = reachableCell(x, y, nature);
-      if (!withPierce || (withPierce && reachable)) cells.push({ x, y });
+      if (!withPierce || reachable) cells.push({ x, y });
     }
   return cells;
 }
@@ -109,9 +109,7 @@ function getConeCells(playerPos, dir, withPierce, nature) {
       };
       if (!withPierce && isBlocked(playerPos, target, nature)) continue;
       const reachable = reachableCell(target.x, target.y, nature);
-      if (!withPierce || (withPierce && reachable)) {
-        cells.push(target);
-      }
+      if (!withPierce || reachable) cells.push(target);
     }
   }
   return cells;
@@ -119,14 +117,14 @@ function getConeCells(playerPos, dir, withPierce, nature) {
 
 function isBlocked(from, to, nature) {
   const line = bresenhamLine(from, to);
-  // on saute la case de départ (le joueur), on vérifie chaque case jusqu'à la cible incluse
+  // skip the starting cell (the caster) — check every cell up to and including the target
   for (let i = 1; i < line.length; i++) {
     const cell = line[i];
     if (
       !worldRunes.inBounds(cell.x, cell.y) &&
       !(nature === Nature.SOLIDIFY && isVoid(cell.x, cell.y))
     )
-      return true; // mur trouvé avant/sur la cible
+      return true; // a wall stands before (or at) the target
   }
   return false;
 }

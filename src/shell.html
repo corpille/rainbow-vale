@@ -2,10 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rainbow Vale</title>
     <style>
       :root {
@@ -21,25 +18,19 @@
         padding: 0;
         width: 100%;
         height: 100vh;
-        height: 100dvh;
         overflow: hidden;
         background: var(--bg);
         color: var(--text);
         font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
       }
-      /* 100dvh (falls back to 100vh) tracks the real visible viewport as mobile browser
-     chrome shows/hides — 100vh alone can be taller than what's on screen, clipping or
-     misplacing bottom-anchored UI */
       .frame {
         position: relative;
         width: 100vw;
         height: 100vh;
-        height: 100dvh;
       }
       canvas {
         display: block;
         background: #dff0ff;
-        touch-action: none;
       }
       #game {
         position: absolute;
@@ -49,11 +40,11 @@
 
       /* always-on spell bar — horizontal position is set in JS (ui-panel.js), measured
          off the real canvas width in pixels so it's exactly centered regardless of any
-         vw/scrollbar discrepancy; bottom margin is fixed, not scaled */
+         vw/scrollbar discrepancy */
       #o {
         position: absolute;
         left: 0;
-        bottom: calc(40px + env(safe-area-inset-bottom));
+        bottom: 40px;
         background: transparent;
       }
     </style>

@@ -1,6 +1,6 @@
 /* ============ Always-on spell bar — Nature (slot1) / Shape (slot2) / Modifier (slot3) ============ */
 import { COLORS, FONT } from './colors.js';
-import { gameState, iconGlyph, starPath } from './engine-core.js';
+import { gameState, iconGlyph } from './engine-core.js';
 import { SYMBOL_TO_ROLE, ZONES } from '../world/world-zones.js';
 import { resolvePhrase } from '../world/spell-shapes.js';
 import { applyEffectsToWorld } from '../world/world-objects.js';
@@ -210,14 +210,24 @@ export function drawComboOverlay() {
   }
   divider(dividerX2);
 
-  // --- right: cast (star) / erase (arrow), icons only ---
+  // --- right: cast (checkmark) / erase (arrow) — same weight/shape treatment so the two
+  // read as one matched pair; cast gets its own saturated-but-dark green (not the pale
+  // COLORS.GREEN used for "activated" glows elsewhere, which washed out against the
+  // bar's cream background) so "confirm" still reads at a glance. Cast used to share the
+  // swamp rune's own star shape (just recolored), easy to mistake for a 5th rune. Drawn
+  // as a stroked path, not a text glyph — a checkmark character's actual size/weight
+  // varies wildly across fonts (and can silently fall back to an emoji-style glyph), so
+  // a path is the only way to guarantee it matches the arrow's thin, geometric look ---
   comboCtx.save();
   comboCtx.translate(castX, cy);
-  comboCtx.fillStyle = '#ffb347';
-  comboCtx.strokeStyle = '#e08a1e';
-  comboCtx.lineWidth = 1.4 * scale;
-  starPath(comboCtx, 0, 0, runeR, 5, 0.48);
-  comboCtx.fill();
+  comboCtx.strokeStyle = '#2f9e5b';
+  comboCtx.lineWidth = 3.2 * scale;
+  comboCtx.lineCap = 'round';
+  comboCtx.lineJoin = 'round';
+  comboCtx.beginPath();
+  comboCtx.moveTo(-runeR * 0.55, -runeR * 0.05);
+  comboCtx.lineTo(-runeR * 0.15, runeR * 0.4);
+  comboCtx.lineTo(runeR * 0.6, -runeR * 0.45);
   comboCtx.stroke();
   comboCtx.restore();
   comboHit.cast = { x: castX - runeR, y: cy - runeR, w: runeR * 2, h: runeR * 2 };
@@ -244,7 +254,6 @@ function castPhrase() {
   if (r.ok) {
     applyEffectsToWorld(r.result, r.runeCount, r.shape, player.x, player.y);
     lastCast = { cellsTouched: r.cellsTouched, until: performance.now() + 500 };
-    window._lastResolved = r;
   }
   phraseRunes = [];
 }
@@ -283,7 +292,7 @@ window.addEventListener('keydown', e => {
     phraseRunes.pop();
     return;
   }
-  if (e.key === 'Enter') {
+  if (e.key === ' ') {
     e.preventDefault();
     castPhrase();
     return;

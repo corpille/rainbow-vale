@@ -5,7 +5,6 @@ export const BASE_TILE = 42; // tuned against a REF_MIN_DIM-tall/wide viewport �
 // eslint-disable-next-line prefer-const -- reassigned in render-world.js's resizeCanvas()
 export let TILE = BASE_TILE; // recomputed per-viewport so the amount of world visible stays consistent
 export let VIEW_COLS, VIEW_ROWS;
-// DEBUG: skip straight to gameplay, bypassing the menu/intro screens — revert to 'menu' before shipping
 // eslint-disable-next-line prefer-const -- reassigned by the pointerdown handler in render-hud.js
 export let gameState = 'menu'; // 'menu' | 'intro' | 'playing' — see the start prompt in render-hud.js
 

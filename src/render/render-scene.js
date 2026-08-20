@@ -35,6 +35,7 @@ import {
   ctx,
   offscreen,
   renderInteractiveObject,
+  renderPonds,
   renderPuddle,
   tileVariantIndex,
   variantSetFor,
@@ -97,7 +98,7 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
 
       const obj = worldRunes.objectAt(x, y);
       // only the frozen look is drawn here — liquid "water" is animated per-frame
-      // instead, see renderPuddleField in drawInteractiveObjects
+      // instead, see renderPonds in drawInteractiveObjects
       if (obj && obj.type === 'puddle' && obj.state === 'frozen') {
         // renderPuddle draws in BASE_TILE-pixel units — scale it to the current TILE
         const ps = TILE / BASE_TILE;
@@ -253,8 +254,11 @@ export function drawPlates(originPxX, originPxY) {
   });
 }
 
-// interactive objects (Vine, Crate, ...) — rendered dynamically, never frozen into the cache
+// interactive objects (Vine, Crate, ...) — rendered dynamically, never frozen into the cache.
+// Water puddles are excluded from the per-tile loop and drawn once as shared ponds —
+// see renderPonds — instead of one independent animation per tile.
 export function drawInteractiveObjects(originPxX, originPxY) {
+  renderPonds(originPxX, originPxY);
   objectsMap.forEach((obj, k) => {
     const [ox, oy] = unkey(k);
     renderInteractiveObject(obj, ox, oy, originPxX, originPxY);
@@ -325,19 +329,13 @@ export function drawItems(originPxX, originPxY) {
       fillCircle(ctx, -i * 3.2, -i * 2.2, 2.6 - i * 0.5);
       ctx.restore();
     }
-    // the star itself: a 4-point sparkle (outer/inner radius alternating every 45deg)
+    // the star itself: a 4-point sparkle — same alternating-radius shape as starPath,
+    // just traced starting from a different vertex around the same closed octagon,
+    // so it's the identical fill either way
     ctx.fillStyle = '#fff6d8';
     ctx.strokeStyle = COLORS.PINK_DARK;
     ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      const r = i % 2 === 0 ? 7 : 2.4;
-      const x = Math.cos(a) * r,
-        y = Math.sin(a) * r;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.closePath();
+    starPath(ctx, 0, 0, 7, 4, 2.4 / 7);
     ctx.fill();
     ctx.stroke();
     ctx.restore();

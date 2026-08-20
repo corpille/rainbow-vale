@@ -223,14 +223,21 @@ const TERSER_OPTIONS = {
         '0,1',
         '-1,0',
         '1,0',
-        // player.js KEY_MAP, keyed by the browser's own e.key strings (ArrowUp) — e.key is
-        // native so these can't be mangled, meaning KEY_MAP's own keys must match exactly.
-        // Missed this once: broke all keyboard movement silently, since KEY_MAP[e.key] just
-        // returned undefined and the handler quietly no-op'd.
+        // player.js KEY_MAP, keyed by the browser's own e.code strings (ArrowUp, KeyW, ...)
+        // — e.code is native so these can't be mangled, meaning KEY_MAP's own keys must
+        // match exactly. Missed this once already for the arrow keys: broke all keyboard
+        // movement silently, since KEY_MAP[e.code] just returned undefined and the handler
+        // quietly no-op'd. WASD/ZQSD went through the same trap when added later — the
+        // Arrow* keys were reserved but KeyW/KeyA/KeyS/KeyD weren't, so movement kept
+        // working via arrow keys while WASD/ZQSD silently did nothing.
         'ArrowUp',
         'ArrowDown',
         'ArrowLeft',
         'ArrowRight',
+        'KeyW',
+        'KeyA',
+        'KeyS',
+        'KeyD',
       ],
     },
   },

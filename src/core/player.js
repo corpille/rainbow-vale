@@ -3,7 +3,7 @@ import { COLORS } from './colors.js';
 import { gameState } from './engine-core.js';
 import { DIRS4, HUB, ZONES, grid, key, objectsMap } from '../world/world-zones.js';
 import { collected, items, primitiveSpots } from '../world/map-loader.js';
-import { ctx, startColorWave } from '../render/render-world.js';
+import { startColorWave } from '../render/render-world.js';
 import { playPickup } from './music.js';
 
 export const player = {
@@ -20,11 +20,19 @@ export const collectedItems = new Set(); // "zoneId:x,y" of already-collected sp
 export const totalItems = items.length;
 export let hubActivated = false;
 const keysDown = {};
+// keyed by e.code (the key's physical position, not the character produced) so
+// WASD on QWERTY and ZQSD on AZERTY — same physical keys — both work from one
+// map, with no separate character list per layout (same trick DIGIT_CODES uses
+// for the rune keys in ui-panel.js)
 const KEY_MAP = {
   ArrowUp: 'up',
   ArrowDown: 'down',
   ArrowLeft: 'left',
   ArrowRight: 'right',
+  KeyW: 'up',
+  KeyS: 'down',
+  KeyA: 'left',
+  KeyD: 'right',
 };
 
 const repeatTimers = {};
@@ -74,69 +82,17 @@ window.addEventListener('keydown', e => {
     ZONES.forEach(z => collected.add(z.id));
     return;
   }
-  const dir = KEY_MAP[e.key];
+  const dir = KEY_MAP[e.code];
   if (!dir) return;
   e.preventDefault();
   if (gameState === 'playing') pressDir(dir);
 });
 window.addEventListener('keyup', e => {
-  const dir = KEY_MAP[e.key];
+  const dir = KEY_MAP[e.code];
   if (!dir) return;
   releaseDir(dir);
 });
 
-// touch: drag anywhere on the canvas to move, like holding an arrow key in that
-// direction — reuses the same grid-step + repeat logic as the keyboard
-let touchId = null,
-  touchDir = null,
-  touchBaseX = 0,
-  touchBaseY = 0,
-  touchCurX = 0,
-  touchCurY = 0;
-const TOUCH_DEADZONE = 14;
-function dirFromDelta(dx, dy) {
-  if (Math.abs(dx) < TOUCH_DEADZONE && Math.abs(dy) < TOUCH_DEADZONE) return null;
-  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
-}
-function endTouch(e) {
-  if (e.pointerId !== touchId) return;
-  if (touchDir) releaseDir(touchDir);
-  touchId = touchDir = null;
-}
-// canvas isn't declared yet at this point in load order, so grab the element directly
-const gameEl = document.getElementById('game');
-gameEl.addEventListener('pointerdown', e => {
-  if (gameState !== 'playing' || e.pointerType !== 'touch') return;
-  touchId = e.pointerId;
-  touchBaseX = touchCurX = e.clientX;
-  touchBaseY = touchCurY = e.clientY;
-  touchDir = null;
-});
-gameEl.addEventListener('pointermove', e => {
-  if (e.pointerId !== touchId) return;
-  touchCurX = e.clientX;
-  touchCurY = e.clientY;
-  const dir = dirFromDelta(touchCurX - touchBaseX, touchCurY - touchBaseY);
-  if (dir !== touchDir) {
-    if (touchDir) releaseDir(touchDir);
-    touchDir = dir;
-    if (touchDir) pressDir(touchDir);
-  }
-});
-gameEl.addEventListener('pointerup', endTouch);
-gameEl.addEventListener('pointercancel', endTouch);
-
-// minimal on-screen feedback: a dot under the finger while dragging, pink once a direction latches
-export function drawTouchStick() {
-  if (touchId === null) return;
-  ctx.save();
-  ctx.globalAlpha = 0.4;
-  ctx.fillStyle = touchDir ? COLORS.PINK_UI : '#e8e4da';
-  ctx.beginPath();
-  ctx.arc(touchCurX, touchCurY, 20, 0, 7);
-  ctx.fill();
-  ctx.restore();
-}
 
 // instant logical movement: never blocked, never a lost keypress.
 // visual tracking (dispX/dispY) is a separate animation that catches up independently.

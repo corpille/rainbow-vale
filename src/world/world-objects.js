@@ -5,6 +5,7 @@ import {
   RANGE_DIAGONAL,
   RANGE_LINE,
   RANGE_SHORT,
+  bumpPuddleEpoch,
   grid,
   isBlockingFor,
   key,
@@ -144,10 +145,12 @@ export function createPuddle() {
       if (o.state === 'evaporated') return { effect: 'none' };
       if (nature === Nature.FREEZE) {
         o.state = 'frozen';
+        bumpPuddleEpoch();
         return { effect: 'frozen' };
       }
       if (nature === Nature.BURN) {
         o.state = 'evaporated';
+        bumpPuddleEpoch();
         return { effect: 'evaporated' };
       }
       return { effect: 'none' };
