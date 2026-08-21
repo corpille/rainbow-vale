@@ -35,7 +35,7 @@ export let phraseRunes = []; // up to 3 symbols ▲❄~■, in the chosen order,
 // handler double as "press a rune" / "cast" / "erase" on touch
 const comboHit = { runes: [], cast: null, erase: null };
 export let lastCast = null; // { cellsTouched, until } — highlight of the last spell cast
-const comboOverlay = document.getElementById('o');
+export const comboOverlay = document.getElementById('o');
 const comboCtx = comboOverlay.getContext('2d');
 const PANEL_INK = '#453a5c'; // dark ink for icons/text on the bar's light cloud background
 
@@ -218,28 +218,33 @@ export function drawComboOverlay() {
   // as a stroked path, not a text glyph — a checkmark character's actual size/weight
   // varies wildly across fonts (and can silently fall back to an emoji-style glyph), so
   // a path is the only way to guarantee it matches the arrow's thin, geometric look ---
-  comboCtx.save();
-  comboCtx.translate(castX, cy);
-  comboCtx.strokeStyle = '#2f9e5b';
-  comboCtx.lineWidth = 3.2 * scale;
-  comboCtx.lineCap = 'round';
-  comboCtx.lineJoin = 'round';
-  comboCtx.beginPath();
-  comboCtx.moveTo(-runeR * 0.55, -runeR * 0.05);
-  comboCtx.lineTo(-runeR * 0.15, runeR * 0.4);
-  comboCtx.lineTo(runeR * 0.6, -runeR * 0.45);
-  comboCtx.stroke();
-  comboCtx.restore();
-  comboHit.cast = { x: castX - runeR, y: cy - runeR, w: runeR * 2, h: runeR * 2 };
+  // stale comboHit.cast/erase rects left over from the last non-empty frame stay
+  // clickable but harmless — castPhrase() and the erase pop() are both no-ops on an
+  // empty phraseRunes, so there's no need to null the rects out when hiding the icons
+  if (phraseRunes.length) {
+    comboCtx.save();
+    comboCtx.translate(castX, cy);
+    comboCtx.strokeStyle = '#2f9e5b';
+    comboCtx.lineWidth = 3.2 * scale;
+    comboCtx.lineCap = 'round';
+    comboCtx.lineJoin = 'round';
+    comboCtx.beginPath();
+    comboCtx.moveTo(-runeR * 0.55, -runeR * 0.05);
+    comboCtx.lineTo(-runeR * 0.15, runeR * 0.4);
+    comboCtx.lineTo(runeR * 0.6, -runeR * 0.45);
+    comboCtx.stroke();
+    comboCtx.restore();
+    comboHit.cast = { x: castX - runeR, y: cy - runeR, w: runeR * 2, h: runeR * 2 };
 
-  comboCtx.save();
-  comboCtx.font = `700 ${30 * scale}px ${FONT}`;
-  comboCtx.fillStyle = '#7d6f92';
-  comboCtx.textAlign = 'center';
-  comboCtx.textBaseline = 'middle';
-  comboCtx.fillText('←', eraseX, cy + 1);
-  comboCtx.restore();
-  comboHit.erase = { x: eraseX - runeR, y: cy - runeR, w: runeR * 2, h: runeR * 2 };
+    comboCtx.save();
+    comboCtx.font = `700 ${30 * scale}px ${FONT}`;
+    comboCtx.fillStyle = '#7d6f92';
+    comboCtx.textAlign = 'center';
+    comboCtx.textBaseline = 'middle';
+    comboCtx.fillText('←', eraseX, cy + 1);
+    comboCtx.restore();
+    comboHit.erase = { x: eraseX - runeR, y: cy - runeR, w: runeR * 2, h: runeR * 2 };
+  }
 }
 
 function addToPhrase(zoneId) {

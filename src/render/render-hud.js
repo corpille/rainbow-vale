@@ -4,7 +4,14 @@ import { BASE_TILE, TILE, gameState, iconGlyph, starPath } from '../core/engine-
 import { ZONES, isBlockingFor, worldRunes } from '../world/world-zones.js';
 import { hubActivated, player, screenFlash } from '../core/player.js';
 import { startMusic } from '../core/music.js';
-import { RUNE_ACCENT, RUNE_SHAPE, drawComboOverlay, inRect, panelRect } from '../core/ui-panel.js';
+import {
+  RUNE_ACCENT,
+  RUNE_SHAPE,
+  comboOverlay,
+  drawComboOverlay,
+  inRect,
+  panelRect,
+} from '../core/ui-panel.js';
 import { canvas, ctx, generateTileVariants } from './render-world.js';
 import {
   drawCastHighlight,
@@ -291,8 +298,10 @@ function draw() {
   drawScreenFlash();
   drawVignette();
 
-  if (hubActivated) drawEndingOverlay();
-  else drawComboOverlay();
+  if (hubActivated) {
+    comboOverlay.width = 0;
+    drawEndingOverlay();
+  } else drawComboOverlay();
 
   requestAnimationFrame(draw);
 }
