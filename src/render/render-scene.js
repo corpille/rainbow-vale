@@ -93,10 +93,9 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
         continue;
       }
 
-      // water/ice both paint fully opaque (ice right here, water right after this
-      // function returns — see draw()'s renderPonds call in render-hud.js), so the
-      // floor tile underneath would never show — skip drawing it at all for those two,
-      // instead of drawing then fully covering it
+      // water/ice both paint fully opaque (ice right here, water later via renderPonds —
+      // see draw() in render-hud.js), so the floor underneath never shows. Skip drawing
+      // it for those two instead of drawing it just to cover it back up.
       if (cell.type === 'floor') {
         ctx.drawImage(variantSetFor(cell.roomId, x, y).floor[variant], destX, destY, TILE, TILE);
       } else if (cell.type === 'ice') {

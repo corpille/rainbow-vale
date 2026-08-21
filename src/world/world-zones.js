@@ -30,9 +30,8 @@ const SLOT_ORDER = [0, 2, 1, 3];
 // ids are single chars matching FLOOR_CHARS' grid codes in map-loader.js (m/j/v/b already
 // mean swamp/cavern/orchard/marsh there) — reusing them as the zone id itself needs no new
 // Terser reservation, since those letters are reserved anyway. Public faces: swamp = Clover
-// Fields (Breeze), cavern = Cloud Cavern (Frost), orchard = Sunbeam Grove (Bramble —
-// grove name predates the Sunbeam/burn -> Bramble/cut rename), marsh = Starlight Marsh
-// (Crystal)
+// Fields (Breeze), cavern = Cloud Cavern (Frost), orchard = Sunbeam Grove (Bramble;
+// grove name unchanged), marsh = Starlight Marsh (Crystal)
 const ZONE_DEFS = [
   { id: 'm', base: '#bdf3c9', dark: '#6fcf97', blob: '#e8fff0' }, // swamp
   { id: 'j', base: '#d6ecff', dark: '#8fc9f0', blob: WHITE }, // cavern

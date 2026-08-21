@@ -23,9 +23,9 @@ export const RUNE_ACCENT = {
 const DESC_NATURE = { FREEZE: 'Frost', PUSH: 'Breeze', CUT: 'Bramble', SOLIDIFY: 'Crystal' };
 const DESC_SHAPE = { LINE: 'Line', HALF_CIRCLE: 'Half-circle', CONE: 'Cone', DIAGONAL: 'Diagonal' };
 const DESC_MODIFIER = { PIERCE: 'Pierce', SNIPE: 'Snipe', SPREAD: 'Spread', MIRROR: 'Mirror' };
-// Mirror is the one modifier whose actual effect depends on which nature it's paired
-// with (Pull for Push, Thaw for Freeze) — Cut/Solidify get no override below, since
-// Mirror is a no-op for them and "Mirror" is as good a label as any for "does nothing"
+// Mirror is the only modifier whose effect depends on the nature it's paired with
+// (Pull for Push, Thaw for Freeze) — Cut/Solidify fall through to the plain "Mirror"
+// label below, since it's a no-op for them
 const DESC_MIRROR_INVERT = { [Nature.PUSH]: 'Pull', [Nature.FREEZE]: 'Thaw' };
 // which table applies depends on which slot a rune lands in, not the rune itself —
 // slot1 = nature, slot2 = shape, slot3 = modifier (see SYMBOL_TO_ROLE in world-zones.js)

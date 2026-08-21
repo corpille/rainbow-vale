@@ -659,14 +659,12 @@
       Object.entries(TYPE_CODE).forEach(([k, v]) => (CODE_TYPE[v] = k));
 
       // gridStr char -> [roomId, objType]: a floor tile's char is its room, optionally
-      // fused with the one purely-positional object (no extra data) sitting on it —
-      // vine/crate/lock never need MAP_DATA.objects at all this way. Must match
-      // src/world/map-loader.js's FLOOR_CHARS exactly, key-for-key. Water/puddle isn't
-      // here: in the real game it's a grid tile TYPE, not an object, and it isn't
-      // room-specific (its room is never read — the opaque water/ice fill always covers
-      // the floor tile underneath) — one shared WATER_CHAR below instead of 4 room chars.
-      // The editor still models it as a 'puddle' object internally purely for its own
-      // placement UI (obj-btn, OBJ_STYLE); only the gridStr encoding differs.
+      // fused with the one purely-positional object sitting on it — vine/crate/lock
+      // never need MAP_DATA.objects this way. Must match map-loader.js's FLOOR_CHARS
+      // key-for-key. Water isn't here: it's a grid tile TYPE in the real game, not an
+      // object, and its room is never read — one shared WATER_CHAR below instead of 4
+      // room chars. The editor still models it as a 'puddle' object for its own
+      // placement UI; only the gridStr encoding differs.
       const FLOOR_CHARS = {
         h: ['hub'],
         m: ['swamp'],

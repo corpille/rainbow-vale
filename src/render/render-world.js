@@ -199,12 +199,10 @@ export function renderPonds(originPxX, originPxY) {
   const s = TILE / BASE_TILE;
   const half = TILE / 2;
   pondGroups.forEach(group => {
-    // fixed blue-violet, never keyed by position or time, so the whole pool reads as
-    // one sheet instead of a patchwork. Opaque — the floor tile underneath is skipped
-    // entirely for water cells (see drawWorldTiles), so there's nothing to blend with.
-    // This exact hsl is not a guess: it's the old 42%-alpha hsl(220,68%,68%) fill,
-    // composited onto the real baked (grayscale-filtered, pre-collection) floor bitmap
-    // and averaged back into one flat color — same look on the gray floor, just opaque
+    // fixed blue-violet, never keyed by position or time, so the pool reads as one sheet.
+    // Opaque since water skips its floor tile entirely (see drawWorldTiles) — nothing to
+    // blend with. Not a guessed color: it's the old 42%-alpha fill averaged onto the real
+    // baked gray floor, so pre-collection it still looks the same.
     ctx.save();
     ctx.fillStyle = 'hsl(220, 35%, 75%)';
     ctx.beginPath();
@@ -384,8 +382,6 @@ export function renderInteractiveObject(obj, x, y, originPxX, originPxY) {
   ctx.scale(TILE / BASE_TILE, TILE / BASE_TILE);
   if (obj.type === 'vine') {
     if (!obj.destroyed) renderVine(obj, 0, 0);
-    // 'water' puddles render separately as one shared pond per connected group — see
-    // renderPonds — instead of one independent animation per tile here
   } else if (obj.type === 'crate') {
     renderCrate(obj, 0, 0);
   } else if (obj.type === 'mirror_surface') {

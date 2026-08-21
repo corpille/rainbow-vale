@@ -283,9 +283,9 @@ function draw() {
   const originPxY = Math.round(canvas.height / 2 - camY * TILE - TILE / 2);
 
   drawWorldTiles(originPxX, originPxY, camX, camY);
-  // ground layer, same as the ice drawn inside drawWorldTiles — needs to land before any
-  // highlight/preview/object draw, now that it's an opaque fill (see renderPonds) rather
-  // than translucent enough to always show whatever was drawn under it
+  // ground layer, same as the ice inside drawWorldTiles — has to land before any
+  // highlight/preview/object draw now that it's opaque, not translucent enough to
+  // show through
   renderPonds(originPxX, originPxY);
   drawCastHighlight(originPxX, originPxY);
   drawSpellPreview(originPxX, originPxY);

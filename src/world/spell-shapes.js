@@ -29,8 +29,8 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist) {
       y = py + dy * i;
     if (!worldRunes.inBounds(x, y)) {
       // Solidify grows a new floor tile on true void — that tile is no longer a dead
-      // end once grown, so (like Pierce/Push/burn below) the ray keeps going through
-      // it by default, chaining across a whole row of void instead of stopping at the
+      // end once grown, so (like Pierce/Push/Cut below) the ray keeps going through it
+      // by default, chaining across a whole row of void instead of stopping at the
       // first tile grown
       if (nature === Nature.SOLIDIFY && isVoid(x, y)) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
@@ -54,16 +54,14 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist) {
         }
       }
       // Freeze always clears a water tile — once frozen it no longer blocks, so it never
-      // really blocked the NEXT thing in line either (water is a grid tile type, not an
-      // object, so there's no `obj` here at all when it's the only thing blocking)
+      // blocked the next thing in line either. No `obj` here: water is a grid tile
+      // type, not an object.
       if (nature === Nature.FREEZE && isWaterAt(x, y)) continue;
       const reacts = obj && typeof obj.wouldReact === 'function' && obj.wouldReact(nature);
-      // a Push beam doesn't stop at what it just pushed — it keeps going to chain
-      // through whatever's lined up behind it. A vine getting cut is the same story:
-      // once the reaction lands it no longer blocks (see its blocksMovement getter), so
-      // it never really blocked the NEXT object in line either — only Pierce should be
-      // needed for obstacles that stay solid no matter what they react to (a crate,
-      // frozen or not)
+      // a Push beam doesn't stop at what it just pushed — it chains through whatever's
+      // lined up behind it. A cut vine is the same story: once the reaction lands it no
+      // longer blocks, so it never blocked the next object either. Only Pierce should be
+      // needed for obstacles that stay solid regardless of reaction (a crate, frozen or not)
       const clearsPath = obj && obj.type === 'vine' && nature === Nature.CUT;
       if ((withPierce || nature === Nature.PUSH || clearsPath) && reacts) continue;
       break;
@@ -214,8 +212,8 @@ function spreadTypeAt(x, y, nature) {
   if (nature === Nature.SOLIDIFY && isVoid(x, y)) return 'void';
   return nature === Nature.FREEZE && isWaterAt(x, y) ? 'water' : null;
 }
-// 'void'/'water' are tile types, not objects — nothing to probe wouldReact on, and
-// (unlike an object) reaching one at all already means the nature applies to it
+// 'void' and 'water' are tile types, not objects — nothing to call wouldReact on, and
+// reaching one at all already means the nature applies
 const TILE_TYPES = new Set(['void', 'water']);
 // Spread keeps the base shape's hits, then hops to adjacent cells/objects of that SAME
 // type that would ALSO react, chaining outward (e.g. cutting one vine catches the whole
@@ -260,10 +258,9 @@ export function deriveSpell(runes) {
   return { nature, shape, modifier, withPierce: modifier === Modifier.PIERCE };
 }
 // full set of cells a spell touches: base shape plus any SPREAD/SNIPE modifier. Mirror
-// doesn't change which cells are touched — it inverts what happens at resolution time
-// (see resolvePhrase's `invert`) — so it isn't handled here at all. Shared by
-// resolvePhrase and the live range preview (computeSpellPreview) — same geometry, only
-// what's done with the cells differs
+// never changes which cells are touched, only what happens to them at resolution (see
+// resolvePhrase's `invert`). Shared by resolvePhrase and the live range preview — same
+// geometry, different handling
 export function computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName) {
   const cells = applyShape(shape, px, py, dirName, nature, withPierce);
   if (modifier === Modifier.SPREAD) return cells.concat(applySpreadModifier(nature, cells));

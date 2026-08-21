@@ -78,9 +78,8 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
       if (p.budget <= 0) return false; // ran out of range — stops here
       const destX = p.x + p.dx,
         destY = p.y + p.dy;
-      // Pull (a Mirrored Push) drags a crate toward the caster — never let it slide
-      // onto (or through) the caster's own tile, since the player isn't a blocking
-      // object the way a wall or another crate is
+      // Pull (a Mirrored Push) drags a crate toward the caster — never let it slide onto
+      // or through the caster's own tile, since the player isn't a blocker like a wall
       if (destX === px && destY === py) return true; // blocked this pass — retry later
       const destObj = worldRunes.objectAt(destX, destY);
       if (destObj && destObj.type === 'sym_plate') {
@@ -92,9 +91,8 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
         return false; // stops there, weighing the plate
       } else if (!isBlockingFor(destX, destY) && worldRunes.inBounds(destX, destY)) {
         // a dead obstacle (cut vine, opened lock) still sits in objectsMap but no longer
-        // blocks — a crate can slide right over it. Ice underneath needs no equivalent
-        // bookkeeping: it lives in `grid`, not objectsMap, so the crate reference here
-        // never collides with it in the first place
+        // blocks, so a crate can slide over it. Ice needs no such bookkeeping — it lives
+        // in `grid`, not objectsMap, so a crate reference here never collides with it
         worldRunes.moveObject(p.x, p.y, destX, destY);
         unweighPlateAt(p.x, p.y);
         p.x = destX;
@@ -174,12 +172,10 @@ export function createCrate() {
 }
 /* ---- secondary objects: give the modifiers a concrete use ---- */
 // a mirror surface is just an obstacle that reacts to nothing — enough to serve as a
-// reflection point for any Line-shaped ray, otherwise only visually distinct. This is
-// independent of the modifier system (the old Bounce modifier is gone; this fires
-// unconditionally whenever a Line ray hits it, no particular rune needed).
-// each orientation connects 2 of the 4 cardinal directions, like a 90° corner reflector:
-// a spell entering one open face exits the other and keeps its remaining range;
-// a closed face just blocks normally
+// reflection point for any Line-shaped ray, no rune or modifier required, otherwise
+// only visually distinct. Each orientation connects 2 of the 4 cardinal directions,
+// like a 90° corner reflector: a spell entering one open face exits the other and
+// keeps its remaining range; a closed face just blocks normally
 export const MIRROR_REFLECT = {
   NE: { down: 'right', left: 'up' },
   ES: { left: 'down', up: 'right' },
@@ -197,8 +193,8 @@ export function createMirrorSurface(orientation) {
   };
 }
 export function isPairResolved(result, pairObj) {
-  // a plate counts as "touched" either momentarily (hit by this resolution, e.g. via
-  // Mirror) or persistently (a crate currently weighing it down)
+  // a plate counts as "touched" either momentarily (hit by this resolution, e.g. a
+  // wide shape catching several plates at once) or persistently (a crate weighing it down)
   const touches = new Set();
   result.forEach(r => {
     if (r.effect === 'activated' && r.obj && r.obj.pair === pairObj.pair) touches.add(r.obj);

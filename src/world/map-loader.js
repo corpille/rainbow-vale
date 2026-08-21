@@ -49,10 +49,9 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   // penalizes the extra distinct gridStr symbols by about what the removed array entries
   // save) — kept anyway because one shared decode path beats four. mirror_surface/
   // sym_plate carry extra data (orientation, pair id) so they still go through
-  // MAP_DATA.objects below. Water is its own single char (not room-specific like these):
-  // it's a grid tile TYPE, not an object, and its room is cosmetically irrelevant — the
-  // opaque water/ice fill always covers the floor tile underneath, so nothing ever reads
-  // a water tile's room. See WATER_CHAR below.
+  // MAP_DATA.objects below. Water gets its own single char instead (see WATER_CHAR) —
+  // it's a grid tile TYPE, not an object, and its room is never read since the opaque
+  // water/ice fill always covers the floor underneath.
   const FLOOR_CHARS = {
     h: ['h'],
     m: ['m'],
@@ -134,11 +133,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   MAP_DATA.items.forEach(p => items.push({ x: p[0], y: p[1], zoneId: ZORDER[p[2]] }));
 
   // rebuilds interactive objects that carry extra data beyond position (mirror_surface's
-  // orientation, sym_plate's pair id); symmetric plate pairs share the same "pair" marker
-  // (created once per pairId). vine/crate/lock are purely positional and decoded straight
-  // from gridStr above instead; water is too, but as a grid tile type rather than an
-  // object (see WATER_CHAR above). frozen_crate_marker rides along here since it's just
-  // a flag on an already-gridStr-decoded crate, not a placeable type of its own.
+  // orientation, sym_plate's pair id); symmetric plate pairs share the same "pair" marker,
+  // created once per pairId. vine/crate/lock/water are all purely positional, decoded
+  // straight from gridStr above. frozen_crate_marker rides along here too — just a flag
+  // on an already-decoded crate, not a placeable type of its own.
   const MIRROR_ORIENTATIONS = ['NE', 'ES', 'SW', 'WN'];
   const pairsById = {}; // pairId -> { pair } — shared marker every plate of that group points to
   // MAP_DATA.objects stores x/y as deltas from the previous entry (encoded by build.js):
