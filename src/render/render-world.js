@@ -47,10 +47,10 @@ export function offscreen(px, py, pad = TILE) {
 // shorter side keeps the amount of world visible consistent across a phone, a 1080p
 // window, and 4K — instead of a fixed-pixel TILE showing wildly more or less map as
 // raw viewport pixels grow.
-// 420 (down from 600) roughly halves drawWorldTiles' per-frame cost — fewer, bigger
+// 500 (down from 600) roughly halves drawWorldTiles' per-frame cost — fewer, bigger
 // tiles to blit — while still showing a solid chunk of the map; tried 350 too but that
 // zoomed in enough to feel cramped against the spell bar's screen-bottom real estate
-const REF_MIN_DIM = 420; // lower = bigger TILE = camera feels closer to the player
+const REF_MIN_DIM = 500; // lower = bigger TILE = camera feels closer to the player
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -206,7 +206,9 @@ export function renderPonds(originPxX, originPxY) {
     ctx.save();
     ctx.fillStyle = 'hsl(220, 35%, 75%)';
     ctx.beginPath();
-    group.tiles.forEach(({ x, y }) => ctx.rect(originPxX + x * TILE, originPxY + y * TILE, TILE, TILE));
+    group.tiles.forEach(({ x, y }) =>
+      ctx.rect(originPxX + x * TILE, originPxY + y * TILE, TILE, TILE)
+    );
     ctx.fill();
     ctx.restore();
 

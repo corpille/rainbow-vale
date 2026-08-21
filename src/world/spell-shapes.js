@@ -20,14 +20,22 @@ import {
 } from './world-zones.js';
 import { MIRROR_REFLECT } from './world-objects.js';
 
-const DIR_NAME_OF_VEC = { '0,-1': 'up', '0,1': 'down', '-1,0': 'left', '1,0': 'right' };
-function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist) {
+// reverse of DIRS4 (vector -> name instead of name -> vector), built once instead of
+// hand-duplicating the same 4 pairs
+const DIR_NAME_OF_VEC = {};
+Object.entries(DIRS4).forEach(([name, [dx, dy]]) => (DIR_NAME_OF_VEC[dx + ',' + dy] = name));
+function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, viaMirror) {
   baseDist = baseDist || 0;
   const cells = [];
   for (let i = 1; i <= maxRange; i++) {
     const x = px + dx * i,
       y = py + dy * i;
-    if (!worldRunes.inBounds(x, y)) {
+    // a placed object (mirror_surface, sym_plate, ...) is reachable even on a tile with
+    // no floor entry of its own — those are positioned purely via MAP_DATA.objects,
+    // independent of gridStr's floor/rock/void code underneath them. Without this, a
+    // mirror sitting on gridStr's default '.' (or a rock code) is a dead end no ray can
+    // ever reach, so it can never reflect anything.
+    if (!worldRunes.inBounds(x, y) && !worldRunes.objectAt(x, y)) {
       // Solidify grows a new floor tile on true void — that tile is no longer a dead
       // end once grown, so (like Pierce/Push/Cut below) the ray keeps going through it
       // by default, chaining across a whole row of void instead of stopping at the
@@ -36,8 +44,10 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
-      // Pierce punches through walls too: skip the solid tile and keep the ray going
-      if (withPierce) continue;
+      // Pierce punches through void/walls too; a beam that already bounced off a mirror
+      // does as well — the whole point of redirecting it is to clear a gap the caster
+      // couldn't otherwise reach, so a bounced beam always crosses void from here on
+      if (withPierce || viaMirror) continue;
       break;
     }
     cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
@@ -49,7 +59,7 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist) {
         if (outDir) {
           const [ndx, ndy] = DIRS4[outDir];
           return cells.concat(
-            getCellsLine(x, y, ndx, ndy, maxRange - i, withPierce, nature, baseDist + i)
+            getCellsLine(x, y, ndx, ndy, maxRange - i, withPierce, nature, baseDist + i, true)
           );
         }
       }

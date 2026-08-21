@@ -57,13 +57,16 @@ export const Modifier = {
   MIRROR: 'MIRROR',
   NONE: 'NONE',
 };
+// keyed by zone id itself (m/j/v/b) rather than an arbitrary rune glyph — a phrase rune
+// IS the zone id it was collected from, so this doubles as "which spell role does this
+// zone's rune play" with no separate symbol layer to keep in sync
 export const SYMBOL_TO_ROLE = {
-  '▲': { slot1: Nature.CUT, slot2: Shape.CONE, slot3: Modifier.SPREAD },
-  '❄': { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.SNIPE },
-  '~': { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.PIERCE },
-  '■': { slot1: Nature.SOLIDIFY, slot2: Shape.DIAGONAL, slot3: Modifier.MIRROR },
+  v: { slot1: Nature.CUT, slot2: Shape.CONE, slot3: Modifier.SPREAD },
+  j: { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.MIRROR },
+  m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.PIERCE },
+  b: { slot1: Nature.SOLIDIFY, slot2: Shape.DIAGONAL, slot3: Modifier.SNIPE },
 };
-const ALL_SYMBOLS = ['▲', '❄', '~', '■'];
+const ALL_SYMBOLS = ZONE_DEFS.map(z => z.id);
 export const RANGE_LINE = 5;
 export const RANGE_SHORT = 3;
 export const RANGE_DIAGONAL = 5;
@@ -117,7 +120,14 @@ export function isBlockingFor(x, y) {
 }
 // true void: no floor tile, no obstacle rock — the only thing Solidify can turn into a real floor tile
 export const isVoid = (x, y) => !grid.has(key(x, y)) && !obstacleByTile.has(key(x, y));
-// a cell is a valid spell destination if it's real ground, OR — Solidify only — true void
+// a cell is a valid spell destination if it's real ground, if it holds a placed object
+// (mirror_surface/sym_plate are positioned via MAP_DATA.objects, independent of gridStr's
+// floor code underneath them, so a plain floor check would strand them), or — Solidify
+// only — true void
 export function reachableCell(x, y, nature) {
-  return worldRunes.inBounds(x, y) || (nature === Nature.SOLIDIFY && isVoid(x, y));
+  return (
+    worldRunes.inBounds(x, y) ||
+    !!worldRunes.objectAt(x, y) ||
+    (nature === Nature.SOLIDIFY && isVoid(x, y))
+  );
 }

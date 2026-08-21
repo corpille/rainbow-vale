@@ -186,7 +186,7 @@ const TERSER_OPTIONS = {
         // (n/k/o/g, e/i/p/q, r/s/t/u) without updating this list — silently lost every
         // puddle tile and half the vine/crate/lock tiles to property mangling.
         // h/m/j/v/b do double duty as the zone ids themselves (HUB.id, ZONE_DEFS ids,
-        // RUNE_ACCENT/RUNE_SHAPE/ZONE_SYMBOL/ZONE_DECOR_FN keys, roomById, ZORDER,
+        // RUNE_ACCENT/RUNE_SHAPE/ZONE_DECOR_FN/SYMBOL_TO_ROLE keys, roomById, ZORDER,
         // OBSTACLE_ZONE) — one reservation covers both uses.
         'h',
         'm',

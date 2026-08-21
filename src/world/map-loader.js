@@ -12,6 +12,7 @@ import {
   drawMushroomClusterBig,
 } from '../core/decor.js';
 import {
+  MIRROR_REFLECT,
   createCrate,
   createLock,
   createMirrorSurface,
@@ -24,9 +25,6 @@ import { verrouLinks } from './spell-shapes.js';
 // splices the result in here at build time — it only exists post-build, never as a real export.
 /*BUILD:MAP_DATA*/
 const ZORDER = ['m', 'j', 'v', 'b'];
-export const ZONE_SYMBOL = { m: '~', j: '\u2744', v: '\u25b2', b: '\u25a0' };
-export const SYMBOL_TO_ZONE = {}; // reverse of ZONE_SYMBOL - ui-panel needs "which zone is this filled rune"
-Object.entries(ZONE_SYMBOL).forEach(([zoneId, sym]) => (SYMBOL_TO_ZONE[sym] = zoneId));
 export const doors = [];
 export const primitiveSpots = {};
 export const items = [];
@@ -71,9 +69,6 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     t: ['v', createLock],
     u: ['b', createLock],
   };
-  // rocks ('1'-'4', one per zone) don't go into the grid — tracked separately as
-  // obstacles, just stored inline in gridStr instead of their own array
-  const OBSTACLE_ZONE = { 1: 'm', 2: 'j', 3: 'v', 4: 'b' };
   const WATER_CHAR = 'w';
   // decor is cosmetic only (no gameplay/connectivity role), so instead of storing a
   // per-instance array it's placed by a coordinate hash below: ~1% of each zone's floor
@@ -95,7 +90,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     for (let x = minX; x <= maxX; x++) {
       const c = MAP_DATA.gridStr[idx++];
       if (c === '.') continue;
-      const zoneObs = OBSTACLE_ZONE[c];
+      // rocks ('1'-'4', one per zone) don't go into the grid — tracked separately as
+      // obstacles, just stored inline in gridStr instead of their own array. Char is
+      // 1-based ('1' = ZORDER[0]); non-digit chars fall through to NaN -> undefined.
+      const zoneObs = ZORDER[c - 1];
       let roomId, occupied;
       if (zoneObs) {
         obstacles.push({ x, y, roomId: zoneObs });
@@ -137,7 +135,9 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   // created once per pairId. vine/crate/lock/water are all purely positional, decoded
   // straight from gridStr above. frozen_crate_marker rides along here too — just a flag
   // on an already-decoded crate, not a placeable type of its own.
-  const MIRROR_ORIENTATIONS = ['NE', 'ES', 'SW', 'WN'];
+  // same 4 orientation codes as MIRROR_REFLECT's own keys (world-objects.js) — reused
+  // via Object.keys instead of re-typed, so relies on that object's key insertion order
+  const MIRROR_ORIENTATIONS = Object.keys(MIRROR_REFLECT);
   const pairsById = {}; // pairId -> { pair } — shared marker every plate of that group points to
   // MAP_DATA.objects stores x/y as deltas from the previous entry (encoded by build.js):
   // placements cluster tightly, so this is usually one digit instead of a 2-3 digit

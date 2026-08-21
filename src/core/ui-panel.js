@@ -4,7 +4,7 @@ import { gameState, iconGlyph } from './engine-core.js';
 import { Modifier, Nature, SYMBOL_TO_ROLE, ZONES } from '../world/world-zones.js';
 import { resolvePhrase } from '../world/spell-shapes.js';
 import { applyEffectsToWorld } from '../world/world-objects.js';
-import { SYMBOL_TO_ZONE, ZONE_SYMBOL, collected } from '../world/map-loader.js';
+import { collected } from '../world/map-loader.js';
 import { player } from './player.js';
 import { canvas } from '../render/render-world.js';
 
@@ -19,29 +19,29 @@ export const RUNE_ACCENT = {
   v: '#ff6fa8',
   b: '#c48aff',
 };
-// plain-language names shown under a slot once it's filled
-const DESC_NATURE = { FREEZE: 'Frost', PUSH: 'Breeze', CUT: 'Bramble', SOLIDIFY: 'Crystal' };
-const DESC_SHAPE = { LINE: 'Line', HALF_CIRCLE: 'Half-circle', CONE: 'Cone', DIAGONAL: 'Diagonal' };
-const DESC_MODIFIER = { PIERCE: 'Pierce', SNIPE: 'Snipe', SPREAD: 'Spread', MIRROR: 'Mirror' };
+const fontColor = '#8a7d9c';
+// plain-language name for a Nature/Shape/Modifier enum value, shown under a slot once
+// it's filled — every value is just its own key title-cased (HALF_CIRCLE -> Half-circle),
+const desc = v => v[0] + v.slice(1).toLowerCase().replace('_', '-');
 // Mirror is the only modifier whose effect depends on the nature it's paired with
 // (Pull for Push, Thaw for Freeze) — Cut/Solidify fall through to the plain "Mirror"
 // label below, since it's a no-op for them
 const DESC_MIRROR_INVERT = { [Nature.PUSH]: 'Pull', [Nature.FREEZE]: 'Thaw' };
-// which table applies depends on which slot a rune lands in, not the rune itself —
-// slot1 = nature, slot2 = shape, slot3 = modifier (see SYMBOL_TO_ROLE in world-zones.js)
+// which slot a rune lands in picks which enum (nature/shape/modifier) it's describing,
+// not the rune itself — see SYMBOL_TO_ROLE in world-zones.js
 const DESC_BY_SLOT = [
-  sym => DESC_NATURE[SYMBOL_TO_ROLE[sym].slot1],
-  sym => DESC_SHAPE[SYMBOL_TO_ROLE[sym].slot2],
+  sym => desc(SYMBOL_TO_ROLE[sym].slot1),
+  sym => desc(SYMBOL_TO_ROLE[sym].slot2),
   (sym, natureSym) => {
     const modifier = SYMBOL_TO_ROLE[sym].slot3;
     if (modifier === Modifier.MIRROR && natureSym) {
       const invert = DESC_MIRROR_INVERT[SYMBOL_TO_ROLE[natureSym].slot1];
       if (invert) return invert;
     }
-    return DESC_MODIFIER[modifier];
+    return desc(modifier);
   },
 ];
-export let phraseRunes = []; // up to 3 symbols ▲❄~■, in the chosen order, repetition allowed
+export let phraseRunes = []; // up to 3 zone ids (m/j/v/b), in the chosen order, repetition allowed
 // tap targets for the bar, recomputed every frame it's drawn — lets one pointerdown
 // handler double as "press a rune" / "cast" / "erase" on touch
 const comboHit = { runes: [], cast: null, erase: null };
@@ -86,22 +86,16 @@ export function drawComboOverlay() {
   const grow = Math.max(1, Math.min(canvas.width, canvas.height) / 1080);
   const scale = Math.max(0.55, shrink * grow);
 
-  const runeR = 27 * scale,
-    slotR = 30 * scale,
+  const runeRadius = 22 * scale,
+    slotRadius = 25 * scale,
     itemGap = 16 * scale,
-    groupGap = 32 * scale,
-    padX = 20 * scale;
-  // vertical centering is anchored to the CIRCLES, not the whole icon+caption block —
-  // the caption row is free to sit off-center below them. So the empty margin above the
-  // circles has to equal the caption's own footprint (gap + text + bottom margin) below
-  // them, which is what keeps cy sitting at the exact vertical middle of the bar.
-  const capGap = 17 * scale,
-    capTextH = 16 * scale,
-    padBottom = 4 * scale;
-  const topMargin = capGap + capTextH + padBottom;
-  const cy = topMargin + slotR, // icon row, vertically centered in the bar
-    capY = cy + slotR + capGap, // caption row underneath (numbers / slot titles)
-    barH = cy * 2;
+    padX = 15 * scale,
+    topMargin = 14 * scale,
+    font = `500 ${14 * scale}px ${FONT}`;
+
+  const cy = topMargin + slotRadius, // icon row, vertically centered in the bar
+    capY = cy + slotRadius + itemGap, // caption row underneath (numbers / slot titles)
+    barH = cy * 2 + 10 * scale;
 
   // lay everything out left-to-right first so the canvas is sized to fit exactly what
   // gets drawn — a fixed guessed width previously clipped the erase icon right off
@@ -109,22 +103,22 @@ export function drawComboOverlay() {
   let dx = padX;
   const runeX = [];
   ZONES.forEach(() => {
-    runeX.push(dx + runeR);
-    dx += runeR * 2 + itemGap;
+    runeX.push(dx + runeRadius);
+    dx += runeRadius * 2 + itemGap;
   });
-  const dividerX1 = dx - itemGap / 2 + groupGap / 2;
-  dx += groupGap;
+  const dividerX1 = dx - itemGap / 2 + itemGap / 2;
+  dx += itemGap;
   const slotX = [];
   for (let i = 0; i < 3; i++) {
-    slotX.push(dx + slotR);
-    dx += slotR * 2 + itemGap;
+    slotX.push(dx + slotRadius);
+    dx += slotRadius * 2 + itemGap;
   }
-  const dividerX2 = dx - itemGap / 2 + groupGap / 2;
-  dx += groupGap;
-  const castX = dx + runeR;
-  dx += runeR * 2 + itemGap;
-  const eraseX = dx + runeR;
-  dx += runeR * 2 + padX;
+  const dividerX2 = dx - itemGap / 2 + itemGap / 2;
+  dx += itemGap;
+  const castX = dx + runeRadius;
+  dx += runeRadius * 2 + itemGap;
+  const eraseX = dx + runeRadius;
+  dx += runeRadius * 2 + padX;
   const barW = dx;
 
   comboOverlay.width = Math.round(barW);
@@ -143,16 +137,15 @@ export function drawComboOverlay() {
   ZONES.forEach((z, i) => {
     const cx = runeX[i];
     const has = collected.has(z.id);
-    if (has) comboHit.runes.push({ x: cx, y: cy, r: runeR * 1.3, zoneId: z.id });
-    const sym = ZONE_SYMBOL[z.id];
-    const count = phraseRunes.filter(p => p === sym).length;
+    if (has) comboHit.runes.push({ x: cx, y: cy, r: runeRadius * 1.3, zoneId: z.id });
+    const count = phraseRunes.filter(p => p === z.id).length;
     const color = !has ? '#8a7fa0' : count > 0 ? COLORS.PINK_UI : RUNE_ACCENT[z.id];
 
     comboCtx.save();
     comboCtx.globalAlpha = !has ? 0.14 : count > 0 ? 0.3 : 0.16;
     comboCtx.fillStyle = color;
     comboCtx.beginPath();
-    comboCtx.arc(cx, cy, runeR, 0, 7);
+    comboCtx.arc(cx, cy, runeRadius, 0, 7);
     comboCtx.fill();
     comboCtx.restore();
     if (count > 0) {
@@ -161,7 +154,7 @@ export function drawComboOverlay() {
       comboCtx.lineWidth = 2.4 * scale;
       comboCtx.globalAlpha = 0.8;
       comboCtx.beginPath();
-      comboCtx.arc(cx, cy, runeR * 1.05, 0, 7);
+      comboCtx.arc(cx, cy, runeRadius * 1.05, 0, 7);
       comboCtx.stroke();
       comboCtx.restore();
     }
@@ -169,15 +162,15 @@ export function drawComboOverlay() {
       comboCtx,
       cx,
       cy,
-      runeR * 0.62,
+      runeRadius * 0.62,
       has ? PANEL_INK : '#c9c0d6',
       has ? color : '#b0a5c0',
       RUNE_SHAPE[z.id]
     );
     if (has) {
       comboCtx.save();
-      comboCtx.font = `500 ${16 * scale}px ${FONT}`;
-      comboCtx.fillStyle = '#8a7d9c';
+      comboCtx.font = font;
+      comboCtx.fillStyle = fontColor;
       comboCtx.textAlign = 'center';
       comboCtx.fillText(String(i + 1), cx, capY);
       comboCtx.restore();
@@ -189,8 +182,8 @@ export function drawComboOverlay() {
     comboCtx.strokeStyle = '#00000018';
     comboCtx.lineWidth = 1.4 * scale;
     comboCtx.beginPath();
-    comboCtx.moveTo(x, 18 * scale);
-    comboCtx.lineTo(x, barH - 18 * scale);
+    comboCtx.moveTo(x, padX);
+    comboCtx.lineTo(x, barH - padX);
     comboCtx.stroke();
     comboCtx.restore();
   }
@@ -200,20 +193,27 @@ export function drawComboOverlay() {
   for (let i = 0; i < 3; i++) {
     const cx = slotX[i];
     const filled = phraseRunes[i];
-    const zoneId = filled && SYMBOL_TO_ZONE[filled];
     comboCtx.save();
-    comboCtx.strokeStyle = filled ? RUNE_ACCENT[zoneId] : '#c8a8c060';
+    comboCtx.strokeStyle = filled ? RUNE_ACCENT[filled] : '#c8a8c060';
     comboCtx.lineWidth = (filled ? 2.6 : 1.8) * scale;
     if (!filled) comboCtx.setLineDash([4 * scale, 4 * scale]);
     comboCtx.beginPath();
-    comboCtx.arc(cx, cy, slotR, 0, 7);
+    comboCtx.arc(cx, cy, slotRadius, 0, 7);
     comboCtx.stroke();
     comboCtx.restore();
     if (filled) {
-      iconGlyph(comboCtx, cx, cy, slotR * 0.6, PANEL_INK, RUNE_ACCENT[zoneId], RUNE_SHAPE[zoneId]);
+      iconGlyph(
+        comboCtx,
+        cx,
+        cy,
+        slotRadius * 0.6,
+        PANEL_INK,
+        RUNE_ACCENT[filled],
+        RUNE_SHAPE[filled]
+      );
       comboCtx.save();
-      comboCtx.font = `500 ${16 * scale}px ${FONT}`;
-      comboCtx.fillStyle = '#8a7d9c';
+      comboCtx.font = font;
+      comboCtx.fillStyle = fontColor;
       comboCtx.textAlign = 'center';
       comboCtx.fillText(DESC_BY_SLOT[i](filled, phraseRunes[0]), cx, capY);
       comboCtx.restore();
@@ -240,12 +240,17 @@ export function drawComboOverlay() {
     comboCtx.lineCap = 'round';
     comboCtx.lineJoin = 'round';
     comboCtx.beginPath();
-    comboCtx.moveTo(-runeR * 0.55, -runeR * 0.05);
-    comboCtx.lineTo(-runeR * 0.15, runeR * 0.4);
-    comboCtx.lineTo(runeR * 0.6, -runeR * 0.45);
+    comboCtx.moveTo(-runeRadius * 0.55, -runeRadius * 0.05);
+    comboCtx.lineTo(-runeRadius * 0.15, runeRadius * 0.4);
+    comboCtx.lineTo(runeRadius * 0.6, -runeRadius * 0.45);
     comboCtx.stroke();
     comboCtx.restore();
-    comboHit.cast = { x: castX - runeR, y: cy - runeR, w: runeR * 2, h: runeR * 2 };
+    comboHit.cast = {
+      x: castX - runeRadius,
+      y: cy - runeRadius,
+      w: runeRadius * 2,
+      h: runeRadius * 2,
+    };
 
     comboCtx.save();
     comboCtx.font = `700 ${30 * scale}px ${FONT}`;
@@ -254,14 +259,19 @@ export function drawComboOverlay() {
     comboCtx.textBaseline = 'middle';
     comboCtx.fillText('←', eraseX, cy + 1);
     comboCtx.restore();
-    comboHit.erase = { x: eraseX - runeR, y: cy - runeR, w: runeR * 2, h: runeR * 2 };
+    comboHit.erase = {
+      x: eraseX - runeRadius,
+      y: cy - runeRadius,
+      w: runeRadius * 2,
+      h: runeRadius * 2,
+    };
   }
 }
 
 function addToPhrase(zoneId) {
   if (!collected.has(zoneId)) return;
   if (phraseRunes.length >= 3) return;
-  phraseRunes.push(ZONE_SYMBOL[zoneId]);
+  phraseRunes.push(zoneId);
 }
 
 function castPhrase() {
@@ -308,7 +318,7 @@ window.addEventListener('keydown', e => {
     phraseRunes.pop();
     return;
   }
-  if (e.key === ' ') {
+  if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
     castPhrase();
     return;
