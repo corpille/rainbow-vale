@@ -16,7 +16,7 @@ import { CONE_PATTERN, checkLocks, computeSpellCells, deriveSpell } from './spel
 // plateByTile comes from map-loader.js, which imports createVine/createPuddle/etc. back
 // from here — same harmless cycle as world-zones.js's obstacleByTile: only touched from
 // closures called after every file's top-level setup has run.
-import { plateByTile } from './map-loader.js';
+import { plateByTile, puddleByTile } from './map-loader.js';
 
 // an uncovered plate goes back to being its tile's own occupant, walkable again
 function unweighPlateAt(x, y) {
@@ -25,6 +25,13 @@ function unweighPlateAt(x, y) {
     plate.weighed = false;
     objectsMap.set(key(x, y), plate);
   }
+}
+// an uncovered puddle goes back to being its tile's own occupant — puddleByTile keeps
+// the real object (and its frozen/evaporated state) alive the whole time a crate sits on
+// top of it, since that crate is objectsMap's occupant for that tile in the meantime
+function unpuddleAt(x, y) {
+  const puddle = puddleByTile.get(key(x, y));
+  if (puddle) objectsMap.set(key(x, y), puddle);
 }
 // shapes whose cells sit at varying distances from the caster have a meaningful "far
 // end" a pushed crate can slide to. Contact is excluded: its one cell is already at full
@@ -80,12 +87,16 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
         destObj.weighed = true;
         worldRunes.moveObject(p.x, p.y, destX, destY);
         unweighPlateAt(p.x, p.y);
+        unpuddleAt(p.x, p.y);
         return false; // stops there, weighing the plate
       } else if (!isBlockingFor(destX, destY) && worldRunes.inBounds(destX, destY)) {
         // a dead obstacle (burnt vine, evaporated puddle, opened lock) still sits in
-        // objectsMap but no longer blocks — a crate can slide right over it
+        // objectsMap but no longer blocks — a crate can slide right over it. A frozen/
+        // evaporated puddle underneath stays registered in puddleByTile so it resurfaces
+        // once the crate moves on, instead of being lost when the crate overwrites it here
         worldRunes.moveObject(p.x, p.y, destX, destY);
         unweighPlateAt(p.x, p.y);
+        unpuddleAt(p.x, p.y);
         p.x = destX;
         p.y = destY;
         p.budget--;

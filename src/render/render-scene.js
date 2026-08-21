@@ -12,7 +12,7 @@ import {
   starPath,
   strokeCircle,
 } from '../core/engine-core.js';
-import { HUB, ZONES, grid, key, objectsMap, unkey, worldRunes } from '../world/world-zones.js';
+import { HUB, ZONES, grid, key, objectsMap, unkey } from '../world/world-zones.js';
 import { computeSpellPreview } from '../world/world-objects.js';
 import {
   collected,
@@ -22,6 +22,7 @@ import {
   obstacleByTile,
   plateByTile,
   primitiveSpots,
+  puddleByTile,
 } from '../world/map-loader.js';
 import { collectedItems, hubActivated, player, totalItems } from '../core/player.js';
 // lastCast (ui-panel.js) is reassigned below too (drawCastHighlight) — same
@@ -96,10 +97,13 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
 
       ctx.drawImage(variantSetFor(cell.roomId, x, y).floor[variant], destX, destY, TILE, TILE);
 
-      const obj = worldRunes.objectAt(x, y);
-      // only the frozen look is drawn here — liquid "water" is animated per-frame
-      // instead, see renderPonds in drawInteractiveObjects
-      if (obj && obj.type === 'puddle' && obj.state === 'frozen') {
+      // read from puddleByTile, not objectsMap: a crate slid onto this tile (frozen/
+      // evaporated puddles don't block movement) becomes objectsMap's occupant here, but
+      // the ice should keep rendering underneath it rather than vanish. Only the frozen
+      // look is drawn here — liquid "water" is animated per-frame instead, see renderPonds
+      // in drawInteractiveObjects
+      const obj = puddleByTile.get(key(x, y));
+      if (obj && obj.state === 'frozen') {
         // renderPuddle draws in BASE_TILE-pixel units — scale it to the current TILE
         const ps = TILE / BASE_TILE;
         ctx.save();

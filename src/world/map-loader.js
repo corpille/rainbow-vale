@@ -37,6 +37,11 @@ export const obstacleByTile = new Map();
 // a plate's tile becomes the tile's objectsMap occupant, but the plate must stay
 // findable underneath to unweigh it later
 export const plateByTile = new Map();
+// same idea for puddles: a frozen (or evaporated) puddle no longer blocks movement, so a
+// crate can slide onto its tile — this registry keeps the puddle findable underneath
+// instead of its objectsMap slot (and therefore its state, and its frozen-ice render)
+// being silently clobbered by the crate reference
+export const puddleByTile = new Map();
 export const decorInstances = [];
 export const collected = new Set(); // ids of zones whose rune has already been collected
 
@@ -106,7 +111,11 @@ export const collected = new Set(); // ids of zones whose rune has already been 
         const def = FLOOR_CHARS[c];
         if (!def) continue;
         grid.set(key(x, y), { type: 'floor', roomId: def[0] });
-        if (def[1]) objectsMap.set(key(x, y), def[1]());
+        if (def[1]) {
+          const o = def[1]();
+          objectsMap.set(key(x, y), o);
+          if (o.type === 'puddle') puddleByTile.set(key(x, y), o);
+        }
         roomId = def[0];
         occupied = !!def[1];
       }
