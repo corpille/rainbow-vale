@@ -482,7 +482,12 @@
             <button class="obj-btn" data-obj="mirror_surface">▨ Mirror</button>
             <button class="obj-btn" data-obj="sym_plate">⬥ Plate</button>
             <button id="btnEraseObj" class="danger-ghost">✕ Erase object</button>
+            <button id="btnFreezeTool">❄ Toggle start-frozen</button>
           </div>
+          <p class="desc">
+            <b>Toggle start-frozen</b> — click a placed crate to flag it as immobilized from the
+            start of the level (needs Mirror+Frost to thaw in-game). Click again to unflag.
+          </p>
           <label class="field">Mirror orientation (which 2 sides bounce a spell):</label>
           <select id="mirrorOrientation">
             <option value="NE">NE — down→right, left→up</option>
@@ -641,24 +646,33 @@
 
       // code 3 (pit) is retired — Solidify grows floor directly on void tiles now (right-click
       // erase to carve one). Codes 6/7 (target/grouped_target) are retired too.
-      const TYPE_CODE = { vine: 0, puddle: 1, crate: 2, lock: 4, mirror_surface: 8, sym_plate: 9 };
+      const TYPE_CODE = {
+        vine: 0,
+        puddle: 1,
+        crate: 2,
+        lock: 4,
+        mirror_surface: 8,
+        sym_plate: 9,
+        frozen_crate_marker: 10,
+      };
       const CODE_TYPE = {};
       Object.entries(TYPE_CODE).forEach(([k, v]) => (CODE_TYPE[v] = k));
 
       // gridStr char -> [roomId, objType]: a floor tile's char is its room, optionally
       // fused with the one purely-positional object (no extra data) sitting on it —
-      // puddle/vine/crate/lock never need MAP_DATA.objects at all this way. Must match
-      // src/world/map-loader.js's FLOOR_CHARS exactly, key-for-key.
+      // vine/crate/lock never need MAP_DATA.objects at all this way. Must match
+      // src/world/map-loader.js's FLOOR_CHARS exactly, key-for-key. Water/puddle isn't
+      // here: in the real game it's a grid tile TYPE, not an object, and it isn't
+      // room-specific (its room is never read — the opaque water/ice fill always covers
+      // the floor tile underneath) — one shared WATER_CHAR below instead of 4 room chars.
+      // The editor still models it as a 'puddle' object internally purely for its own
+      // placement UI (obj-btn, OBJ_STYLE); only the gridStr encoding differs.
       const FLOOR_CHARS = {
         h: ['hub'],
         m: ['swamp'],
         j: ['cavern'],
         v: ['orchard'],
         b: ['marsh'],
-        M: ['swamp', 'puddle'],
-        J: ['cavern', 'puddle'],
-        V: ['orchard', 'puddle'],
-        B: ['marsh', 'puddle'],
         n: ['swamp', 'vine'],
         k: ['cavern', 'vine'],
         o: ['orchard', 'vine'],
@@ -672,6 +686,7 @@
         t: ['orchard', 'lock'],
         u: ['marsh', 'lock'],
       };
+      const WATER_CHAR = 'w';
       const POSITIONAL_TYPES = new Set(['puddle', 'vine', 'crate', 'lock']);
       const CHAR_FOR_ROOM = {}; // roomId -> bare floor char
       const CHAR_FOR_OBJ = {}; // "roomId|type" -> char, for the POSITIONAL_TYPES only
@@ -897,6 +912,13 @@
               obstacles.push({ x, y, roomId: oz });
               continue;
             }
+            if (c === WATER_CHAR) {
+              // room is cosmetic-only in the editor's own view too — 'hub' is just a
+              // stable, always-valid placeholder
+              grid.set(key(x, y), { type: 'floor', roomId: 'hub' });
+              objectsMap.set(key(x, y), { type: 'puddle' });
+              continue;
+            }
             const def = FLOOR_CHARS[c];
             if (!def) continue;
             grid.set(key(x, y), { type: 'floor', roomId: def[0] });
@@ -931,6 +953,10 @@
             }
           } else if (type === 'mirror_surface') {
             objectsMap.set(key(x, y), { type, orientation: MIRROR_ORIENTATIONS[extra] || 'NE' });
+          } else if (type === 'frozen_crate_marker') {
+            // flags a crate already decoded from gridStr above — never a standalone object
+            const c = objectsMap.get(key(x, y));
+            if (c && c.type === 'crate') c.startsFrozen = true;
           } else {
             objectsMap.set(key(x, y), { type });
           }
@@ -1022,6 +1048,15 @@
           ctx.beginPath();
           ctx.arc(sx, sy, tilePx * 0.32, 0, 7);
           ctx.fill();
+          if (o.type === 'crate' && o.startsFrozen) {
+            ctx.save();
+            ctx.strokeStyle = '#bfe8ff'; // matches renderCrate's frozen ICE_BLUE outline in-game
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, tilePx * 0.32, 0, 7);
+            ctx.stroke();
+            ctx.restore();
+          }
           if (o.type === 'mirror_surface') {
             drawMirrorGlyph(sx, sy, o.orientation);
           } else if (tilePx > 10) {
@@ -1466,6 +1501,15 @@
         }
         renderGroupPanel();
       }
+      function tryFreezeClick(x, y) {
+        const o = objectsMap.get(key(x, y));
+        if (!o || o.type !== 'crate') {
+          showToast('Click a crate');
+          return;
+        }
+        o.startsFrozen = !o.startsFrozen;
+        showToast(o.startsFrozen ? 'Crate starts frozen' : 'Crate starts unfrozen');
+      }
       function removeMemberFromGroup(k) {
         const o = objectsMap.get(k);
         if (!o || o.type !== 'sym_plate' || !o.pair) return;
@@ -1620,6 +1664,12 @@
         if (linkMode === 'link') {
           pushUndo();
           tryLinkClick(t.x, t.y);
+          render();
+          return;
+        }
+        if (linkMode === 'freeze') {
+          pushUndo();
+          tryFreezeClick(t.x, t.y);
           render();
           return;
         }
@@ -1807,7 +1857,7 @@
       function clearAllModesUi() {
         document
           .querySelectorAll(
-            '.zone-btn,.obj-btn,#btnTypeFloor,#btnTypeWall,#btnEraseObj,#btnGroupTool,#btnLinkLockTool,#btnAddItem,#btnEraseItem'
+            '.zone-btn,.obj-btn,#btnTypeFloor,#btnTypeWall,#btnEraseObj,#btnGroupTool,#btnLinkLockTool,#btnFreezeTool,#btnAddItem,#btnEraseItem'
           )
           .forEach(x => x.classList.remove('active'));
         linkMode = null;
@@ -1841,7 +1891,7 @@
         );
         btn.classList.add('active');
         document
-          .querySelectorAll('.obj-btn,#btnEraseObj,#btnGroupTool,#btnLinkLockTool')
+          .querySelectorAll('.obj-btn,#btnEraseObj,#btnGroupTool,#btnLinkLockTool,#btnFreezeTool')
           .forEach(x => x.classList.remove('active'));
       }
 
@@ -1876,6 +1926,12 @@
         showToast(
           activeGroup ? 'Click a lock to link/unlink group ' + activeGroup.id : 'Group a plate first'
         );
+      });
+      document.getElementById('btnFreezeTool').addEventListener('click', function () {
+        clearAllModesUi();
+        linkMode = 'freeze';
+        this.classList.add('active');
+        showToast('Click a crate to toggle whether it starts frozen');
       });
 
       // same mode-select pattern as .obj-btn: arm the tool, then click/drag to paint —
@@ -1999,10 +2055,12 @@
             const k = key(x, y);
             const cell = grid.get(k);
             if (cell) {
-              // an object sitting on this tile (puddle/vine/crate/lock) folds into the
-              // char itself instead of the objects array below — see FLOOR_CHARS
+              // an object sitting on this tile (vine/crate/lock, or puddle — always
+              // WATER_CHAR regardless of room) folds into the char itself instead of the
+              // objects array below — see FLOOR_CHARS
               const occ = objectsMap.get(k);
-              const objChar = occ && CHAR_FOR_OBJ[cell.roomId + '|' + occ.type];
+              const objChar =
+                occ && (occ.type === 'puddle' ? WATER_CHAR : CHAR_FOR_OBJ[cell.roomId + '|' + occ.type]);
               gridStr += objChar || CHAR_FOR_ROOM[cell.roomId] || '.';
               continue;
             }
@@ -2025,6 +2083,13 @@
           if (o.type === 'sym_plate' && o.pair) entry.push(pairIds.get(o.pair));
           if (o.type === 'mirror_surface') entry.push(MIRROR_ORIENTATION_CODE[o.orientation] ?? 0);
           objects.push(entry);
+        });
+        // frozen-start crates are flagged, not a standalone type, so they ride alongside
+        // the crate's own gridStr char instead of replacing it in the loop above
+        objectsMap.forEach((o, k) => {
+          if (o.type !== 'crate' || !o.startsFrozen) return;
+          const [x, y] = k.split(',').map(Number);
+          objects.push([x, y, TYPE_CODE.frozen_crate_marker]);
         });
 
         // verrouLinks: rebuilt live from lockLinks, dropping any link whose lock or pair no longer exists

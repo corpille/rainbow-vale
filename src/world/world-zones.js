@@ -30,8 +30,9 @@ const SLOT_ORDER = [0, 2, 1, 3];
 // ids are single chars matching FLOOR_CHARS' grid codes in map-loader.js (m/j/v/b already
 // mean swamp/cavern/orchard/marsh there) — reusing them as the zone id itself needs no new
 // Terser reservation, since those letters are reserved anyway. Public faces: swamp = Clover
-// Fields (Breeze), cavern = Cloud Cavern (Frost), orchard = Sunbeam Grove (Sunbeam),
-// marsh = Starlight Marsh (Crystal)
+// Fields (Breeze), cavern = Cloud Cavern (Frost), orchard = Sunbeam Grove (Bramble —
+// grove name predates the Sunbeam/burn -> Bramble/cut rename), marsh = Starlight Marsh
+// (Crystal)
 const ZONE_DEFS = [
   { id: 'm', base: '#bdf3c9', dark: '#6fcf97', blob: '#e8fff0' }, // swamp
   { id: 'j', base: '#d6ecff', dark: '#8fc9f0', blob: WHITE }, // cavern
@@ -42,7 +43,7 @@ export const ZONES = ZONE_DEFS.map((z, i) => ({ ...z, w: 25, h: 25, ...SLOTS[SLO
 export const roomById = { h: HUB };
 ZONES.forEach(z => (roomById[z.id] = z));
 
-export const Nature = { BURN: 'BURN', FREEZE: 'FREEZE', PUSH: 'PUSH', SOLIDIFY: 'SOLIDIFY' };
+export const Nature = { CUT: 'CUT', FREEZE: 'FREEZE', PUSH: 'PUSH', SOLIDIFY: 'SOLIDIFY' };
 export const Shape = {
   LINE: 'LINE',
   HALF_CIRCLE: 'HALF_CIRCLE',
@@ -52,14 +53,14 @@ export const Shape = {
 };
 export const Modifier = {
   PIERCE: 'PIERCE',
-  BOUNCE: 'BOUNCE',
+  SNIPE: 'SNIPE',
   SPREAD: 'SPREAD',
   MIRROR: 'MIRROR',
   NONE: 'NONE',
 };
 export const SYMBOL_TO_ROLE = {
-  '▲': { slot1: Nature.BURN, slot2: Shape.CONE, slot3: Modifier.SPREAD },
-  '❄': { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.BOUNCE },
+  '▲': { slot1: Nature.CUT, slot2: Shape.CONE, slot3: Modifier.SPREAD },
+  '❄': { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.SNIPE },
   '~': { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.PIERCE },
   '■': { slot1: Nature.SOLIDIFY, slot2: Shape.DIAGONAL, slot3: Modifier.MIRROR },
 };
@@ -69,7 +70,6 @@ export const RANGE_SHORT = 3;
 export const RANGE_DIAGONAL = 5;
 export const DIRS4 = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 export const DIAG_OF = { up: [1, -1], right: [1, 1], down: [-1, 1], left: [-1, -1] };
-export const DIR_INVERSE = { up: 'down', down: 'up', left: 'right', right: 'left' };
 // same 4 vectors as DIRS4, just as a plain array for "check every neighbor" scans
 // (world-objects.js's inferRoomId, spell-shapes.js's applySpreadModifier) that don't care
 // about direction names — order matters for inferRoomId's "first match wins" tie-break,
@@ -87,10 +87,10 @@ export function validatePhrase(runes) {
   return true;
 }
 
-export const objectsMap = new Map(); // "x,y" -> interactive object (Vine, Puddle, Crate)
+export const objectsMap = new Map(); // "x,y" -> interactive object (Vine, Crate, ...)
 
-// bumped whenever a puddle's water/frozen/evaporated state actually changes (see
-// createPuddle's reactTo in world-objects.js) — lets renderPonds (render-world.js)
+// bumped whenever a water tile freezes into ice (see applyEffectsToWorld's
+// 'freeze_water' handling in world-objects.js) — lets renderPonds (render-world.js)
 // know its cached connected-pond groups need rebuilding, instead of every frame
 export let puddleEpoch = 0;
 export function bumpPuddleEpoch() {
@@ -107,9 +107,14 @@ export const worldRunes = {
   },
 };
 
+// true if this cell is a water tile, whether or not anything's parked on top of it
+export function isWaterAt(x, y) {
+  const cell = grid.get(key(x, y));
+  return !!cell && cell.type === 'water';
+}
 export function isBlockingFor(x, y) {
   const obj = worldRunes.objectAt(x, y);
-  return !!(obj && obj.blocksMovement);
+  return (obj && obj.blocksMovement) || isWaterAt(x, y);
 }
 // true void: no floor tile, no obstacle rock — the only thing Solidify can turn into a real floor tile
 export const isVoid = (x, y) => !grid.has(key(x, y)) && !obstacleByTile.has(key(x, y));

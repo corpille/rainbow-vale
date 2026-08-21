@@ -12,7 +12,7 @@ import {
   inRect,
   panelRect,
 } from '../core/ui-panel.js';
-import { canvas, ctx, generateTileVariants } from './render-world.js';
+import { canvas, ctx, generateTileVariants, renderPonds } from './render-world.js';
 import {
   drawCastHighlight,
   drawDecor,
@@ -283,6 +283,10 @@ function draw() {
   const originPxY = Math.round(canvas.height / 2 - camY * TILE - TILE / 2);
 
   drawWorldTiles(originPxX, originPxY, camX, camY);
+  // ground layer, same as the ice drawn inside drawWorldTiles — needs to land before any
+  // highlight/preview/object draw, now that it's an opaque fill (see renderPonds) rather
+  // than translucent enough to always show whatever was drawn under it
+  renderPonds(originPxX, originPxY);
   drawCastHighlight(originPxX, originPxY);
   drawSpellPreview(originPxX, originPxY);
   drawPlates(originPxX, originPxY);

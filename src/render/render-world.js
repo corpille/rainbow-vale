@@ -17,15 +17,7 @@ import {
   textureFill,
   tileAO,
 } from '../core/engine-core.js';
-import {
-  CARDINAL_OFFSETS,
-  grid,
-  key,
-  objectsMap,
-  puddleEpoch,
-  roomById,
-  unkey,
-} from '../world/world-zones.js';
+import { CARDINAL_OFFSETS, grid, key, puddleEpoch, roomById, unkey } from '../world/world-zones.js';
 import { collected, decorInstances, obstacles } from '../world/map-loader.js';
 // player.js imports ctx/startColorWave from this file — a genuine but harmless import
 // cycle. resizeCanvas() below only reaches these via grayFilter inside
@@ -113,10 +105,10 @@ function renderVine(obj, px, py) {
   ctx.restore();
 }
 
-// frozen-puddle look, drawn as a per-tile overlay after the floor blit (see
-// drawWorldTiles) so it composites over what's underneath. The liquid "water" state
-// is animated separately — see renderPuddleField — since it needs to shimmer/drift.
-export function renderPuddle(c, obj, px, py) {
+// ice look — fully opaque, so the floor tile underneath is skipped entirely rather than
+// drawn and then covered (see drawWorldTiles). The liquid "water" state is animated
+// separately, see renderPonds below, since it needs to shimmer/drift as a shared pond.
+export function renderPuddle(c, px, py) {
   c.save();
   const grad = c.createLinearGradient(
     px - BASE_TILE * 0.5,
@@ -153,8 +145,8 @@ let pondGroupsEpoch = -1;
 function computePondGroups() {
   pondGroups = [];
   const visited = new Set();
-  objectsMap.forEach((obj, k) => {
-    if (obj.type !== 'puddle' || obj.state !== 'water' || visited.has(k)) return;
+  grid.forEach((cell, k) => {
+    if (cell.type !== 'water' || visited.has(k)) return;
     const tiles = [];
     const stack = [k];
     visited.add(k);
@@ -165,8 +157,8 @@ function computePondGroups() {
       CARDINAL_OFFSETS.forEach(([dx, dy]) => {
         const nk = key(cx + dx, cy + dy);
         if (visited.has(nk)) return;
-        const nobj = objectsMap.get(nk);
-        if (nobj && nobj.type === 'puddle' && nobj.state === 'water') {
+        const ncell = grid.get(nk);
+        if (ncell && ncell.type === 'water') {
           visited.add(nk);
           stack.push(nk);
         }
@@ -208,10 +200,13 @@ export function renderPonds(originPxX, originPxY) {
   const half = TILE / 2;
   pondGroups.forEach(group => {
     // fixed blue-violet, never keyed by position or time, so the whole pool reads as
-    // one sheet instead of a patchwork
+    // one sheet instead of a patchwork. Opaque — the floor tile underneath is skipped
+    // entirely for water cells (see drawWorldTiles), so there's nothing to blend with.
+    // This exact hsl is not a guess: it's the old 42%-alpha hsl(220,68%,68%) fill,
+    // composited onto the real baked (grayscale-filtered, pre-collection) floor bitmap
+    // and averaged back into one flat color — same look on the gray floor, just opaque
     ctx.save();
-    ctx.globalAlpha = 0.42;
-    ctx.fillStyle = 'hsl(220, 68%, 68%)';
+    ctx.fillStyle = 'hsl(220, 35%, 75%)';
     ctx.beginPath();
     group.tiles.forEach(({ x, y }) => ctx.rect(originPxX + x * TILE, originPxY + y * TILE, TILE, TILE));
     ctx.fill();

@@ -1,7 +1,7 @@
 /* ============ Player & camera ============ */
 import { COLORS, WHITE } from './colors.js';
 import { gameState } from './engine-core.js';
-import { DIRS4, HUB, ZONES, grid, key, objectsMap } from '../world/world-zones.js';
+import { DIRS4, HUB, ZONES, grid, isBlockingFor, key } from '../world/world-zones.js';
 import { collected, items, primitiveSpots } from '../world/map-loader.js';
 import { startColorWave } from '../render/render-world.js';
 import { playPickup } from './music.js';
@@ -104,8 +104,7 @@ function doMove(dir) {
 
   const targetCell = grid.get(key(tx, ty));
   if (!targetCell) return; // rock: impassable
-  const blockingObj = objectsMap.get(key(tx, ty));
-  if (blockingObj && blockingObj.blocksMovement) return; // an interactive object still blocks the path
+  if (isBlockingFor(tx, ty)) return; // an interactive object, or a water tile, still blocks the path
   player.x = tx;
   player.y = ty;
   // collects the primitive if we arrive on its zone's pedestal

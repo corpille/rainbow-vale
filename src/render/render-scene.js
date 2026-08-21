@@ -22,7 +22,6 @@ import {
   obstacleByTile,
   plateByTile,
   primitiveSpots,
-  puddleByTile,
 } from '../world/map-loader.js';
 import { collectedItems, hubActivated, player, totalItems } from '../core/player.js';
 // lastCast (ui-panel.js) is reassigned below too (drawCastHighlight) — same
@@ -36,7 +35,6 @@ import {
   ctx,
   offscreen,
   renderInteractiveObject,
-  renderPonds,
   renderPuddle,
   tileVariantIndex,
   variantSetFor,
@@ -44,8 +42,8 @@ import {
 } from './render-world.js';
 
 // draws only tiles in the viewport: a pre-rendered variant blit (gray/color state
-// already baked in, see bakeRoomVariants), plus what can't be shared — wall borders
-// (depend on neighbors) and decor/ice-puddle (tied to a specific position, not a tile type)
+// already baked in, see bakeRoomVariants) for plain floor, or a per-tile draw for
+// anything that isn't ('ice' — see below — and wall borders, which depend on neighbors)
 export function drawWorldTiles(originPxX, originPxY, camX, camY) {
   const colsHalf = Math.ceil(VIEW_COLS / 2) + 1,
     rowsHalf = Math.ceil(VIEW_ROWS / 2) + 1;
@@ -95,38 +93,30 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
         continue;
       }
 
-      ctx.drawImage(variantSetFor(cell.roomId, x, y).floor[variant], destX, destY, TILE, TILE);
-
-      // read from puddleByTile, not objectsMap: a crate slid onto this tile (frozen/
-      // evaporated puddles don't block movement) becomes objectsMap's occupant here, but
-      // the ice should keep rendering underneath it rather than vanish. Only the frozen
-      // look is drawn here — liquid "water" is animated per-frame instead, see renderPonds
-      // in drawInteractiveObjects
-      const obj = puddleByTile.get(key(x, y));
-      if (obj && obj.state === 'frozen') {
+      // water/ice both paint fully opaque (ice right here, water right after this
+      // function returns — see draw()'s renderPonds call in render-hud.js), so the
+      // floor tile underneath would never show — skip drawing it at all for those two,
+      // instead of drawing then fully covering it
+      if (cell.type === 'floor') {
+        ctx.drawImage(variantSetFor(cell.roomId, x, y).floor[variant], destX, destY, TILE, TILE);
+      } else if (cell.type === 'ice') {
         // renderPuddle draws in BASE_TILE-pixel units — scale it to the current TILE
         const ps = TILE / BASE_TILE;
         ctx.save();
         ctx.translate(destX + TILE / 2, destY + TILE / 2);
         ctx.scale(ps, ps);
-        renderPuddle(ctx, obj, 0, 0);
+        renderPuddle(ctx, 0, 0);
         ctx.restore();
       }
     }
   }
 }
 
-// decor (trees, mushrooms, ...) gets its own pass, called once drawInteractiveObjects
-// has painted the animated water surface. Two reasons it can't just live inside
-// drawWorldTiles above: its bitmap (DECOR_BITMAP_SIZE) is wider than one tile, so it
-// spills into neighboring columns — drawn inline with the tile loop, a neighbor tile
-// drawn later in the same row (or a row below) painted right over that overflow,
-// clipping trees/mushrooms with a hard rectangular edge. And liquid water isn't baked
-// into the tile bitmaps at all (it animates per-frame via renderPuddleField in
-// drawInteractiveObjects, which runs after drawWorldTiles) — so even drawn in its own
-// pass at the end of drawWorldTiles, decor overflowing onto a water tile would still
-// get painted over once that water redraws. Calling this after drawInteractiveObjects
-// instead avoids both.
+// decor (trees, mushrooms, ...) gets its own pass, called well after drawWorldTiles.
+// Its bitmap (DECOR_BITMAP_SIZE) is wider than one tile, so it spills into neighboring
+// columns — drawn inline with the tile loop, a neighbor tile drawn later in the same row
+// (or a row below) painted right over that overflow, clipping trees/mushrooms with a
+// hard rectangular edge. Calling this in its own later pass avoids that.
 export function drawDecor(originPxX, originPxY, camX, camY) {
   const colsHalf = Math.ceil(VIEW_COLS / 2) + 1,
     rowsHalf = Math.ceil(VIEW_ROWS / 2) + 1;
@@ -259,10 +249,7 @@ export function drawPlates(originPxX, originPxY) {
 }
 
 // interactive objects (Vine, Crate, ...) — rendered dynamically, never frozen into the cache.
-// Water puddles are excluded from the per-tile loop and drawn once as shared ponds —
-// see renderPonds — instead of one independent animation per tile.
 export function drawInteractiveObjects(originPxX, originPxY) {
-  renderPonds(originPxX, originPxY);
   objectsMap.forEach((obj, k) => {
     const [ox, oy] = unkey(k);
     renderInteractiveObject(obj, ox, oy, originPxX, originPxY);

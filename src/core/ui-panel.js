@@ -1,7 +1,7 @@
 /* ============ Always-on spell bar — Nature (slot1) / Shape (slot2) / Modifier (slot3) ============ */
 import { COLORS, FONT, WHITE } from './colors.js';
 import { gameState, iconGlyph } from './engine-core.js';
-import { SYMBOL_TO_ROLE, ZONES } from '../world/world-zones.js';
+import { Modifier, Nature, SYMBOL_TO_ROLE, ZONES } from '../world/world-zones.js';
 import { resolvePhrase } from '../world/spell-shapes.js';
 import { applyEffectsToWorld } from '../world/world-objects.js';
 import { SYMBOL_TO_ZONE, ZONE_SYMBOL, collected } from '../world/map-loader.js';
@@ -12,7 +12,7 @@ const RUNE_KEYS = ZONES.map(z => z.id); // '1'->swamp(m), '2'->cavern(j), '3'->o
 export const RUNE_SHAPE = { m: 'star', j: 'gem', v: 'flower', b: 'drop' }; // icon per zone
 // vivid (not pastel) per-zone accent for the rune glyphs — brighter/more saturated than
 // the zone's own soft tile palette so it reads against the bar's light background:
-// Breeze mint, Frost sky-blue, Sunbeam hot pink, Crystal violet
+// Breeze mint, Frost sky-blue, Bramble hot pink, Crystal violet
 export const RUNE_ACCENT = {
   m: '#5eeb9c',
   j: '#66d1ff',
@@ -20,15 +20,26 @@ export const RUNE_ACCENT = {
   b: '#c48aff',
 };
 // plain-language names shown under a slot once it's filled
-const DESC_NATURE = { FREEZE: 'Frost', PUSH: 'Breeze', BURN: 'Sunbeam', SOLIDIFY: 'Crystal' };
+const DESC_NATURE = { FREEZE: 'Frost', PUSH: 'Breeze', CUT: 'Bramble', SOLIDIFY: 'Crystal' };
 const DESC_SHAPE = { LINE: 'Line', HALF_CIRCLE: 'Half-circle', CONE: 'Cone', DIAGONAL: 'Diagonal' };
-const DESC_MODIFIER = { PIERCE: 'Pierce', BOUNCE: 'Bounce', SPREAD: 'Spread', MIRROR: 'Mirror' };
+const DESC_MODIFIER = { PIERCE: 'Pierce', SNIPE: 'Snipe', SPREAD: 'Spread', MIRROR: 'Mirror' };
+// Mirror is the one modifier whose actual effect depends on which nature it's paired
+// with (Pull for Push, Thaw for Freeze) — Cut/Solidify get no override below, since
+// Mirror is a no-op for them and "Mirror" is as good a label as any for "does nothing"
+const DESC_MIRROR_INVERT = { [Nature.PUSH]: 'Pull', [Nature.FREEZE]: 'Thaw' };
 // which table applies depends on which slot a rune lands in, not the rune itself —
 // slot1 = nature, slot2 = shape, slot3 = modifier (see SYMBOL_TO_ROLE in world-zones.js)
 const DESC_BY_SLOT = [
   sym => DESC_NATURE[SYMBOL_TO_ROLE[sym].slot1],
   sym => DESC_SHAPE[SYMBOL_TO_ROLE[sym].slot2],
-  sym => DESC_MODIFIER[SYMBOL_TO_ROLE[sym].slot3],
+  (sym, natureSym) => {
+    const modifier = SYMBOL_TO_ROLE[sym].slot3;
+    if (modifier === Modifier.MIRROR && natureSym) {
+      const invert = DESC_MIRROR_INVERT[SYMBOL_TO_ROLE[natureSym].slot1];
+      if (invert) return invert;
+    }
+    return DESC_MODIFIER[modifier];
+  },
 ];
 export let phraseRunes = []; // up to 3 symbols ▲❄~■, in the chosen order, repetition allowed
 // tap targets for the bar, recomputed every frame it's drawn — lets one pointerdown
@@ -204,7 +215,7 @@ export function drawComboOverlay() {
       comboCtx.font = `500 ${16 * scale}px ${FONT}`;
       comboCtx.fillStyle = '#8a7d9c';
       comboCtx.textAlign = 'center';
-      comboCtx.fillText(DESC_BY_SLOT[i](filled), cx, capY);
+      comboCtx.fillText(DESC_BY_SLOT[i](filled, phraseRunes[0]), cx, capY);
       comboCtx.restore();
     }
   }

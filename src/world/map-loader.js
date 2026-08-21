@@ -15,7 +15,6 @@ import {
   createCrate,
   createLock,
   createMirrorSurface,
-  createPuddle,
   createVine,
   isPairResolved,
 } from './world-objects.js';
@@ -37,35 +36,29 @@ export const obstacleByTile = new Map();
 // a plate's tile becomes the tile's objectsMap occupant, but the plate must stay
 // findable underneath to unweigh it later
 export const plateByTile = new Map();
-// same idea for puddles: a frozen (or evaporated) puddle no longer blocks movement, so a
-// crate can slide onto its tile — this registry keeps the puddle findable underneath
-// instead of its objectsMap slot (and therefore its state, and its frozen-ice render)
-// being silently clobbered by the crate reference
-export const puddleByTile = new Map();
 export const decorInstances = [];
 export const collected = new Set(); // ids of zones whose rune has already been collected
 
 (function loadStaticMap() {
   const [minX, minY, maxX, maxY] = MAP_DATA.bounds;
   // each floor tile's char is its room, optionally fused with the one positional object
-  // (no extra data beyond its tile) that sits on it — folds puddle/vine/crate/lock
-  // placement (was ~85% of MAP_DATA.objects) into a single lookup instead of scattering
-  // it across gridStr chars, obstacle-style zone maps, and a positional objects array.
-  // Measured compressed size is a wash vs. keeping vine/crate/lock in MAP_DATA.objects
-  // (Roadroller penalizes the extra distinct gridStr symbols by about what the removed
-  // array entries save) — kept anyway because one shared decode path beats four.
-  // mirror_surface/sym_plate carry extra data (orientation, pair id) so they still go
-  // through MAP_DATA.objects below.
+  // (no extra data beyond its tile) that sits on it — folds vine/crate/lock placement
+  // (was ~85% of MAP_DATA.objects) into a single lookup instead of scattering it across
+  // gridStr chars, obstacle-style zone maps, and a positional objects array. Measured
+  // compressed size is a wash vs. keeping vine/crate/lock in MAP_DATA.objects (Roadroller
+  // penalizes the extra distinct gridStr symbols by about what the removed array entries
+  // save) — kept anyway because one shared decode path beats four. mirror_surface/
+  // sym_plate carry extra data (orientation, pair id) so they still go through
+  // MAP_DATA.objects below. Water is its own single char (not room-specific like these):
+  // it's a grid tile TYPE, not an object, and its room is cosmetically irrelevant — the
+  // opaque water/ice fill always covers the floor tile underneath, so nothing ever reads
+  // a water tile's room. See WATER_CHAR below.
   const FLOOR_CHARS = {
     h: ['h'],
     m: ['m'],
     j: ['j'],
     v: ['v'],
     b: ['b'],
-    M: ['m', createPuddle],
-    J: ['j', createPuddle],
-    V: ['v', createPuddle],
-    B: ['b', createPuddle],
     n: ['m', createVine],
     k: ['j', createVine],
     o: ['v', createVine],
@@ -82,6 +75,7 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   // rocks ('1'-'4', one per zone) don't go into the grid — tracked separately as
   // obstacles, just stored inline in gridStr instead of their own array
   const OBSTACLE_ZONE = { 1: 'm', 2: 'j', 3: 'v', 4: 'b' };
+  const WATER_CHAR = 'w';
   // decor is cosmetic only (no gameplay/connectivity role), so instead of storing a
   // per-instance array it's placed by a coordinate hash below: ~1% of each zone's floor
   // tiles (whichever aren't already occupied by a positional object) get that zone's
@@ -107,15 +101,17 @@ export const collected = new Set(); // ids of zones whose rune has already been 
       if (zoneObs) {
         obstacles.push({ x, y, roomId: zoneObs });
         roomId = zoneObs;
+      } else if (c === WATER_CHAR) {
+        // roomId here is never read — see the comment above FLOOR_CHARS — 'h' is just a
+        // valid, cheap placeholder (every other roomId also needs one anyway)
+        grid.set(key(x, y), { type: 'water', roomId: 'h' });
+        roomId = 'h';
+        occupied = true; // no decor growing out of the middle of a lake
       } else {
         const def = FLOOR_CHARS[c];
         if (!def) continue;
         grid.set(key(x, y), { type: 'floor', roomId: def[0] });
-        if (def[1]) {
-          const o = def[1]();
-          objectsMap.set(key(x, y), o);
-          if (o.type === 'puddle') puddleByTile.set(key(x, y), o);
-        }
+        if (def[1]) objectsMap.set(key(x, y), def[1]());
         roomId = def[0];
         occupied = !!def[1];
       }
@@ -139,8 +135,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
 
   // rebuilds interactive objects that carry extra data beyond position (mirror_surface's
   // orientation, sym_plate's pair id); symmetric plate pairs share the same "pair" marker
-  // (created once per pairId). Every other placeable type (vine/puddle/crate/lock) is
-  // purely positional and decoded straight from gridStr above instead.
+  // (created once per pairId). vine/crate/lock are purely positional and decoded straight
+  // from gridStr above instead; water is too, but as a grid tile type rather than an
+  // object (see WATER_CHAR above). frozen_crate_marker rides along here since it's just
+  // a flag on an already-gridStr-decoded crate, not a placeable type of its own.
   const MIRROR_ORIENTATIONS = ['NE', 'ES', 'SW', 'WN'];
   const pairsById = {}; // pairId -> { pair } — shared marker every plate of that group points to
   // MAP_DATA.objects stores x/y as deltas from the previous entry (encoded by build.js):
@@ -173,10 +171,15 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     } else if (typeCode === 8) {
       // mirror_surface, extra = orientation code 0-3
       objectsMap.set(k, createMirrorSurface(MIRROR_ORIENTATIONS[extra] || 'NE'));
+    } else if (typeCode === 10) {
+      // marks a crate already placed via gridStr (decoded above, so it exists by now)
+      // as starting the level frozen — not a new object, just a flag on the existing one
+      const c = objectsMap.get(k);
+      if (c && c.type === 'crate') c.frozen = true;
     }
   });
 
-  // rebuilds the locks: tied to a pair of plates (Mirror)
+  // rebuilds the locks: tied to a pair of plates
   MAP_DATA.verrouLinks.forEach(([vx, vy, pairId]) => {
     const lockObj = objectsMap.get(key(vx, vy));
     if (!lockObj) return;

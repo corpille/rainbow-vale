@@ -1,4 +1,4 @@
-/* ============ Interactive objects: plates, vine/puddle/crate/mirror/lock, push resolution ============ */
+/* ============ Interactive objects: plates, vine/crate/mirror/lock, push resolution ============ */
 import {
   CARDINAL_OFFSETS,
   Nature,
@@ -13,10 +13,10 @@ import {
   worldRunes,
 } from './world-zones.js';
 import { CONE_PATTERN, checkLocks, computeSpellCells, deriveSpell } from './spell-shapes.js';
-// plateByTile comes from map-loader.js, which imports createVine/createPuddle/etc. back
+// plateByTile comes from map-loader.js, which imports createVine/createCrate/etc. back
 // from here — same harmless cycle as world-zones.js's obstacleByTile: only touched from
 // closures called after every file's top-level setup has run.
-import { plateByTile, puddleByTile } from './map-loader.js';
+import { plateByTile } from './map-loader.js';
 
 // an uncovered plate goes back to being its tile's own occupant, walkable again
 function unweighPlateAt(x, y) {
@@ -25,13 +25,6 @@ function unweighPlateAt(x, y) {
     plate.weighed = false;
     objectsMap.set(key(x, y), plate);
   }
-}
-// an uncovered puddle goes back to being its tile's own occupant — puddleByTile keeps
-// the real object (and its frozen/evaporated state) alive the whole time a crate sits on
-// top of it, since that crate is objectsMap's occupant for that tile in the meantime
-function unpuddleAt(x, y) {
-  const puddle = puddleByTile.get(key(x, y));
-  if (puddle) objectsMap.set(key(x, y), puddle);
 }
 // shapes whose cells sit at varying distances from the caster have a meaningful "far
 // end" a pushed crate can slide to. Contact is excluded: its one cell is already at full
@@ -60,6 +53,11 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
         type: 'floor',
         roomId: inferRoomId(r.cell.x, r.cell.y, casterCell && casterCell.roomId),
       });
+    } else if (r.effect === 'freeze_water') {
+      // every water tile's roomId is the same fixed placeholder (see WATER_CHAR in
+      // map-loader.js) — no need to read it back, just carry it forward
+      grid.set(key(r.cell.x, r.cell.y), { type: 'ice', roomId: 'h' });
+      bumpPuddleEpoch();
     }
   });
   const maxSlide = RAY_RANGE_FOR_SHAPE[shape];
@@ -80,6 +78,10 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
       if (p.budget <= 0) return false; // ran out of range — stops here
       const destX = p.x + p.dx,
         destY = p.y + p.dy;
+      // Pull (a Mirrored Push) drags a crate toward the caster — never let it slide
+      // onto (or through) the caster's own tile, since the player isn't a blocking
+      // object the way a wall or another crate is
+      if (destX === px && destY === py) return true; // blocked this pass — retry later
       const destObj = worldRunes.objectAt(destX, destY);
       if (destObj && destObj.type === 'sym_plate') {
         // crate slides onto the plate and weighs it down; plate stays registered
@@ -87,16 +89,14 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
         destObj.weighed = true;
         worldRunes.moveObject(p.x, p.y, destX, destY);
         unweighPlateAt(p.x, p.y);
-        unpuddleAt(p.x, p.y);
         return false; // stops there, weighing the plate
       } else if (!isBlockingFor(destX, destY) && worldRunes.inBounds(destX, destY)) {
-        // a dead obstacle (burnt vine, evaporated puddle, opened lock) still sits in
-        // objectsMap but no longer blocks — a crate can slide right over it. A frozen/
-        // evaporated puddle underneath stays registered in puddleByTile so it resurfaces
-        // once the crate moves on, instead of being lost when the crate overwrites it here
+        // a dead obstacle (cut vine, opened lock) still sits in objectsMap but no longer
+        // blocks — a crate can slide right over it. Ice underneath needs no equivalent
+        // bookkeeping: it lives in `grid`, not objectsMap, so the crate reference here
+        // never collides with it in the first place
         worldRunes.moveObject(p.x, p.y, destX, destY);
         unweighPlateAt(p.x, p.y);
-        unpuddleAt(p.x, p.y);
         p.x = destX;
         p.y = destY;
         p.budget--;
@@ -130,39 +130,12 @@ export function createVine() {
     // pure check reused by Spread propagation (and pierce-through checks) so probing
     // "would this react" never mutates state like reactTo does
     wouldReact(nature) {
-      return !o.destroyed && nature === Nature.BURN;
+      return !o.destroyed && nature === Nature.CUT;
     },
     reactTo(nature) {
-      if (!o.destroyed && nature === Nature.BURN) {
+      if (!o.destroyed && nature === Nature.CUT) {
         o.destroyed = true;
         return { effect: 'destroyed' };
-      }
-      return { effect: 'none' };
-    },
-  };
-  return o;
-}
-export function createPuddle() {
-  const o = {
-    type: 'puddle',
-    state: 'water',
-    get blocksMovement() {
-      return o.state === 'water';
-    },
-    wouldReact(nature) {
-      return o.state !== 'evaporated' && (nature === Nature.FREEZE || nature === Nature.BURN);
-    },
-    reactTo(nature) {
-      if (o.state === 'evaporated') return { effect: 'none' };
-      if (nature === Nature.FREEZE) {
-        o.state = 'frozen';
-        bumpPuddleEpoch();
-        return { effect: 'frozen' };
-      }
-      if (nature === Nature.BURN) {
-        o.state = 'evaporated';
-        bumpPuddleEpoch();
-        return { effect: 'evaporated' };
       }
       return { effect: 'none' };
     },
@@ -174,23 +147,26 @@ export function createCrate() {
     type: 'crate',
     frozen: false,
     blocksMovement: true,
-    wouldReact(nature) {
-      return (
-        (nature === Nature.FREEZE && !o.frozen) ||
-        (nature === Nature.BURN && o.frozen) ||
-        (nature === Nature.PUSH && !o.frozen)
-      );
+    // Mirror inverts both natures that touch a crate: FREEZE normally immobilizes, mirrored
+    // it thaws instead; PUSH normally shoves away, mirrored it pulls toward the caster
+    wouldReact(nature, invert) {
+      if (nature === Nature.FREEZE) return invert ? o.frozen : !o.frozen;
+      return nature === Nature.PUSH && !o.frozen;
     },
-    reactTo(nature, dir) {
-      if (nature === Nature.FREEZE && !o.frozen) {
-        o.frozen = true;
-        return { effect: 'immobilized' };
+    reactTo(nature, dir, invert) {
+      if (nature === Nature.FREEZE) {
+        if (invert && o.frozen) {
+          o.frozen = false;
+          return { effect: 'thawed' };
+        }
+        if (!invert && !o.frozen) {
+          o.frozen = true;
+          return { effect: 'immobilized' };
+        }
       }
-      if (nature === Nature.BURN && o.frozen) {
-        o.frozen = false;
-        return { effect: 'thawed' };
+      if (nature === Nature.PUSH && !o.frozen) {
+        return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir };
       }
-      if (nature === Nature.PUSH && !o.frozen) return { effect: 'push', dir };
       return { effect: 'none' };
     },
   };
@@ -198,7 +174,9 @@ export function createCrate() {
 }
 /* ---- secondary objects: give the modifiers a concrete use ---- */
 // a mirror surface is just an obstacle that reacts to nothing — enough to serve as a
-// Bounce point, otherwise only visually distinct.
+// reflection point for any Line-shaped ray, otherwise only visually distinct. This is
+// independent of the modifier system (the old Bounce modifier is gone; this fires
+// unconditionally whenever a Line ray hits it, no particular rune needed).
 // each orientation connects 2 of the 4 cardinal directions, like a 90° corner reflector:
 // a spell entering one open face exits the other and keeps its remaining range;
 // a closed face just blocks normally

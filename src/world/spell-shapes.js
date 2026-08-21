@@ -3,7 +3,6 @@ import {
   CARDINAL_OFFSETS,
   DIAG_OF,
   DIRS4,
-  DIR_INVERSE,
   Modifier,
   Nature,
   RANGE_DIAGONAL,
@@ -13,6 +12,7 @@ import {
   Shape,
   isBlockingFor,
   isVoid,
+  isWaterAt,
   key,
   reachableCell,
   validatePhrase,
@@ -21,7 +21,8 @@ import {
 import { MIRROR_REFLECT } from './world-objects.js';
 
 const DIR_NAME_OF_VEC = { '0,-1': 'up', '0,1': 'down', '-1,0': 'left', '1,0': 'right' };
-function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature) {
+function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist) {
+  baseDist = baseDist || 0;
   const cells = [];
   for (let i = 1; i <= maxRange; i++) {
     const x = px + dx * i,
@@ -32,14 +33,14 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature) {
       // it by default, chaining across a whole row of void instead of stopping at the
       // first tile grown
       if (nature === Nature.SOLIDIFY && isVoid(x, y)) {
-        cells.push({ x, y, dir: [dx, dy] });
+        cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
       // Pierce punches through walls too: skip the solid tile and keep the ray going
       if (withPierce) continue;
       break;
     }
-    cells.push({ x, y, dir: [dx, dy] });
+    cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
     if (isBlockingFor(x, y)) {
       const obj = worldRunes.objectAt(x, y);
       if (obj && obj.type === 'mirror_surface') {
@@ -47,19 +48,23 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature) {
         const outDir = inDir && MIRROR_REFLECT[obj.orientation][inDir];
         if (outDir) {
           const [ndx, ndy] = DIRS4[outDir];
-          return cells.concat(getCellsLine(x, y, ndx, ndy, maxRange - i, withPierce, nature));
+          return cells.concat(
+            getCellsLine(x, y, ndx, ndy, maxRange - i, withPierce, nature, baseDist + i)
+          );
         }
       }
+      // Freeze always clears a water tile — once frozen it no longer blocks, so it never
+      // really blocked the NEXT thing in line either (water is a grid tile type, not an
+      // object, so there's no `obj` here at all when it's the only thing blocking)
+      if (nature === Nature.FREEZE && isWaterAt(x, y)) continue;
       const reacts = obj && typeof obj.wouldReact === 'function' && obj.wouldReact(nature);
       // a Push beam doesn't stop at what it just pushed — it keeps going to chain
-      // through whatever's lined up behind it. A vine burning away, or a puddle
-      // freezing/evaporating, are the same story: once the reaction lands neither one
-      // still blocks (see their blocksMovement getters), so they never really blocked
-      // the NEXT object in line either — only Pierce should be needed for obstacles
-      // that stay solid no matter what they react to (a crate, frozen or not)
-      const clearsPath =
-        (obj.type === 'vine' && nature === Nature.BURN) ||
-        (obj.type === 'puddle' && (nature === Nature.FREEZE || nature === Nature.BURN));
+      // through whatever's lined up behind it. A vine getting cut is the same story:
+      // once the reaction lands it no longer blocks (see its blocksMovement getter), so
+      // it never really blocked the NEXT object in line either — only Pierce should be
+      // needed for obstacles that stay solid no matter what they react to (a crate,
+      // frozen or not)
+      const clearsPath = obj && obj.type === 'vine' && nature === Nature.CUT;
       if ((withPierce || nature === Nature.PUSH || clearsPath) && reacts) continue;
       break;
     }
@@ -82,7 +87,7 @@ function getCellsArc(px, py, dx, dy, maxRange, angleMaxDeg, nature, withPierce) 
       // (unless Pierce), so the radius+angle fill can't reach straight through corners
       if (!withPierce && isBlocked({ x: px, y: py }, { x, y }, nature)) continue;
       const reachable = reachableCell(x, y, nature);
-      if (!withPierce || reachable) cells.push({ x, y });
+      if (!withPierce || reachable) cells.push({ x, y, d: dist });
     }
   return cells;
 }
@@ -109,7 +114,7 @@ function getConeCells(playerPos, dir, withPierce, nature) {
       };
       if (!withPierce && isBlocked(playerPos, target, nature)) continue;
       const reachable = reachableCell(target.x, target.y, nature);
-      if (!withPierce || reachable) cells.push(target);
+      if (!withPierce || reachable) cells.push({ ...target, d: row });
     }
   }
   return cells;
@@ -177,8 +182,8 @@ function applyShape(shape, px, py, dirName, nature, withPierce) {
   }
 }
 function effectDirectionForCell(px, py, c, shape, dirName) {
-  // a Mirror bounce (or the Bounce modifier) changes the ray's direction mid-flight —
-  // cells past that point carry their own travel direction, not the cast's original
+  // a mirror_surface reflection changes the ray's direction mid-flight — cells past
+  // that point carry their own travel direction, not the cast's original
   if (c.dir) return c.dir;
   if (shape === Shape.LINE) return DIRS4[dirName];
   if (shape === Shape.DIAGONAL) return DIAG_OF[dirName];
@@ -188,37 +193,32 @@ function effectDirectionForCell(px, py, c, shape, dirName) {
   if (Math.abs(dx) >= Math.abs(dy)) return [Math.sign(dx), 0];
   return [0, Math.sign(dy)];
 }
-function applyBounceModifier(shape, px, py, dirName, nature, initialCells) {
-  if (shape !== Shape.LINE && shape !== Shape.DIAGONAL) return [];
-  const [dx0, dy0] = shape === Shape.LINE ? DIRS4[dirName] : DIAG_OF[dirName];
-  let hitX = null,
-    hitY = null,
-    steps = 0;
-  for (const c of initialCells) {
-    steps++;
-    if (isBlockingFor(c.x, c.y)) {
-      hitX = c.x;
-      hitY = c.y;
-      break;
-    }
-  }
-  if (hitX === null) return [];
-  let ndx = dx0,
-    ndy = dy0;
-  if (Math.abs(dx0) >= Math.abs(dy0)) ndx = -dx0;
-  else ndy = -dy0;
-  const remainingRange = Math.max(0, (shape === Shape.LINE ? RANGE_LINE : RANGE_DIAGONAL) - steps);
-  return getCellsLine(hitX, hitY, ndx, ndy, remainingRange, false, nature);
+// keeps only the farthest-from-caster cell(s) the base shape produced — the last step
+// of a Line/Diagonal ray, the outer row of a Cone, the outer ring of a Half-circle arc.
+// Each shape generator tags its own cells with a `d` (distance) it already computes
+// internally, so this stays one generic filter instead of one bespoke rule per shape
+function applySnipeModifier(cells) {
+  if (cells.length < 2) return cells;
+  let max = -Infinity;
+  cells.forEach(c => {
+    if (c.d > max) max = c.d;
+  });
+  return cells.filter(c => Math.abs(c.d - max) < 1e-6);
 }
 // type of whatever's at a cell, for Spread's same-type chaining: object's own type,
-// or 'void' for a tile Solidify could grow into; null means nothing to chain through
+// or 'void' for a tile Solidify could grow into, 'water' for a tile Freeze could freeze;
+// null means nothing to chain through
 function spreadTypeAt(x, y, nature) {
   const obj = worldRunes.objectAt(x, y);
   if (obj) return obj.type;
-  return nature === Nature.SOLIDIFY && isVoid(x, y) ? 'void' : null;
+  if (nature === Nature.SOLIDIFY && isVoid(x, y)) return 'void';
+  return nature === Nature.FREEZE && isWaterAt(x, y) ? 'water' : null;
 }
+// 'void'/'water' are tile types, not objects — nothing to probe wouldReact on, and
+// (unlike an object) reaching one at all already means the nature applies to it
+const TILE_TYPES = new Set(['void', 'water']);
 // Spread keeps the base shape's hits, then hops to adjacent cells/objects of that SAME
-// type that would ALSO react, chaining outward (e.g. burning one vine catches the whole
+// type that would ALSO react, chaining outward (e.g. cutting one vine catches the whole
 // connected thicket, not just a fixed ring of tiles)
 function applySpreadModifier(nature, initialCells) {
   const visited = new Set(initialCells.map(c => key(c.x, c.y)));
@@ -226,7 +226,7 @@ function applySpreadModifier(nature, initialCells) {
   let frontier = initialCells
     .map(c => ({ x: c.x, y: c.y, type: spreadTypeAt(c.x, c.y, nature) }))
     .filter(f => {
-      if (f.type === 'void') return true;
+      if (TILE_TYPES.has(f.type)) return true;
       const obj = worldRunes.objectAt(f.x, f.y);
       return obj && typeof obj.wouldReact === 'function' && obj.wouldReact(nature);
     });
@@ -242,7 +242,7 @@ function applySpreadModifier(nature, initialCells) {
         const type = spreadTypeAt(x, y, nature);
         if (type !== f.type) return;
         const obj = worldRunes.objectAt(x, y);
-        if (type !== 'void' && !obj.wouldReact(nature)) return;
+        if (!TILE_TYPES.has(type) && !obj.wouldReact(nature)) return;
         extra.push({ x, y });
         next.push({ x, y, type });
       });
@@ -250,9 +250,6 @@ function applySpreadModifier(nature, initialCells) {
     frontier = next;
   }
   return extra;
-}
-function applyMirrorModifier(shape, px, py, dirName, nature, withPierce) {
-  return applyShape(shape, px, py, DIR_INVERSE[dirName], nature, withPierce);
 }
 // derives nature/shape/modifier from the phrase's runes; slot2/slot3 default when the
 // phrase is shorter than 3
@@ -262,28 +259,34 @@ export function deriveSpell(runes) {
   const modifier = runes.length === 3 ? SYMBOL_TO_ROLE[runes[2]].slot3 : Modifier.NONE;
   return { nature, shape, modifier, withPierce: modifier === Modifier.PIERCE };
 }
-// full set of cells a spell touches: base shape plus any BOUNCE/SPREAD/MIRROR modifier.
-// Shared by resolvePhrase and the live range preview (computeSpellPreview) — same
-// geometry, only what's done with the cells differs
+// full set of cells a spell touches: base shape plus any SPREAD/SNIPE modifier. Mirror
+// doesn't change which cells are touched — it inverts what happens at resolution time
+// (see resolvePhrase's `invert`) — so it isn't handled here at all. Shared by
+// resolvePhrase and the live range preview (computeSpellPreview) — same geometry, only
+// what's done with the cells differs
 export function computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName) {
   const cells = applyShape(shape, px, py, dirName, nature, withPierce);
-  if (modifier === Modifier.BOUNCE)
-    return cells.concat(applyBounceModifier(shape, px, py, dirName, nature, cells));
   if (modifier === Modifier.SPREAD) return cells.concat(applySpreadModifier(nature, cells));
-  if (modifier === Modifier.MIRROR)
-    return cells.concat(applyMirrorModifier(shape, px, py, dirName, nature, withPierce));
+  if (modifier === Modifier.SNIPE) return applySnipeModifier(cells);
   return cells;
 }
 export function resolvePhrase(runes, px, py, dirName) {
   if (!validatePhrase(runes)) return { ok: false };
   const { nature, shape, modifier, withPierce } = deriveSpell(runes);
   const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
+  // Mirror only means something for Push (→ Pull) and Freeze (→ Thaw a crate); on Cut
+  // or Solidify it's a no-op, same as casting with no modifier at all
+  const invert = modifier === Modifier.MIRROR && (nature === Nature.PUSH || nature === Nature.FREEZE);
   const resolveCell = c => {
     const obj = worldRunes.objectAt(c.x, c.y);
     const dir = effectDirectionForCell(px, py, c, shape, dirName);
-    if (obj) return { cell: c, obj: obj, dir, ...obj.reactTo(nature, dir, c.x, c.y) };
+    if (obj) return { cell: c, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
     if (nature === Nature.SOLIDIFY && isVoid(c.x, c.y))
       return { cell: c, obj: null, dir, effect: 'solidify_void' };
+    // water is a grid tile type, not an object — Mirror never applies here (thaw only
+    // ever works on a crate, per invert's definition above), so no `invert` check needed
+    if (nature === Nature.FREEZE && isWaterAt(c.x, c.y))
+      return { cell: c, obj: null, dir, effect: 'freeze_water' };
     return { cell: c, obj: null, dir, effect: 'ambiant' };
   };
   const result = cells.map(resolveCell);
