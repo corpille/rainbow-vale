@@ -357,16 +357,17 @@ function renderLockGate(px, py) {
   ctx.lineWidth = 1.4;
   ctx.stroke();
   ctx.restore();
-  // hairline cracks hinting at the shatter
+  // hairline cracks hinting at the shatter — scaled to the crystal's own radius
+  // (BASE_TILE * 0.21 from gemPath above) so they stay inside the gem, not poking past it
   ctx.save();
   ctx.strokeStyle = '#ffffff70';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(px - 4, py - 10);
-  ctx.lineTo(px + 3, py - 1);
-  ctx.lineTo(px - 5, py + 9);
-  ctx.moveTo(px + 3, py - 1);
-  ctx.lineTo(px + 10, py + 4);
+  ctx.moveTo(px - 2, py - 5);
+  ctx.lineTo(px + 1.5, py - 0.5);
+  ctx.lineTo(px - 2.5, py + 4.5);
+  ctx.moveTo(px + 1.5, py - 0.5);
+  ctx.lineTo(px + 5, py + 2);
   ctx.stroke();
   ctx.restore();
 }
