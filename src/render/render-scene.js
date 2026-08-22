@@ -33,6 +33,7 @@ import {
   DECOR_BITMAP_SIZE,
   canvas,
   ctx,
+  drawWallCrack,
   offscreen,
   renderInteractiveObject,
   renderPuddle,
@@ -63,6 +64,7 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
         const obstacle = obstacleByTile.get(key(x, y));
         if (!obstacle) continue; // true void — the sky-blue background shows through
         ctx.drawImage(variantSetFor(obstacle.roomId, x, y).wall[variant], destX, destY, TILE, TILE);
+        if (obstacle.cracked) drawWallCrack(destX, destY);
         // only draw edges facing a non-obstacle tile, else adjacent walls double-draw
         // their shared edge as a double line
         ctx.save();

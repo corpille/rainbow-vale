@@ -23,9 +23,13 @@ const fontColor = '#8a7d9c';
 // it's filled — every value is just its own key title-cased (HALF_CIRCLE -> Half-circle),
 const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
 // Mirror is the only modifier whose effect depends on the nature it's paired with
-// (Pull for Push, Thaw for Freeze) — Cut/Solidify fall through to the plain "Mirror"
-// label below, since it's a no-op for them
-const DESC_MIRROR_INVERT = { [Nature.PUSH]: 'Pull', [Nature.FREEZE]: 'Thaw' };
+// (Pull for Push, Thaw for Freeze, Mend for Corrode) — Cut falls through to the plain
+// "Mirror" label below, since it's still a no-op there
+const DESC_MIRROR_INVERT = {
+  [Nature.PUSH]: 'Pull',
+  [Nature.FREEZE]: 'Thaw',
+  [Nature.CORRODE]: 'Mend',
+};
 // which slot a rune lands in picks which enum (nature/shape/modifier) it's describing,
 // not the rune itself — see SYMBOL_TO_ROLE in world-zones.js
 const DESC_BY_SLOT = [
@@ -263,6 +267,14 @@ function castPhrase() {
   const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
   if (result.ok) {
     applyEffectsToWorld(result.result, result.runeCount, result.shape, player.x, player.y);
+    // Switch: the crate's own side of the trade already happened above (it now sits on
+    // the caster's old tile) — snap the player onto the crate's old tile in turn, no
+    // animated glide, since this is a teleport, not a walk
+    const switchEntry = result.result.find(entry => entry.effect === 'switch');
+    if (switchEntry) {
+      player.x = player.dispX = switchEntry.cell.x;
+      player.y = player.dispY = switchEntry.cell.y;
+    }
     lastCast = { cellsTouched: result.cellsTouched, until: performance.now() + 500 };
   }
   phraseRunes = [];

@@ -45,7 +45,7 @@ export const ZONES = ZONE_DEFS.map((zone, i) => ({
 export const roomById = { h: HUB };
 ZONES.forEach(zone => (roomById[zone.id] = zone));
 
-export const Nature = { CUT: 'CUT', FREEZE: 'FREEZE', PUSH: 'PUSH', SOLIDIFY: 'SOLIDIFY' };
+export const Nature = { CUT: 'CUT', FREEZE: 'FREEZE', PUSH: 'PUSH', CORRODE: 'CORRODE' };
 export const Shape = {
   LINE: 'LINE',
   HALF_CIRCLE: 'HALF_CIRCLE',
@@ -55,7 +55,7 @@ export const Shape = {
 };
 export const Modifier = {
   PIERCE: 'PIERCE',
-  SNIPE: 'SNIPE',
+  SWITCH: 'SWITCH',
   SPREAD: 'SPREAD',
   MIRROR: 'MIRROR',
   NONE: 'NONE',
@@ -67,7 +67,7 @@ export const SYMBOL_TO_ROLE = {
   v: { slot1: Nature.CUT, slot2: Shape.CONE, slot3: Modifier.SPREAD },
   j: { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.MIRROR },
   m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.PIERCE },
-  b: { slot1: Nature.SOLIDIFY, slot2: Shape.DIAGONAL, slot3: Modifier.SNIPE },
+  b: { slot1: Nature.CORRODE, slot2: Shape.DIAGONAL, slot3: Modifier.SWITCH },
 };
 const ALL_SYMBOLS = ZONE_DEFS.map(zone => zone.id);
 export const RANGE_LINE = 5;
@@ -95,7 +95,7 @@ export function validatePhrase(runes) {
 export const objectsMap = new Map(); // "x,y" -> interactive object (Vine, Crate, ...)
 
 // bumped whenever a water tile freezes into ice (see applyEffectsToWorld's
-// 'freeze_water' handling in world-objects.js) — lets renderPonds (render-world.js)
+// 'freeze' handling in world-objects.js) — lets renderPonds (render-world.js)
 // know its cached connected-pond groups need rebuilding, instead of every frame
 export let puddleEpoch = 0;
 export function bumpPuddleEpoch() {
@@ -121,16 +121,20 @@ export function isBlockingFor(x, y) {
   const obj = worldRunes.objectAt(x, y);
   return (obj && obj.blocksMovement) || isWaterAt(x, y);
 }
-// true void: no floor tile, no obstacle rock — the only thing Solidify can turn into a real floor tile
+// true void: no floor tile, no obstacle rock — empty space no one can ever stand in,
+// though every nature's spells now pass straight through it (see getCellsLine)
 export const isVoid = (x, y) => !grid.has(key(x, y)) && !obstacleByTile.has(key(x, y));
+// a solid rock wall — cracked or not, it's still fully solid until a crate shatters it
+export const isRock = (x, y) => obstacleByTile.has(key(x, y));
 // a cell is a valid spell destination if it's real ground, if it holds a placed object
 // (mirror_surface/sym_plate are positioned via MAP_DATA.objects, independent of gridStr's
-// floor code underneath them, so a plain floor check would strand them), or — Solidify
-// only — true void
+// floor code underneath them, so a plain floor check would strand them), if it's true
+// void (nothing blocks a spell reaching past that gap), or — Corrode only — a rock wall
 export function reachableCell(x, y, nature) {
   return (
     worldRunes.inBounds(x, y) ||
     !!worldRunes.objectAt(x, y) ||
-    (nature === Nature.SOLIDIFY && isVoid(x, y))
+    isVoid(x, y) ||
+    (nature === Nature.CORRODE && isRock(x, y))
   );
 }

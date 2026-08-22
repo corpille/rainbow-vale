@@ -11,6 +11,7 @@ import {
   SYMBOL_TO_ROLE,
   Shape,
   isBlockingFor,
+  isRock,
   isVoid,
   isWaterAt,
   key,
@@ -34,15 +35,21 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
     // floor tile of its own, since it's positioned via MAP_DATA.objects independent
     // of gridStr's floor/rock/void code
     if (!worldRunes.inBounds(x, y) && !worldRunes.objectAt(x, y)) {
-      // Solidify grows a new floor tile on true void, so the ray keeps going through
-      // it by default, chaining across a whole row instead of stopping at the first
-      if (nature === Nature.SOLIDIFY && isVoid(x, y)) {
+      // Corrode cracks a wall in place (still fully solid until a crate shatters it),
+      // so the ray keeps going through it by default, chaining across a whole row of
+      // rock instead of stopping at the first one
+      if (nature === Nature.CORRODE && isRock(x, y)) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
-      // Pierce (and a post-mirror-bounce beam) punches through walls too, but true
-      // void stops Push dead: unlike a wall, there's nothing there to push through
-      if (nature === Nature.PUSH && isVoid(x, y)) break;
+      // true void never blocks a spell, for any nature, with or without Pierce — only
+      // a real wall needs Pierce (or a mirror bounce) to cross. Nothing can ever stand
+      // in void though (see isBlockingFor/inBounds elsewhere), so this only ever lets
+      // an effect reach past the gap, never anything physically occupy it
+      if (isVoid(x, y)) {
+        cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
+        continue;
+      }
       if (withPierce || viaMirror) continue;
       break;
     }
@@ -127,7 +134,8 @@ function isBlocked(from, to, nature) {
     const cell = line[i];
     if (
       !worldRunes.inBounds(cell.x, cell.y) &&
-      !(nature === Nature.SOLIDIFY && isVoid(cell.x, cell.y))
+      !(nature === Nature.CORRODE && isRock(cell.x, cell.y)) &&
+      !isVoid(cell.x, cell.y)
     )
       return true; // a wall stands before (or at) the target
   }
@@ -193,28 +201,30 @@ function effectDirectionForCell(px, py, cell, shape, dirName) {
   if (Math.abs(dx) >= Math.abs(dy)) return [Math.sign(dx), 0];
   return [0, Math.sign(dy)];
 }
-// keeps only the farthest-from-caster cell(s), using the `d` (distance) each shape
-// generator already tags its cells with — one generic filter, not one per shape
-function applySnipeModifier(cells) {
-  if (cells.length < 2) return cells;
-  let max = -Infinity;
+// farthest cell in a cast that holds a crate — Switch's target. Filters by distance
+// among crate-holding cells specifically, not the shape's overall reach, so a plain
+// open tile past the crate (which Push would keep sailing through anyway) never wins
+// out over the crate itself
+function findSwitchTarget(cells) {
+  let target = null;
   cells.forEach(cell => {
-    if (cell.d > max) max = cell.d;
+    const obj = worldRunes.objectAt(cell.x, cell.y);
+    if (obj && obj.type === 'crate' && (!target || cell.d > target.d)) target = cell;
   });
-  return cells.filter(cell => Math.abs(cell.d - max) < 1e-6);
+  return target;
 }
 // type of whatever's at a cell, for Spread's same-type chaining: object's own type,
-// or 'void' for a tile Solidify could grow into, 'water' for a tile Freeze could freeze;
+// 'rock' for a wall Corrode could crack, 'water' for a tile Freeze could freeze;
 // null means nothing to chain through
 function spreadTypeAt(x, y, nature) {
   const obj = worldRunes.objectAt(x, y);
   if (obj) return obj.type;
-  if (nature === Nature.SOLIDIFY && isVoid(x, y)) return 'void';
+  if (nature === Nature.CORRODE && isRock(x, y)) return 'rock';
   return nature === Nature.FREEZE && isWaterAt(x, y) ? 'water' : null;
 }
-// 'void' and 'water' are tile types, not objects — nothing to call wouldReact on, and
+// 'rock' and 'water' are tile types, not objects — nothing to call wouldReact on, and
 // reaching one at all already means the nature applies
-const TILE_TYPES = new Set(['void', 'water']);
+const TILE_TYPES = new Set(['rock', 'water']);
 // Spread keeps the base shape's hits, then hops to adjacent cells/objects of that SAME
 // type that would ALSO react, chaining outward (e.g. cutting one vine catches the whole
 // connected thicket, not just a fixed ring of tiles)
@@ -257,33 +267,39 @@ export function deriveSpell(runes) {
   const modifier = runes.length === 3 ? SYMBOL_TO_ROLE[runes[2]].slot3 : Modifier.NONE;
   return { nature, shape, modifier, withPierce: modifier === Modifier.PIERCE };
 }
-// full set of cells a spell touches: base shape plus any SPREAD/SNIPE modifier — Mirror
-// only changes what happens at resolution, not which cells are touched. Shared by
+// full set of cells a spell touches: base shape plus any SPREAD modifier — Switch and
+// Mirror only change what happens at resolution, not which cells are touched. Shared by
 // resolvePhrase and the live range preview
 export function computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName) {
   const cells = applyShape(shape, px, py, dirName, nature, withPierce);
   if (modifier === Modifier.SPREAD) return cells.concat(applySpreadModifier(nature, cells));
-  if (modifier === Modifier.SNIPE) return applySnipeModifier(cells);
   return cells;
 }
 export function resolvePhrase(runes, px, py, dirName) {
   if (!validatePhrase(runes)) return { ok: false };
   const { nature, shape, modifier, withPierce } = deriveSpell(runes);
   const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
-  // Mirror only means something for Push (→ Pull) and Freeze (→ Thaw a crate); on Cut
-  // or Solidify it's a no-op, same as casting with no modifier at all
+  // Mirror only means something for Push (→ Pull), Freeze (→ Thaw a crate), and now
+  // Corrode (→ mend a cracked wall back to solid); on Cut it's still a no-op, same as
+  // casting with no modifier at all
   const invert =
-    modifier === Modifier.MIRROR && (nature === Nature.PUSH || nature === Nature.FREEZE);
+    modifier === Modifier.MIRROR &&
+    (nature === Nature.PUSH || nature === Nature.FREEZE || nature === Nature.CORRODE);
+  // Switch swaps the caster with whatever crate sits farthest along the cast, regardless
+  // of nature — a pure position trade, so it overrides that one cell's own resolution
+  const switchTarget = modifier === Modifier.SWITCH && findSwitchTarget(cells);
   const resolveCell = cell => {
     const obj = worldRunes.objectAt(cell.x, cell.y);
     const dir = effectDirectionForCell(px, py, cell, shape, dirName);
+    if (switchTarget && cell.x === switchTarget.x && cell.y === switchTarget.y)
+      return { cell, obj, dir, effect: 'switch' };
     if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
-    if (nature === Nature.SOLIDIFY && isVoid(cell.x, cell.y))
-      return { cell, obj: null, dir, effect: 'solidify_void' };
+    if (nature === Nature.CORRODE && isRock(cell.x, cell.y))
+      return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
     // water is a grid tile type, not an object — Mirror never applies here (thaw only
     // ever works on a crate, per invert's definition above), so no `invert` check needed
     if (nature === Nature.FREEZE && isWaterAt(cell.x, cell.y))
-      return { cell, obj: null, dir, effect: 'freeze_water' };
+      return { cell, obj: null, dir, effect: 'freeze' };
     return { cell, obj: null, dir, effect: 'ambiant' };
   };
   const result = cells.map(resolveCell);

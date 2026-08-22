@@ -13,10 +13,11 @@ import {
   worldRunes,
 } from './world-zones.js';
 import { CONE_PATTERN, checkLocks, computeSpellCells, deriveSpell } from './spell-shapes.js';
-// plateByTile comes from map-loader.js, which imports createVine/createCrate/etc. back
-// from here — same harmless cycle as world-zones.js's obstacleByTile: only touched from
-// closures called after every file's top-level setup has run.
-import { plateByTile } from './map-loader.js';
+// plateByTile/obstacleByTile come from map-loader.js, which imports createVine/
+// createCrate/etc. back from here — same harmless cycle as world-zones.js's own
+// obstacleByTile import: only touched from closures called after every file's
+// top-level setup has run.
+import { obstacleByTile, plateByTile } from './map-loader.js';
 
 // an uncovered plate goes back to being its tile's own occupant, walkable again
 function unweighPlateAt(x, y) {
@@ -34,8 +35,8 @@ const RAY_RANGE_FOR_SHAPE = {
   HALF_CIRCLE: RANGE_SHORT,
   CONE: CONE_PATTERN.length,
 };
-// textures a newly-solidified tile with whichever neighbor's room it can find,
-// falling back to the caster's own room if the tile is fully isolated
+// textures a newly-shattered tile with whichever neighbor's room it can find, falling
+// back to the caster's own room (or the wall's own former room) if fully isolated
 function inferRoomId(x, y, fallback) {
   for (const [dx, dy] of CARDINAL_OFFSETS) {
     const cell = grid.get(key(x + dx, y + dy));
@@ -45,18 +46,25 @@ function inferRoomId(x, y, fallback) {
 }
 export function applyEffectsToWorld(result, runeCount, shape, px, py) {
   checkLocks(result, runeCount);
-  const casterCell = grid.get(key(px, py));
   result.forEach(entry => {
-    if (entry.effect === 'solidify_void') {
-      grid.set(key(entry.cell.x, entry.cell.y), {
-        type: 'floor',
-        roomId: inferRoomId(entry.cell.x, entry.cell.y, casterCell && casterCell.roomId),
-      });
-    } else if (entry.effect === 'freeze_water') {
+    if (entry.effect === 'crack') {
+      // still fully solid (see isBlockingFor/inBounds) — only a crate ramming into it
+      // (the push-slide loop below) actually shatters it into floor
+      const obstacle = obstacleByTile.get(key(entry.cell.x, entry.cell.y));
+      if (obstacle) obstacle.cracked = true;
+    } else if (entry.effect === 'mend') {
+      const obstacle = obstacleByTile.get(key(entry.cell.x, entry.cell.y));
+      if (obstacle) obstacle.cracked = false;
+    } else if (entry.effect === 'freeze') {
       // every water tile's roomId is the same fixed placeholder (see WATER_CHAR in
       // map-loader.js) — no need to read it back, just carry it forward
       grid.set(key(entry.cell.x, entry.cell.y), { type: 'ice', roomId: 'h' });
       bumpPuddleEpoch();
+    } else if (entry.effect === 'switch') {
+      // a pure position trade: the crate lands exactly on the caster's tile, and
+      // ui-panel.js's castPhrase moves the player to the crate's old tile in turn
+      unweighPlateAt(entry.cell.x, entry.cell.y);
+      worldRunes.moveObject(entry.cell.x, entry.cell.y, px, py);
     }
   });
   const maxSlide = RAY_RANGE_FOR_SHAPE[shape];
@@ -87,11 +95,27 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
       // so stop it explicitly rather than letting it slide onto/through that tile
       if (destX === px && destY === py) return true; // blocked this pass — retry later
       const destObj = worldRunes.objectAt(destX, destY);
+      const destWall = obstacleByTile.get(key(destX, destY));
       if (destObj && destObj.type === 'sym_plate') {
         destObj.weighed = true;
         worldRunes.moveObject(slide.x, slide.y, destX, destY);
         unweighPlateAt(slide.x, slide.y);
         return false; // stops there, weighing the plate
+      } else if (destWall && destWall.cracked) {
+        // a cracked wall shatters into floor the instant a crate rams into it, then
+        // the crate keeps sliding into the space it just opened up
+        obstacleByTile.delete(key(destX, destY));
+        grid.set(key(destX, destY), {
+          type: 'floor',
+          roomId: inferRoomId(destX, destY, destWall.roomId),
+        });
+        worldRunes.moveObject(slide.x, slide.y, destX, destY);
+        unweighPlateAt(slide.x, slide.y);
+        slide.x = destX;
+        slide.y = destY;
+        slide.budget--;
+        progress = true;
+        return true;
       } else if (!isBlockingFor(destX, destY) && worldRunes.inBounds(destX, destY)) {
         // a dead obstacle (cut vine, opened lock) still sits in objectsMap but no longer
         // blocks, so a crate can slide over it
@@ -135,9 +159,8 @@ export function createVine() {
     reactTo(nature) {
       if (!vine.destroyed && nature === Nature.CUT) {
         vine.destroyed = true;
-        return { effect: 'destroyed' };
+        return { effect: 'cut' };
       }
-      return { effect: 'none' };
     },
   };
   return vine;
@@ -167,7 +190,6 @@ export function createCrate() {
       if (nature === Nature.PUSH && !crate.frozen) {
         return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir };
       }
-      return { effect: 'none' };
     },
   };
   return crate;
@@ -187,9 +209,7 @@ export function createMirrorSurface(orientation) {
     type: 'mirror_surface',
     orientation: orientation || 'NE',
     blocksMovement: true,
-    reactTo() {
-      return { effect: 'none' };
-    },
+    reactTo() {},
   };
 }
 export function isPairResolved(result, pairObj) {
@@ -218,9 +238,7 @@ export function createLock() {
     get blocksMovement() {
       return !lock.open;
     },
-    reactTo() {
-      return { effect: 'none' };
-    },
+    reactTo() {},
   };
   return lock;
 }

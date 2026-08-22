@@ -295,6 +295,25 @@ function renderMirror(px, py, orientation) {
   ctx.restore();
 }
 
+// a corroded wall's crack: a jagged line hinting it'll shatter the next time a crate
+// rams into it. Drawn directly in tile-pixel space rather than baked into the room's
+// variant bitmaps, since cracked is a per-tile toggle (obstacleByTile), not room-wide
+export function drawWallCrack(destX, destY) {
+  const cx = destX + TILE / 2,
+    cy = destY + TILE / 2,
+    s = TILE * 0.28;
+  ctx.save();
+  ctx.strokeStyle = '#00000090';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - s, cy - s * 1.2);
+  ctx.lineTo(cx - s * 0.2, cy - s * 0.1);
+  ctx.lineTo(cx - s * 0.6, cy + s * 0.3);
+  ctx.lineTo(cx + s * 0.3, cy + s * 1.1);
+  ctx.stroke();
+  ctx.restore();
+}
+
 // a glowing crystal set in a rune-ring seal, not prison bars — hairline cracks hint
 // it's meant to shatter, and it vanishes once the paired plates satisfy the lock
 function renderLockGate(px, py) {
