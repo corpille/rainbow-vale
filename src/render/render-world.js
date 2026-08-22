@@ -33,8 +33,7 @@ let tileVariants = {};
 // All 5 decor drawFns grow upward from a ground point at (0,0), so the canvas is anchored
 // near its bottom (DECOR_ANCHOR_Y from the top) instead of centered. Sized for the tallest
 // sprite — drawBloomTreeBig reaches 75px up / 22px down, way more than the others (~30px
-// either way). A centered 90x90 square used to clip the top of every tree; invisible while
-// decor was blurry, obvious once it got crisp.
+// either way).
 export const DECOR_BITMAP_SIZE = 90; // width
 export const DECOR_BITMAP_HEIGHT = 108;
 export const DECOR_ANCHOR_Y = 80;
@@ -44,12 +43,7 @@ export function offscreen(px, py, pad = TILE) {
 }
 
 // BASE_TILE (42px) was tuned for a 1080px viewport; scaling it by the current viewport's
-// shorter side keeps the amount of world visible consistent across a phone, a 1080p
-// window, and 4K — instead of a fixed-pixel TILE showing wildly more or less map as
-// raw viewport pixels grow.
-// 500 (down from 600) roughly halves drawWorldTiles' per-frame cost — fewer, bigger
-// tiles to blit — while still showing a solid chunk of the map; tried 350 too but that
-// zoomed in enough to feel cramped against the spell bar's screen-bottom real estate
+// shorter side keeps the amount of world visible consistent across phone/1080p/4K
 const REF_MIN_DIM = 500; // lower = bigger TILE = camera feels closer to the player
 function resizeCanvas() {
   canvas.width = window.innerWidth;
@@ -72,18 +66,16 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-/* ============ Tile variants: instead of baking the whole map into one offscreen canvas
-   up front (which used to freeze the page on first load), pre-render 3 floor + 3 wall
-   bitmaps per room, once. The per-frame loop below just blits a variant by tile position —
-   nothing recomputed per frame, nothing to precompute before the game can start. ============ */
+/* ============ Tile variants: 3 floor + 3 wall bitmaps per room, pre-rendered once.
+   The per-frame loop below just blits a variant by tile position. ============ */
 
 // the mirror surface and the lock's crystal both use this same amethyst-to-violet
 // gradient, just aimed along a different line each time
 function gemGradient(x0, y0, x1, y1) {
-  const g = ctx.createLinearGradient(x0, y0, x1, y1);
-  g.addColorStop(0, '#e8a8f0');
-  g.addColorStop(1, VIOLET);
-  return g;
+  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+  gradient.addColorStop(0, '#e8a8f0');
+  gradient.addColorStop(1, VIOLET);
+  return gradient;
 }
 
 function renderVine(obj, px, py) {
@@ -108,9 +100,9 @@ function renderVine(obj, px, py) {
 // ice look — fully opaque, so the floor tile underneath is skipped entirely rather than
 // drawn and then covered (see drawWorldTiles). The liquid "water" state is animated
 // separately, see renderPonds below, since it needs to shimmer/drift as a shared pond.
-export function renderPuddle(c, px, py) {
-  c.save();
-  const grad = c.createLinearGradient(
+export function renderPuddle(ctx, px, py) {
+  ctx.save();
+  const grad = ctx.createLinearGradient(
     px - BASE_TILE * 0.5,
     py - BASE_TILE * 0.5,
     px + BASE_TILE * 0.5,
@@ -118,72 +110,67 @@ export function renderPuddle(c, px, py) {
   );
   grad.addColorStop(0, WHITE);
   grad.addColorStop(1, '#bfe0ff');
-  c.fillStyle = grad;
-  c.fillRect(px - BASE_TILE * 0.5, py - BASE_TILE * 0.5, BASE_TILE, BASE_TILE);
-  c.strokeStyle = '#ffffff80';
-  c.lineWidth = 1.2;
+  ctx.fillStyle = grad;
+  ctx.fillRect(px - BASE_TILE * 0.5, py - BASE_TILE * 0.5, BASE_TILE, BASE_TILE);
+  ctx.strokeStyle = '#ffffff80';
+  ctx.lineWidth = 1.2;
   for (let i = 0; i < 3; i++) {
     const oy = py + (i - 1) * BASE_TILE * 0.25;
-    c.beginPath();
-    c.moveTo(px - BASE_TILE * 0.4, oy);
-    c.quadraticCurveTo(px, oy + (i % 2 ? 3 : -3), px + BASE_TILE * 0.4, oy);
-    c.stroke();
+    ctx.beginPath();
+    ctx.moveTo(px - BASE_TILE * 0.4, oy);
+    ctx.quadraticCurveTo(px, oy + (i % 2 ? 3 : -3), px + BASE_TILE * 0.4, oy);
+    ctx.stroke();
   }
-  c.restore();
+  ctx.restore();
 }
 
-// liquid "water" puddles used to animate independently per tile (own ripple phase,
-// own 3 sparkles) — cheap for one tile, but a connected pond of them is both a lot of
-// per-frame draw calls AND reads as a patchwork of independently-drifting squares
-// instead of the "one continuous sheet" the fixed (non-position-keyed) color was
-// already going for. Flood-filling connected water tiles into one shared pond fixes
-// both: one fill instead of one per tile, and a handful of ripples/sparkles scaled to
-// the pond's size instead of a full set per tile. Rebuilt only when a puddle's state
-// actually changes (puddleEpoch), not every frame.
+// flood-fills connected water tiles into one shared pond: one fill call and a handful
+// of ripples/sparkles scaled to the pond's size, instead of a full set per tile.
+// Rebuilt only when a puddle's state actually changes (puddleEpoch), not every frame.
 let pondGroups = [];
 let pondGroupsEpoch = -1;
 function computePondGroups() {
   pondGroups = [];
   const visited = new Set();
-  grid.forEach((cell, k) => {
-    if (cell.type !== 'water' || visited.has(k)) return;
+  grid.forEach((cell, tileKey) => {
+    if (cell.type !== 'water' || visited.has(tileKey)) return;
     const tiles = [];
-    const stack = [k];
-    visited.add(k);
+    const stack = [tileKey];
+    visited.add(tileKey);
     while (stack.length) {
-      const ck = stack.pop();
-      const [cx, cy] = unkey(ck);
-      tiles.push({ x: cx, y: cy });
+      const currentKey = stack.pop();
+      const [tileX, tileY] = unkey(currentKey);
+      tiles.push({ x: tileX, y: tileY });
       CARDINAL_OFFSETS.forEach(([dx, dy]) => {
-        const nk = key(cx + dx, cy + dy);
-        if (visited.has(nk)) return;
-        const ncell = grid.get(nk);
-        if (ncell && ncell.type === 'water') {
-          visited.add(nk);
-          stack.push(nk);
+        const neighborKey = key(tileX + dx, tileY + dy);
+        if (visited.has(neighborKey)) return;
+        const neighborCell = grid.get(neighborKey);
+        if (neighborCell && neighborCell.type === 'water') {
+          visited.add(neighborKey);
+          stack.push(neighborKey);
         }
       });
     }
     // ripples and sparkles both scaled to the pond's size (capped) and placed off an
     // anchor tile's own coordinates, so positions/phases stay stable across rebuilds
     // without needing a stored RNG seed
-    const n = tiles.length;
+    const tileCount = tiles.length;
     const ripples = [];
-    for (let i = 0; i < Math.min(3, 1 + Math.floor(n / 8)); i++) {
-      ripples.push(tiles[(i * 11 + 5) % n]);
+    for (let i = 0; i < Math.min(3, 1 + Math.floor(tileCount / 8)); i++) {
+      ripples.push(tiles[(i * 11 + 5) % tileCount]);
     }
     const sparkles = [];
-    for (let i = 0; i < Math.min(10, 3 + Math.floor(n / 3)); i++) {
-      const tile = tiles[(i * 7 + 3) % n];
-      const h1 = Math.abs(Math.sin(tile.x * 12.9898 + tile.y * 78.233 + i * 37.1));
-      const h2 = Math.abs(Math.sin(h1 * 6180.5 + i));
+    for (let i = 0; i < Math.min(10, 3 + Math.floor(tileCount / 3)); i++) {
+      const tile = tiles[(i * 7 + 3) % tileCount];
+      const hash1 = Math.abs(Math.sin(tile.x * 12.9898 + tile.y * 78.233 + i * 37.1));
+      const hash2 = Math.abs(Math.sin(hash1 * 6180.5 + i));
       sparkles.push({
         x: tile.x,
         y: tile.y,
-        ox: (h1 - 0.5) * BASE_TILE * 0.7,
-        oy: (h2 - 0.5) * BASE_TILE * 0.7,
-        r: 1 + h1 * 0.7,
-        phase: h2 * Math.PI * 6,
+        ox: (hash1 - 0.5) * BASE_TILE * 0.7,
+        oy: (hash2 - 0.5) * BASE_TILE * 0.7,
+        r: 1 + hash1 * 0.7,
+        phase: hash2 * Math.PI * 6,
       });
     }
     pondGroups.push({ tiles, ripples, sparkles });
@@ -196,13 +183,11 @@ export function renderPonds(originPxX, originPxY) {
     pondGroupsEpoch = puddleEpoch;
   }
   const t = performance.now();
-  const s = TILE / BASE_TILE;
+  const scale = TILE / BASE_TILE;
   const half = TILE / 2;
   pondGroups.forEach(group => {
     // fixed blue-violet, never keyed by position or time, so the pool reads as one sheet.
-    // Opaque since water skips its floor tile entirely (see drawWorldTiles) — nothing to
-    // blend with. Not a guessed color: it's the old 42%-alpha fill averaged onto the real
-    // baked gray floor, so pre-collection it still looks the same.
+    // Opaque since water skips its floor tile entirely (see drawWorldTiles)
     ctx.save();
     ctx.fillStyle = 'hsl(220, 35%, 75%)';
     ctx.beginPath();
@@ -214,27 +199,27 @@ export function renderPonds(originPxX, originPxY) {
 
     ctx.save();
     ctx.strokeStyle = '#ffffff90';
-    ctx.lineWidth = 1.3 * s;
-    group.ripples.forEach((r, i) => {
-      const px = originPxX + r.x * TILE + half,
-        py = originPxY + r.y * TILE + half;
+    ctx.lineWidth = 1.3 * scale;
+    group.ripples.forEach((ripple, i) => {
+      const px = originPxX + ripple.x * TILE + half,
+        py = originPxY + ripple.y * TILE + half;
       ctx.beginPath();
       ctx.moveTo(px - half, py);
-      ctx.quadraticCurveTo(px, py + Math.sin(t / 800 + i * 2) * 3 * s, px + half, py);
+      ctx.quadraticCurveTo(px, py + Math.sin(t / 800 + i * 2) * 3 * scale, px + half, py);
       ctx.stroke();
     });
     ctx.restore();
 
     // whimsical twinkles, drifting slowly upward
-    group.sparkles.forEach(sp => {
-      const baseX = originPxX + sp.x * TILE + half + sp.ox * s,
-        baseY = originPxY + sp.y * TILE + half;
-      const yy = ((((sp.oy * s + half - t / 90) % TILE) + TILE) % TILE) - half;
-      const alpha = 0.55 + Math.sin(sp.phase + t / 380) * 0.35;
+    group.sparkles.forEach(sparkle => {
+      const baseX = originPxX + sparkle.x * TILE + half + sparkle.ox * scale,
+        baseY = originPxY + sparkle.y * TILE + half;
+      const yy = ((((sparkle.oy * scale + half - t / 90) % TILE) + TILE) % TILE) - half;
+      const alpha = 0.55 + Math.sin(sparkle.phase + t / 380) * 0.35;
       ctx.save();
       ctx.globalAlpha = Math.max(0.2, alpha);
       ctx.fillStyle = '#fff9ff';
-      starPath(ctx, baseX, baseY + yy, sp.r * 2.3 * s, 4, 0.3);
+      starPath(ctx, baseX, baseY + yy, sparkle.r * 2.3 * scale, 4, 0.3);
       ctx.fill();
       ctx.restore();
     });
@@ -244,9 +229,9 @@ export function renderPonds(originPxX, originPxY) {
 // a pushable gift box, not a plain crate — ribbon + bow sell the theme at a glance,
 // still readable at small scale
 function renderCrate(obj, px, py) {
-  const s = BASE_TILE * 0.32;
+  const half = BASE_TILE * 0.32;
   ctx.save();
-  const grad = ctx.createLinearGradient(px - s, py - s, px + s, py + s);
+  const grad = ctx.createLinearGradient(px - half, py - half, px + half, py + half);
   grad.addColorStop(0, obj.frozen ? '#cfe9ff' : '#c9a0f0');
   grad.addColorStop(1, obj.frozen ? '#7fb8e0' : '#8a5ad0');
   ctx.fillStyle = grad;
@@ -254,22 +239,22 @@ function renderCrate(obj, px, py) {
   ctx.lineWidth = 2;
   ctx.shadowColor = obj.frozen ? COLORS.ICE_BLUE : COLORS.PINK_WARM;
   ctx.shadowBlur = 6;
-  ctx.fillRect(px - s, py - s, s * 2, s * 2);
-  ctx.strokeRect(px - s, py - s, s * 2, s * 2);
+  ctx.fillRect(px - half, py - half, half * 2, half * 2);
+  ctx.strokeRect(px - half, py - half, half * 2, half * 2);
   ctx.restore();
   ctx.save();
   const ribbon = obj.frozen ? WHITE : COLORS.PINK;
   ctx.strokeStyle = ribbon;
-  ctx.lineWidth = s * 0.28;
+  ctx.lineWidth = half * 0.28;
   ctx.beginPath();
-  ctx.moveTo(px - s, py);
-  ctx.lineTo(px + s, py);
-  ctx.moveTo(px, py - s);
-  ctx.lineTo(px, py + s);
+  ctx.moveTo(px - half, py);
+  ctx.lineTo(px + half, py);
+  ctx.moveTo(px, py - half);
+  ctx.lineTo(px, py + half);
   ctx.stroke();
   ctx.fillStyle = ribbon;
-  fillCircle(ctx, px - s * 0.35, py - s * 1.05, s * 0.32);
-  fillCircle(ctx, px + s * 0.35, py - s * 1.05, s * 0.32);
+  fillCircle(ctx, px - half * 0.35, py - half * 1.05, half * 0.32);
+  fillCircle(ctx, px + half * 0.35, py - half * 1.05, half * 0.32);
   ctx.restore();
 }
 
@@ -278,21 +263,19 @@ function renderCrate(obj, px, py) {
 const MIRROR_CORNER = { NE: [1, -1], SW: [-1, 1], ES: [1, 1], WN: [-1, -1] };
 function renderMirror(px, py, orientation) {
   const [sxs0, sys0] = MIRROR_CORNER[orientation] || MIRROR_CORNER.NE;
-  // inverted from the named corner: solid glass fills the FAR corner (plus its two
-  // edge-adjacent corners), leaving the named corner open. The reflecting diagonal
-  // doesn't move, so MIRROR_REFLECT's bounce directions stay as they were — only
-  // which triangle looks solid flips.
+  // solid glass fills the FAR corner (plus its two edge-adjacent corners), leaving
+  // the named corner open — inverted from MIRROR_CORNER's own named corner
   const sxs = -sxs0,
     sys = -sys0;
-  const c = BASE_TILE * 0.5;
+  const half = BASE_TILE * 0.5;
   // half the tile split along the true diagonal: named corner + its two edge-adjacent
   // corners is the solid side, the hypotenuse is the reflecting surface, far corner open
-  const cornerX = px + sxs * c,
-    cornerY = py + sys * c;
-  const p1x = px - sxs * c,
+  const cornerX = px + sxs * half,
+    cornerY = py + sys * half;
+  const p1x = px - sxs * half,
     p1y = cornerY;
   const p2x = cornerX,
-    p2y = py - sys * c;
+    p2y = py - sys * half;
   ctx.save();
   ctx.fillStyle = gemGradient(p1x, p1y, p2x, p2y);
   ctx.beginPath();
@@ -332,12 +315,12 @@ function renderLockGate(px, py) {
   ctx.restore();
   // sparkles slowly orbiting the ring
   for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + t / 1400;
-    const sx = px + Math.cos(a) * BASE_TILE * 0.4,
-      sy = py + Math.sin(a) * BASE_TILE * 0.4;
+    const angle = (i / 4) * Math.PI * 2 + t / 1400;
+    const sparkleX = px + Math.cos(angle) * BASE_TILE * 0.4,
+      sparkleY = py + Math.sin(angle) * BASE_TILE * 0.4;
     ctx.save();
     ctx.fillStyle = '#fff6d8';
-    starPath(ctx, sx, sy, 3.4, 4, 0.3);
+    starPath(ctx, sparkleX, sparkleY, 3.4, 4, 0.3);
     ctx.fill();
     ctx.restore();
   }
@@ -415,94 +398,99 @@ function grayFilter(roomId) {
 }
 
 // 3 floor + 3 wall bitmaps per room, baked once (or once per resize, since it's tied to
-// TILE's pixel size) instead of the whole map. AO is baked in too (doesn't depend on
-// neighbors); wall borders can't be — which edges get one depends on neighboring tiles,
-// so those are drawn dynamically per visible tile, see drawWorldTiles below.
+// TILE's pixel size). AO is baked in too (doesn't depend on neighbors); wall borders
+// can't be — which edges get one depends on neighboring tiles, so those are drawn
+// dynamically per visible tile, see drawWorldTiles below.
 //
-// Gray/color state is baked in here too rather than a live per-frame ctx.filter — a
-// non-'none' canvas filter forces a much slower render path, and doing that 60x/sec
-// per tile was real, measurable cost. A room's gray level only changes at rare discrete
-// moments (rune collected, item returned), so bakeRoomVariants just reruns for that one
-// room then (see player.js), and per-frame drawing stays a plain drawImage.
+// Gray/color state is baked in here too rather than a live per-frame ctx.filter, since
+// a non-'none' canvas filter is much slower and a room's gray level only changes at
+// rare discrete moments (rune collected, item returned) — see bakeRoomVariants/player.js.
 export function generateTileVariants() {
   tileVariants = {};
   Object.keys(roomById).forEach(bakeRoomVariants);
 }
-// decor (flowers, mushrooms, crystals, ...) used to be drawn live every frame via its
-// drawFn — full color regardless of lock state, since it wasn't part of the tile-bake
-// system. Baking it into a small per-instance bitmap instead (same gray/color filter,
-// same rare rebake-on-event philosophy as floor/wall) matches the tiles' look without
-// paying a per-frame ctx.filter cost. Baked at the CURRENT TILE resolution (like
-// bakeRoomVariants' floor/wall bitmaps), not a fixed size — baking fixed-size and
-// stretching at draw time is what made decor look soft/blocky whenever TILE != BASE_TILE
-// (i.e. almost always).
-function bakeDecorBitmap(d, filter) {
-  const s = TILE / BASE_TILE;
-  const w = Math.round(DECOR_BITMAP_SIZE * s);
-  const h = Math.round(DECOR_BITMAP_HEIGHT * s);
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const dctx = c.getContext('2d');
+// decor (flowers, mushrooms, crystals, ...) is baked into a small per-instance bitmap,
+// same gray/color filter and rare rebake-on-event approach as floor/wall. Baked at the
+// CURRENT TILE resolution, not a fixed size — stretching a fixed-size bake at draw
+// time would look soft/blocky whenever TILE != BASE_TILE.
+function bakeDecorBitmap(decorInstance, filter) {
+  const scale = TILE / BASE_TILE;
+  const w = Math.round(DECOR_BITMAP_SIZE * scale);
+  const h = Math.round(DECOR_BITMAP_HEIGHT * scale);
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = w;
+  canvasEl.height = h;
+  const dctx = canvasEl.getContext('2d');
   dctx.filter = filter;
-  dctx.translate(w / 2, DECOR_ANCHOR_Y * s);
-  dctx.scale(s, s);
-  d.drawFn(dctx, 0, 0, d.seed);
-  return c;
+  dctx.translate(w / 2, DECOR_ANCHOR_Y * scale);
+  dctx.scale(scale, scale);
+  decorInstance.drawFn(dctx, 0, 0, decorInstance.seed);
+  return canvasEl;
 }
 function bakeRoomVariants(roomId) {
   const room = roomById[roomId];
   const filter = grayFilter(roomId);
   const floor = [],
     wall = [];
-  for (let v = 0; v < BLOB_SETS.length; v++) {
-    const f = document.createElement('canvas');
-    f.width = f.height = TILE;
-    const fx = f.getContext('2d');
-    fx.filter = filter;
-    textureFill(fx, 0, 0, TILE, TILE, room.base, room.dark, room.blob, BLOB_SETS[v]);
-    tileAO(fx, 0, 0);
-    floor.push(f);
+  for (let variant = 0; variant < BLOB_SETS.length; variant++) {
+    const floorCanvas = document.createElement('canvas');
+    floorCanvas.width = floorCanvas.height = TILE;
+    const floorCtx = floorCanvas.getContext('2d');
+    floorCtx.filter = filter;
+    textureFill(floorCtx, 0, 0, TILE, TILE, room.base, room.dark, room.blob, BLOB_SETS[variant]);
+    tileAO(floorCtx, 0, 0);
+    floor.push(floorCanvas);
 
-    const w = document.createElement('canvas');
-    w.width = w.height = TILE;
-    const wx = w.getContext('2d');
-    wx.filter = filter;
-    textureFill(wx, 0, 0, TILE, TILE, room.dark, COLORS.NEAR_BLACK, room.blob, BLOB_SETS[v]);
-    wall.push(w);
+    const wallCanvas = document.createElement('canvas');
+    wallCanvas.width = wallCanvas.height = TILE;
+    const wallCtx = wallCanvas.getContext('2d');
+    wallCtx.filter = filter;
+    textureFill(
+      wallCtx,
+      0,
+      0,
+      TILE,
+      TILE,
+      room.dark,
+      COLORS.NEAR_BLACK,
+      room.blob,
+      BLOB_SETS[variant]
+    );
+    wall.push(wallCanvas);
   }
   tileVariants[roomId] = { floor, wall };
-  decorInstances.forEach(d => {
-    if (d.roomId === roomId) d.bitmap = bakeDecorBitmap(d, filter);
+  decorInstances.forEach(decorInstance => {
+    if (decorInstance.roomId === roomId)
+      decorInstance.bitmap = bakeDecorBitmap(decorInstance, filter);
   });
 }
 
-// active per-room color reveals: roomId -> { ox, oy, start, maxD, oldFloor, oldWall }.
-// Instead of flipping a room's color all at once, keep the previous ("before") bitmap
-// set around for ~900ms next to the freshly-baked ("after") one in tileVariants, and
-// have drawWorldTiles pick per-tile by distance from the origin — same wave-outward
-// feel as the old per-tile repaint, but as a choice between two pre-baked bitmaps.
+// active per-room color reveals: roomId -> { originX, originY, start, maxD, oldFloor, oldWall }.
+// Keeps the previous ("before") bitmap set around for ~900ms next to the freshly-baked
+// ("after") one in tileVariants; drawWorldTiles picks per-tile by distance from the
+// origin, giving a wave-outward reveal.
 const activeWaves = {};
-export function startColorWave(roomId, ox, oy) {
+export function startColorWave(roomId, originX, originY) {
   const oldFloor = tileVariants[roomId].floor,
     oldWall = tileVariants[roomId].wall;
   // stash each decor instance's "before" bitmap too, since bakeRoomVariants below is
-  // about to overwrite d.bitmap with the "after" one
-  decorInstances.forEach(d => {
-    if (d.roomId === roomId) d.oldBitmap = d.bitmap;
+  // about to overwrite its bitmap with the "after" one
+  decorInstances.forEach(decorInstance => {
+    if (decorInstance.roomId === roomId) decorInstance.oldBitmap = decorInstance.bitmap;
   });
   bakeRoomVariants(roomId); // tileVariants[roomId] now holds the "after" bitmaps
   let maxD = 1;
-  grid.forEach((cell, k) => {
+  grid.forEach((cell, tileKey) => {
     if (cell.roomId === roomId) {
-      const [x, y] = unkey(k);
-      maxD = Math.max(maxD, Math.hypot(x - ox, y - oy));
+      const [x, y] = unkey(tileKey);
+      maxD = Math.max(maxD, Math.hypot(x - originX, y - originY));
     }
   });
-  obstacles.forEach(o => {
-    if (o.roomId === roomId) maxD = Math.max(maxD, Math.hypot(o.x - ox, o.y - oy));
+  obstacles.forEach(obstacle => {
+    if (obstacle.roomId === roomId)
+      maxD = Math.max(maxD, Math.hypot(obstacle.x - originX, obstacle.y - originY));
   });
-  activeWaves[roomId] = { ox, oy, start: performance.now(), maxD, oldFloor, oldWall };
+  activeWaves[roomId] = { originX, originY, start: performance.now(), maxD, oldFloor, oldWall };
 }
 // which of the 3 variants a tile uses — a cheap position-keyed pick, not per-tile
 // randomness, so it's stable but doesn't look like a repeating grid
@@ -520,7 +508,7 @@ export function waveRevealed(roomId, x, y) {
     delete activeWaves[roomId];
     return true;
   }
-  const dist = Math.hypot(x - wave.ox, y - wave.oy);
+  const dist = Math.hypot(x - wave.originX, y - wave.originY);
   return elapsed >= (dist / wave.maxD) * 900;
 }
 // bitmap set a tile draws from: normally tileVariants[roomId], but during an active

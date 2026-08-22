@@ -43,7 +43,7 @@ function drawScreenFlash() {
 
 function drawVignette() {
   ctx.save();
-  const vg = ctx.createRadialGradient(
+  const gradient = ctx.createRadialGradient(
     canvas.width / 2,
     canvas.height / 2,
     canvas.height * 0.25,
@@ -51,9 +51,9 @@ function drawVignette() {
     canvas.height / 2,
     canvas.height * 0.75
   );
-  vg.addColorStop(0, TRANSPARENT);
-  vg.addColorStop(1, '#3a2f5540');
-  ctx.fillStyle = vg;
+  gradient.addColorStop(0, TRANSPARENT);
+  gradient.addColorStop(1, '#3a2f5540');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
@@ -65,11 +65,11 @@ function drawVignette() {
 function drawDuskBg(bottomColor) {
   const w = canvas.width,
     h = canvas.height;
-  const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, COLORS.NEAR_BLACK);
-  g.addColorStop(0.6, '#5a4a8a');
-  g.addColorStop(1, bottomColor);
-  ctx.fillStyle = g;
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, COLORS.NEAR_BLACK);
+  gradient.addColorStop(0.6, '#5a4a8a');
+  gradient.addColorStop(1, bottomColor);
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, w, h);
 }
 
@@ -117,8 +117,8 @@ function drawMenuOverlay() {
   // rainbow arch flourish echoing the vale's name — centered well above the title
   // so its stroke width never dips into the text (used to overlap)
   const archY = h * 0.34;
-  COLORS.RAINBOW.forEach((c, i) => {
-    ctx.strokeStyle = c;
+  COLORS.RAINBOW.forEach((color, i) => {
+    ctx.strokeStyle = color;
     ctx.lineWidth = 5 * scale;
     ctx.beginPath();
     ctx.arc(w / 2, archY, (30 + i * 7) * scale, Math.PI, 0);
@@ -133,15 +133,15 @@ function drawMenuOverlay() {
   const iconY = titleY + 50 * scale,
     spacing = Math.min(70 * scale, (w * 0.8) / (ZONES.length - 1)),
     totalW = spacing * (ZONES.length - 1);
-  ZONES.forEach((z, i) => {
+  ZONES.forEach((zone, i) => {
     iconGlyph(
       ctx,
       w / 2 - totalW / 2 + spacing * i,
       iconY,
       22 * scale,
       UI_LIGHT,
-      RUNE_ACCENT[z.id],
-      RUNE_SHAPE[z.id]
+      RUNE_ACCENT[zone.id],
+      RUNE_SHAPE[zone.id]
     );
   });
 
@@ -187,9 +187,8 @@ function drawIntroOverlay() {
 }
 
 // celebration screen once every item's home and the hub lights up. Rainbow stars orbit
-// and twinkle around the title (same starPath/RAINBOW building blocks used everywhere
-// else — orbit math borrowed from drawHubAltar's progress stars, pulse from
-// renderLockGate's glow) instead of the plain static text the first draft had.
+// and twinkle around the title using the same starPath/RAINBOW building blocks used
+// everywhere else.
 function drawEndingOverlay() {
   const w = canvas.width,
     h = canvas.height,
@@ -198,16 +197,16 @@ function drawEndingOverlay() {
   drawDuskBg(COLORS.PINK_UI);
 
   ctx.save();
-  const n = COLORS.RAINBOW.length;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + t / 1800;
-    const r = Math.min(w, h) * (0.32 + 0.05 * Math.sin(t / 500 + i));
-    const sx = w / 2 + Math.cos(a) * r,
-      sy = h / 2 + Math.sin(a) * r * 0.6;
+  const count = COLORS.RAINBOW.length;
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + t / 1800;
+    const radius = Math.min(w, h) * (0.32 + 0.05 * Math.sin(t / 500 + i));
+    const starX = w / 2 + Math.cos(angle) * radius,
+      starY = h / 2 + Math.sin(angle) * radius * 0.6;
     ctx.save();
     ctx.globalAlpha = 0.55 + Math.sin(t / 350 + i * 2) * 0.35;
     ctx.fillStyle = COLORS.RAINBOW[i];
-    starPath(ctx, sx, sy, 8 * scale, 4, 0.3);
+    starPath(ctx, starX, starY, 8 * scale, 4, 0.3);
     ctx.fill();
     ctx.restore();
   }
@@ -216,7 +215,13 @@ function drawEndingOverlay() {
   const pulse = Math.sin(t / 450);
   ctx.save();
   ctx.textAlign = 'center';
-  glowTitle(w / 2, h / 2 - 20 * scale, 'The Vale is Restored', (38 + pulse * 2) * scale, (18 + pulse * 6) * scale);
+  glowTitle(
+    w / 2,
+    h / 2 - 20 * scale,
+    'The Vale is Restored',
+    (38 + pulse * 2) * scale,
+    (18 + pulse * 6) * scale
+  );
   ctx.fillStyle = UI_LIGHT;
   ctx.font = `${16 * scale}px ${FONT}`;
   ctx.fillText('Thank you for playing', w / 2, h / 2 + 20 * scale);
@@ -232,22 +237,19 @@ function draw() {
     return;
   }
   // visual position continuously eases toward the logical one, independent of keypresses
-  const now0 = performance.now();
-  const dt0 = Math.min(48, now0 - (draw._last || now0));
-  draw._last = now0;
-  const follow = 1 - Math.pow(0.0025, dt0 / 1000); // ~framerate-independent
+  const now = performance.now();
+  const dt = Math.min(48, now - (draw._last || now));
+  draw._last = now;
+  const follow = 1 - Math.pow(0.0025, dt / 1000); // ~framerate-independent
   const prevDispX = player.dispX,
     prevDispY = player.dispY;
   player.dispX += (player.x - player.dispX) * follow;
   player.dispY += (player.y - player.dispY) * follow;
   // two quick perpendicular steps (diagonal movement) can land close enough together
-  // that the camera glides in a straight line between them — cutting through whichever
-  // corner tile neither step actually entered. If that corner is a wall, freeze the
-  // blocked axis for a handful of frames — long enough to read as one axis finishing
-  // before the next starts, not just a 1-frame blip too brief to notice. A frame count
-  // (not "wait until the other axis settles") matters during a held diagonal: the other
-  // axis's target keeps advancing with every repeat step, so it would never count as
-  // "settled" and the hold would never release
+  // that the camera glides straight through the corner tile neither step entered. If
+  // that corner is a wall, freeze the blocked axis for a few frames instead — a fixed
+  // frame count rather than "wait until settled", since a held diagonal keeps advancing
+  // the other axis's target and would never count as settled.
   // _hold's sign picks the axis (+ = x, - = y), its magnitude the frames left
   const blocked = (x, y) => !worldRunes.inBounds(x, y) || isBlockingFor(x, y);
   if (draw._hold > 0) {
@@ -257,15 +259,15 @@ function draw() {
     player.dispY = prevDispY;
     draw._hold++;
   } else {
-    const rx0 = Math.round(prevDispX),
-      ry0 = Math.round(prevDispY),
-      rx1 = Math.round(player.dispX),
-      ry1 = Math.round(player.dispY);
-    if (rx0 !== rx1 && ry0 !== ry1) {
-      if (blocked(rx1, ry0)) {
+    const prevTileX = Math.round(prevDispX),
+      prevTileY = Math.round(prevDispY),
+      curTileX = Math.round(player.dispX),
+      curTileY = Math.round(player.dispY);
+    if (prevTileX !== curTileX && prevTileY !== curTileY) {
+      if (blocked(curTileX, prevTileY)) {
         player.dispX = prevDispX;
         draw._hold = 8;
-      } else if (blocked(rx0, ry1)) {
+      } else if (blocked(prevTileX, curTileY)) {
         player.dispY = prevDispY;
         draw._hold = -8;
       }

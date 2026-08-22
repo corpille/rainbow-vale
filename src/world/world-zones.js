@@ -7,7 +7,7 @@ import { WHITE } from '../core/colors.js';
 
 export const grid = new Map();
 export const key = (x, y) => x + ',' + y;
-export const unkey = k => k.split(',').map(Number);
+export const unkey = mapKey => mapKey.split(',').map(Number);
 
 export const HUB = {
   id: 'h',
@@ -27,20 +27,23 @@ const SLOTS = [
 ];
 // only cavern/orchard ends up spatially close — an inevitable compromise with 4 slots
 const SLOT_ORDER = [0, 2, 1, 3];
-// ids are single chars matching FLOOR_CHARS' grid codes in map-loader.js (m/j/v/b already
-// mean swamp/cavern/orchard/marsh there) — reusing them as the zone id itself needs no new
-// Terser reservation, since those letters are reserved anyway. Public faces: swamp = Clover
-// Fields (Breeze), cavern = Cloud Cavern (Frost), orchard = Sunbeam Grove (Bramble;
-// grove name unchanged), marsh = Starlight Marsh (Crystal)
+// ids match FLOOR_CHARS' grid codes in map-loader.js (m/j/v/b = swamp/cavern/orchard/marsh).
+// Public names: swamp=Clover Fields (Breeze), cavern=Cloud Cavern (Frost),
+// orchard=Sunbeam Grove (Bramble), marsh=Starlight Marsh (Crystal)
 const ZONE_DEFS = [
   { id: 'm', base: '#bdf3c9', dark: '#6fcf97', blob: '#e8fff0' }, // swamp
   { id: 'j', base: '#d6ecff', dark: '#8fc9f0', blob: WHITE }, // cavern
   { id: 'v', base: '#ffe1b8', dark: '#ffb066', blob: '#fff3d6' }, // orchard
   { id: 'b', base: '#e3d4ff', dark: '#a98af0', blob: '#f6ecff' }, // marsh
 ];
-export const ZONES = ZONE_DEFS.map((z, i) => ({ ...z, w: 25, h: 25, ...SLOTS[SLOT_ORDER[i]] }));
+export const ZONES = ZONE_DEFS.map((zone, i) => ({
+  ...zone,
+  w: 25,
+  h: 25,
+  ...SLOTS[SLOT_ORDER[i]],
+}));
 export const roomById = { h: HUB };
-ZONES.forEach(z => (roomById[z.id] = z));
+ZONES.forEach(zone => (roomById[zone.id] = zone));
 
 export const Nature = { CUT: 'CUT', FREEZE: 'FREEZE', PUSH: 'PUSH', SOLIDIFY: 'SOLIDIFY' };
 export const Shape = {
@@ -66,7 +69,7 @@ export const SYMBOL_TO_ROLE = {
   m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.PIERCE },
   b: { slot1: Nature.SOLIDIFY, slot2: Shape.DIAGONAL, slot3: Modifier.SNIPE },
 };
-const ALL_SYMBOLS = ZONE_DEFS.map(z => z.id);
+const ALL_SYMBOLS = ZONE_DEFS.map(zone => zone.id);
 export const RANGE_LINE = 5;
 export const RANGE_SHORT = 3;
 export const RANGE_DIAGONAL = 5;
@@ -84,7 +87,7 @@ export const CARDINAL_OFFSETS = [
 ];
 
 export function validatePhrase(runes) {
-  if (runes.length < 1 || runes.length > 3 || !runes.every(r => ALL_SYMBOLS.includes(r)))
+  if (runes.length < 1 || runes.length > 3 || !runes.every(rune => ALL_SYMBOLS.includes(rune)))
     return false;
   return true;
 }
@@ -102,10 +105,10 @@ export function bumpPuddleEpoch() {
 export const worldRunes = {
   inBounds: (x, y) => grid.has(key(x, y)),
   objectAt: (x, y) => objectsMap.get(key(x, y)) || null,
-  moveObject: (fx, fy, tx, ty) => {
-    const o = objectsMap.get(key(fx, fy));
-    objectsMap.delete(key(fx, fy));
-    objectsMap.set(key(tx, ty), o);
+  moveObject: (fromX, fromY, toX, toY) => {
+    const obj = objectsMap.get(key(fromX, fromY));
+    objectsMap.delete(key(fromX, fromY));
+    objectsMap.set(key(toX, toY), obj);
   },
 };
 

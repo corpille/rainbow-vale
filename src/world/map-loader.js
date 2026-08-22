@@ -40,16 +40,11 @@ export const collected = new Set(); // ids of zones whose rune has already been 
 (function loadStaticMap() {
   const [minX, minY, maxX, maxY] = MAP_DATA.bounds;
   // each floor tile's char is its room, optionally fused with the one positional object
-  // (no extra data beyond its tile) that sits on it — folds vine/crate/lock placement
-  // (was ~85% of MAP_DATA.objects) into a single lookup instead of scattering it across
-  // gridStr chars, obstacle-style zone maps, and a positional objects array. Measured
-  // compressed size is a wash vs. keeping vine/crate/lock in MAP_DATA.objects (Roadroller
-  // penalizes the extra distinct gridStr symbols by about what the removed array entries
-  // save) — kept anyway because one shared decode path beats four. mirror_surface/
+  // (vine/crate/lock — no extra data beyond its tile) that sits on it. mirror_surface/
   // sym_plate carry extra data (orientation, pair id) so they still go through
-  // MAP_DATA.objects below. Water gets its own single char instead (see WATER_CHAR) —
-  // it's a grid tile TYPE, not an object, and its room is never read since the opaque
-  // water/ice fill always covers the floor underneath.
+  // MAP_DATA.objects below. Water gets its own char (WATER_CHAR): it's a grid tile
+  // TYPE, not an object, and its room is never read since the opaque water/ice fill
+  // always covers the floor underneath.
   const FLOOR_CHARS = {
     h: ['h'],
     m: ['m'],
@@ -70,14 +65,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     u: ['b', createLock],
   };
   const WATER_CHAR = 'w';
-  // decor is cosmetic only (no gameplay/connectivity role), so instead of storing a
-  // per-instance array it's placed by a coordinate hash below: ~1% of each zone's floor
-  // tiles (whichever aren't already occupied by a positional object) get that zone's
-  // one signature prop. Floor only — rocks render as solid raised wall blocks, and a
-  // tree/flower anchored on one looked like it was growing out of mid-air rather than
-  // ground. Deterministic — same seed every load, so it isn't "procedural" in the sense
-  // this file's header warns against (nothing about layout, solvability, or
-  // connectivity depends on it).
+  // decor is cosmetic only: instead of a per-instance array, it's placed by a coordinate
+  // hash below — ~1% of each zone's unoccupied floor tiles get that zone's signature
+  // prop. Floor only, since a tree/flower anchored on a rock block would float in the
+  // air. Deterministic (same seed every load), so no gameplay/connectivity depends on it.
   const ZONE_DECOR_FN = {
     m: drawFlowerStalksBig,
     j: drawCrystalClusterBig,
@@ -88,24 +79,22 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   let idx = 0;
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
-      const c = MAP_DATA.gridStr[idx++];
-      if (c === '.') continue;
-      // rocks ('1'-'4', one per zone) don't go into the grid — tracked separately as
-      // obstacles, just stored inline in gridStr instead of their own array. Char is
-      // 1-based ('1' = ZORDER[0]); non-digit chars fall through to NaN -> undefined.
-      const zoneObs = ZORDER[c - 1];
+      const gridChar = MAP_DATA.gridStr[idx++];
+      if (gridChar === '.') continue;
+      // rocks ('1'-'4', one per zone) don't go into the grid — tracked as obstacles
+      // instead. Char is 1-based ('1' = ZORDER[0]); non-digit chars fall through to NaN.
+      const zoneObs = ZORDER[gridChar - 1];
       let roomId, occupied;
       if (zoneObs) {
         obstacles.push({ x, y, roomId: zoneObs });
         roomId = zoneObs;
-      } else if (c === WATER_CHAR) {
-        // roomId here is never read — see the comment above FLOOR_CHARS — 'h' is just a
-        // valid, cheap placeholder (every other roomId also needs one anyway)
+      } else if (gridChar === WATER_CHAR) {
+        // roomId is never read for water — 'h' is just a cheap placeholder
         grid.set(key(x, y), { type: 'water', roomId: 'h' });
         roomId = 'h';
         occupied = true; // no decor growing out of the middle of a lake
       } else {
-        const def = FLOOR_CHARS[c];
+        const def = FLOOR_CHARS[gridChar];
         if (!def) continue;
         grid.set(key(x, y), { type: 'floor', roomId: def[0] });
         if (def[1]) objectsMap.set(key(x, y), def[1]());
@@ -115,45 +104,46 @@ export const collected = new Set(); // ids of zones whose rune has already been 
       const decorFn = ZONE_DECOR_FN[roomId];
       // large odd multipliers mix x/y into one int so the low bits (what % keys off)
       // don't line up into a visible lattice at this density
-      const h = (x * 374761393 + y * 668265263) >>> 0;
-      if (!zoneObs && !occupied && decorFn && h % DECOR_DENSITY === 0) {
-        decorInstances.push({ x, y, roomId, drawFn: decorFn, seed: h });
+      const hash = (x * 374761393 + y * 668265263) >>> 0;
+      if (!zoneObs && !occupied && decorFn && hash % DECOR_DENSITY === 0) {
+        decorInstances.push({ x, y, roomId, drawFn: decorFn, seed: hash });
       }
     }
   }
-  obstacles.forEach(o => obstacleByTile.set(key(o.x, o.y), o));
+  obstacles.forEach(obstacle => obstacleByTile.set(key(obstacle.x, obstacle.y), obstacle));
 
-  MAP_DATA.doors.forEach((d, i) => doors.push({ x: d[0], y: d[1], roomId: ZORDER[i] }));
-  ZORDER.forEach((z, i) => {
-    const p = MAP_DATA.primitiveSpots[i];
-    primitiveSpots[z] = { x: p[0], y: p[1], collected: false };
+  MAP_DATA.doors.forEach((doorEntry, i) =>
+    doors.push({ x: doorEntry[0], y: doorEntry[1], roomId: ZORDER[i] })
+  );
+  ZORDER.forEach((zoneId, i) => {
+    const spot = MAP_DATA.primitiveSpots[i];
+    primitiveSpots[zoneId] = { x: spot[0], y: spot[1], collected: false };
   });
-  MAP_DATA.items.forEach(p => items.push({ x: p[0], y: p[1], zoneId: ZORDER[p[2]] }));
+  MAP_DATA.items.forEach(itemEntry =>
+    items.push({ x: itemEntry[0], y: itemEntry[1], zoneId: ZORDER[itemEntry[2]] })
+  );
 
   // rebuilds interactive objects that carry extra data beyond position (mirror_surface's
-  // orientation, sym_plate's pair id); symmetric plate pairs share the same "pair" marker,
-  // created once per pairId. vine/crate/lock/water are all purely positional, decoded
-  // straight from gridStr above. frozen_crate_marker rides along here too — just a flag
-  // on an already-decoded crate, not a placeable type of its own.
-  // same 4 orientation codes as MIRROR_REFLECT's own keys (world-objects.js) — reused
-  // via Object.keys instead of re-typed, so relies on that object's key insertion order
+  // orientation, sym_plate's pair id) — vine/crate/lock/water are purely positional and
+  // already decoded from gridStr above.
+  // same 4 orientation codes as MIRROR_REFLECT's own keys — reused via Object.keys
+  // instead of re-typed, so relies on that object's key insertion order
   const MIRROR_ORIENTATIONS = Object.keys(MIRROR_REFLECT);
   const pairsById = {}; // pairId -> { pair } — shared marker every plate of that group points to
-  // MAP_DATA.objects stores x/y as deltas from the previous entry (encoded by build.js):
-  // placements cluster tightly, so this is usually one digit instead of a 2-3 digit
-  // absolute coordinate; running sum recovers the real position
+  // MAP_DATA.objects stores x/y as deltas from the previous entry (build.js encodes
+  // them this way since placements cluster tightly); running sum recovers real position
   let objPx = 0,
     objPy = 0;
-  MAP_DATA.objects.forEach(o => {
-    const [dx, dy, typeCode, extra] = o;
+  MAP_DATA.objects.forEach(entry => {
+    const [dx, dy, typeCode, extra] = entry;
     objPx += dx;
     objPy += dy;
     const x = objPx,
       y = objPy;
-    const k = key(x, y);
+    const tileKey = key(x, y);
     if (typeCode === 9) {
-      // sym_plate: a lone plate gets its own marker; plates sharing a pairId point to
-      // the SAME marker, so a group can be any size — a pair, a triple, etc.
+      // sym_plate: plates sharing a pairId point to the same marker, so a group
+      // can be any size — a pair, a triple, etc.
       if (extra !== undefined && !pairsById[extra]) pairsById[extra] = { pair: {} };
       const plate = {
         type: 'sym_plate',
@@ -164,28 +154,31 @@ export const collected = new Set(); // ids of zones whose rune has already been 
           return { effect: 'activated' };
         },
       };
-      objectsMap.set(k, plate);
-      plateByTile.set(k, plate);
+      objectsMap.set(tileKey, plate);
+      plateByTile.set(tileKey, plate);
     } else if (typeCode === 8) {
       // mirror_surface, extra = orientation code 0-3
-      objectsMap.set(k, createMirrorSurface(MIRROR_ORIENTATIONS[extra] || 'NE'));
+      objectsMap.set(tileKey, createMirrorSurface(MIRROR_ORIENTATIONS[extra] || 'NE'));
     } else if (typeCode === 10) {
       // marks a crate already placed via gridStr (decoded above, so it exists by now)
       // as starting the level frozen — not a new object, just a flag on the existing one
-      const c = objectsMap.get(k);
-      if (c && c.type === 'crate') c.frozen = true;
+      const existingCrate = objectsMap.get(tileKey);
+      if (existingCrate && existingCrate.type === 'crate') existingCrate.frozen = true;
     }
   });
 
   // rebuilds the locks: tied to a pair of plates
-  MAP_DATA.verrouLinks.forEach(([vx, vy, pairId]) => {
-    const lockObj = objectsMap.get(key(vx, vy));
+  MAP_DATA.verrouLinks.forEach(([lockX, lockY, pairId]) => {
+    const lockObj = objectsMap.get(key(lockX, lockY));
     if (!lockObj) return;
-    const p = pairsById[pairId];
-    if (!p) return;
-    verrouLinks.push({ lock: lockObj, check: result => isPairResolved(result, { pair: p.pair }) });
+    const pairEntry = pairsById[pairId];
+    if (!pairEntry) return;
+    verrouLinks.push({
+      lock: lockObj,
+      check: result => isPairResolved(result, { pair: pairEntry.pair }),
+    });
   });
 })();
 
 export const decorByTile = new Map();
-decorInstances.forEach(d => decorByTile.set(key(d.x, d.y), d));
+decorInstances.forEach(decor => decorByTile.set(key(decor.x, decor.y), decor));

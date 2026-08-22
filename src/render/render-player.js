@@ -13,41 +13,41 @@ const RAINBOW_STOPS = [0, 0.3, 0.5, 0.7, 0.8, 1];
 const EAR_LILAC = '#d9c8f5';
 const EYE_INK = '#3a3050';
 function rainbowGradient(x0, y0, x1, y1) {
-  const g = ctx.createLinearGradient(x0, y0, x1, y1);
-  COLORS.RAINBOW.forEach((c, i) => g.addColorStop(RAINBOW_STOPS[i], c));
-  return g;
+  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+  COLORS.RAINBOW.forEach((color, i) => gradient.addColorStop(RAINBOW_STOPS[i], color));
+  return gradient;
 }
 // the horn's gold-to-orange gradient is identical in all 3 views, just aimed along a
 // different line each time
 function hornGradient(x0, y0, x1, y1) {
-  const g = ctx.createLinearGradient(x0, y0, x1, y1);
-  g.addColorStop(0, '#ffd980');
-  g.addColorStop(1, '#ff9d5c');
-  return g;
+  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+  gradient.addColorStop(0, '#ffd980');
+  gradient.addColorStop(1, '#ff9d5c');
+  return gradient;
 }
 // walk-cycle offset formulas: down/up legs/hooves lift straight up, the side view's
 // legs/hooves swing fore/aft instead
-function legLift(moving, walkPhase, i) {
-  return moving ? ((1 - Math.cos(walkPhase + i * Math.PI)) / 2) * 2.5 : 0;
+function legLift(moving, walkPhase, legIndex) {
+  return moving ? ((1 - Math.cos(walkPhase + legIndex * Math.PI)) / 2) * 2.5 : 0;
 }
-function legSwing(moving, walkPhase, i) {
-  return moving ? Math.sin(walkPhase + i * Math.PI) * 2.6 : 0;
+function legSwing(moving, walkPhase, legIndex) {
+  return moving ? Math.sin(walkPhase + legIndex * Math.PI) * 2.6 : 0;
 }
 // a point is [x, y] (moveTo the first entry, lineTo any later one) or [cx, cy, x, y]
 // (quadraticCurveTo) — this replaces the moveTo/lineTo/quadraticCurveTo chain every
 // shape below would otherwise repeat call-by-call
-function tracePath(pts) {
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) {
-    const p = pts[i];
-    if (p.length === 2) ctx.lineTo(p[0], p[1]);
-    else ctx.quadraticCurveTo(p[0], p[1], p[2], p[3]);
+function tracePath(points) {
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) {
+    const point = points[i];
+    if (point.length === 2) ctx.lineTo(point[0], point[1]);
+    else ctx.quadraticCurveTo(point[0], point[1], point[2], point[3]);
   }
 }
 
 // most shapes below are just "set a style, trace a path, fill (and maybe stroke) it" —
 // these hold that boilerplate once so each shape below is just its style + its points
-function fillStrokeGlow(fill, stroke, pts) {
+function fillStrokeGlow(fill, stroke, points) {
   ctx.save();
   ctx.shadowColor = COLORS.PINK_GLOW;
   ctx.shadowBlur = 6;
@@ -55,17 +55,17 @@ function fillStrokeGlow(fill, stroke, pts) {
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 0.5;
   ctx.beginPath();
-  tracePath(pts);
+  tracePath(points);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
   ctx.restore();
 }
-function fillShape(fill, pts) {
+function fillShape(fill, points) {
   ctx.save();
   ctx.fillStyle = fill;
   ctx.beginPath();
-  tracePath(pts);
+  tracePath(points);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -73,15 +73,15 @@ function fillShape(fill, pts) {
 // almost every call is one beginPath/tracePath/stroke, so a plain points array is
 // enough — except the eye (+ lash), which strokes 2 independent subpaths in the same
 // save/restore, so a callback is still accepted there
-function strokeShape(color, width, ptsOrFn) {
+function strokeShape(color, width, pointsOrFn) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.lineCap = 'round';
-  if (typeof ptsOrFn === 'function') ptsOrFn();
+  if (typeof pointsOrFn === 'function') pointsOrFn();
   else {
     ctx.beginPath();
-    tracePath(ptsOrFn);
+    tracePath(pointsOrFn);
     ctx.stroke();
   }
   ctx.restore();

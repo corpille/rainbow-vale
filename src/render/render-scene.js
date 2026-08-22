@@ -60,14 +60,11 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
       const variant = tileVariantIndex(x, y);
 
       if (!cell) {
-        const obs = obstacleByTile.get(key(x, y));
-        if (!obs) continue; // true void — the sky-blue background shows through
-        ctx.drawImage(variantSetFor(obs.roomId, x, y).wall[variant], destX, destY, TILE, TILE);
-        // only edges facing a non-obstacle tile: bordering all four sides double-draws
-        // the shared edge between adjacent walls, showing as a double line down what
-        // should be one solid wall. Edges run the tile's full length on their own axis,
-        // inset only on the perpendicular one — insetting both ends would leave a 2px
-        // gap at the corner shared with the next tile.
+        const obstacle = obstacleByTile.get(key(x, y));
+        if (!obstacle) continue; // true void — the sky-blue background shows through
+        ctx.drawImage(variantSetFor(obstacle.roomId, x, y).wall[variant], destX, destY, TILE, TILE);
+        // only draw edges facing a non-obstacle tile, else adjacent walls double-draw
+        // their shared edge as a double line
         ctx.save();
         ctx.strokeStyle = '#00000080';
         ctx.lineWidth = 2;
@@ -111,11 +108,9 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
   }
 }
 
-// decor (trees, mushrooms, ...) gets its own pass, called well after drawWorldTiles.
-// Its bitmap (DECOR_BITMAP_SIZE) is wider than one tile, so it spills into neighboring
-// columns — drawn inline with the tile loop, a neighbor tile drawn later in the same row
-// (or a row below) painted right over that overflow, clipping trees/mushrooms with a
-// hard rectangular edge. Calling this in its own later pass avoids that.
+// decor (trees, mushrooms, ...) gets its own pass, called well after drawWorldTiles,
+// since its bitmap (DECOR_BITMAP_SIZE) is wider than one tile and would otherwise get
+// clipped by a neighboring tile drawn later in the same tile loop
 export function drawDecor(originPxX, originPxY, camX, camY) {
   const colsHalf = Math.ceil(VIEW_COLS / 2) + 1,
     rowsHalf = Math.ceil(VIEW_ROWS / 2) + 1;
@@ -128,23 +123,19 @@ export function drawDecor(originPxX, originPxY, camX, camY) {
   // decor spilling down from the row above it
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
-      const d = decorByTile.get(key(x, y));
-      if (!d) continue;
+      const decor = decorByTile.get(key(x, y));
+      if (!decor) continue;
       const destX = Math.round(originPxX + x * TILE),
         destY = Math.round(originPxY + y * TILE);
-      // pre-baked bitmap (bakeDecorBitmap), same gray/reveal state as the tile
-      // underneath, already baked at TILE's resolution — drawn at matching on-screen
-      // size, no scaling needed. Anchored near its bottom (DECOR_ANCHOR_Y from its own
-      // top), not centered, since drawFns grow upward from a ground point — see
-      // DECOR_BITMAP_SIZE. Using explicit destination width/height (not the bitmap's
-      // own dims) keeps this correct if a resize lands mid-wave and d.oldBitmap is
-      // still sized for the previous TILE — same safety net the floor/wall drawImage
-      // calls above rely on.
+      // pre-baked bitmap (bakeDecorBitmap), anchored near its bottom (DECOR_ANCHOR_Y
+      // from its own top) since drawFns grow upward from a ground point. Explicit
+      // destination width/height (not the bitmap's own dims) stays correct if a resize
+      // lands mid-wave and decor.oldBitmap is still sized for the previous TILE.
       const scale = TILE / BASE_TILE;
       const w = DECOR_BITMAP_SIZE * scale;
       const h = DECOR_BITMAP_HEIGHT * scale;
       const anchorY = DECOR_ANCHOR_Y * scale;
-      const bmp = waveRevealed(d.roomId, x, y) ? d.bitmap : d.oldBitmap;
+      const bmp = waveRevealed(decor.roomId, x, y) ? decor.bitmap : decor.oldBitmap;
       ctx.drawImage(bmp, destX + TILE / 2 - w / 2, destY + TILE / 2 - anchorY, w, h);
     }
   }
@@ -157,8 +148,8 @@ export function drawCastHighlight(originPxX, originPxY) {
     ctx.save();
     ctx.globalAlpha = 0.32 * (1 - t);
     ctx.fillStyle = COLORS.PINK_GLOW;
-    lastCast.cellsTouched.forEach(c => {
-      ctx.fillRect(originPxX + c.x * TILE, originPxY + c.y * TILE, TILE, TILE);
+    lastCast.cellsTouched.forEach(cell => {
+      ctx.fillRect(originPxX + cell.x * TILE, originPxY + cell.y * TILE, TILE, TILE);
     });
     ctx.restore();
     // eslint-disable-next-line no-import-assign -- see the lastCast import comment up top
@@ -170,10 +161,14 @@ export function drawCastHighlight(originPxX, originPxY) {
 // of recomputing cells and rebuilding the lookup Set 60x/sec while idle-composing
 let _spellPreviewCache = { key: null, cells: [], cellSet: null };
 function getSpellPreviewCells() {
-  const k = phraseRunes.join('') + '|' + player.x + ',' + player.y + '|' + player.facing;
-  if (_spellPreviewCache.key !== k) {
+  const cacheKey = phraseRunes.join('') + '|' + player.x + ',' + player.y + '|' + player.facing;
+  if (_spellPreviewCache.key !== cacheKey) {
     const cells = computeSpellPreview(phraseRunes, player.x, player.y, player.facing);
-    _spellPreviewCache = { key: k, cells, cellSet: new Set(cells.map(c => c.x + ',' + c.y)) };
+    _spellPreviewCache = {
+      key: cacheKey,
+      cells,
+      cellSet: new Set(cells.map(cell => cell.x + ',' + cell.y)),
+    };
   }
   return _spellPreviewCache;
 }
@@ -186,8 +181,8 @@ export function drawSpellPreview(originPxX, originPxY) {
   ctx.save();
   ctx.globalAlpha = 0.4 + pulse * 0.12;
   ctx.fillStyle = COLORS.PINK_GLOW;
-  previewCells.forEach(c => {
-    ctx.fillRect(originPxX + c.x * TILE, originPxY + c.y * TILE, TILE, TILE);
+  previewCells.forEach(cell => {
+    ctx.fillRect(originPxX + cell.x * TILE, originPxY + cell.y * TILE, TILE, TILE);
   });
   ctx.shadowColor = COLORS.PINK_GLOW;
   ctx.shadowBlur = 14 + pulse * 6;
@@ -197,22 +192,22 @@ export function drawSpellPreview(originPxX, originPxY) {
   ctx.setLineDash([6, 4]);
   ctx.lineDashOffset = -performance.now() / 30;
   ctx.beginPath();
-  previewCells.forEach(c => {
-    const px = originPxX + c.x * TILE,
-      py = originPxY + c.y * TILE;
-    if (!cellSet.has(c.x + ',' + (c.y - 1))) {
+  previewCells.forEach(cell => {
+    const px = originPxX + cell.x * TILE,
+      py = originPxY + cell.y * TILE;
+    if (!cellSet.has(cell.x + ',' + (cell.y - 1))) {
       ctx.moveTo(px, py);
       ctx.lineTo(px + TILE, py);
     }
-    if (!cellSet.has(c.x + ',' + (c.y + 1))) {
+    if (!cellSet.has(cell.x + ',' + (cell.y + 1))) {
       ctx.moveTo(px, py + TILE);
       ctx.lineTo(px + TILE, py + TILE);
     }
-    if (!cellSet.has(c.x - 1 + ',' + c.y)) {
+    if (!cellSet.has(cell.x - 1 + ',' + cell.y)) {
       ctx.moveTo(px, py);
       ctx.lineTo(px, py + TILE);
     }
-    if (!cellSet.has(c.x + 1 + ',' + c.y)) {
+    if (!cellSet.has(cell.x + 1 + ',' + cell.y)) {
       ctx.moveTo(px + TILE, py);
       ctx.lineTo(px + TILE, py + TILE);
     }
@@ -224,24 +219,24 @@ export function drawSpellPreview(originPxX, originPxY) {
 // symmetric plates: always drawn at their fixed spot, whether or not a crate currently
 // covers them — a weighed plate glows green
 export function drawPlates(originPxX, originPxY) {
-  plateByTile.forEach((plate, k) => {
-    const [ox, oy] = unkey(k);
-    const px = originPxX + ox * TILE + TILE / 2,
-      py = originPxY + oy * TILE + TILE / 2;
+  plateByTile.forEach((plate, tileKey) => {
+    const [tileX, tileY] = unkey(tileKey);
+    const px = originPxX + tileX * TILE + TILE / 2,
+      py = originPxY + tileY * TILE + TILE / 2;
     if (offscreen(px, py)) return;
-    const c = plate.weighed ? COLORS.GREEN : COLORS.PURPLE;
-    const s = TILE / BASE_TILE;
+    const color = plate.weighed ? COLORS.GREEN : COLORS.PURPLE;
+    const scale = TILE / BASE_TILE;
     ctx.save();
     if (plate.weighed) {
-      ctx.shadowColor = c;
-      ctx.shadowBlur = 8 * s;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8 * scale;
     }
-    ctx.strokeStyle = c;
-    ctx.lineWidth = 2.2 * s;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.2 * scale;
     ctx.globalAlpha = 0.85;
     ctx.strokeRect(px - TILE * 0.46, py - TILE * 0.46, TILE * 0.92, TILE * 0.92);
     ctx.globalAlpha = plate.weighed ? 0.4 : 0.25;
-    ctx.fillStyle = c;
+    ctx.fillStyle = color;
     ctx.fillRect(px - TILE * 0.46, py - TILE * 0.46, TILE * 0.92, TILE * 0.92);
     ctx.restore();
   });
@@ -249,16 +244,16 @@ export function drawPlates(originPxX, originPxY) {
 
 // interactive objects (Vine, Crate, ...) — rendered dynamically, never frozen into the cache.
 export function drawInteractiveObjects(originPxX, originPxY) {
-  objectsMap.forEach((obj, k) => {
-    const [ox, oy] = unkey(k);
-    renderInteractiveObject(obj, ox, oy, originPxX, originPxY);
+  objectsMap.forEach((obj, tileKey) => {
+    const [tileX, tileY] = unkey(tileKey);
+    renderInteractiveObject(obj, tileX, tileY, originPxX, originPxY);
   });
 }
 
 // primitive pedestals (1 per zone)
 export function drawPrimitivePedestals(originPxX, originPxY) {
-  ZONES.forEach(z => {
-    const spot = primitiveSpots[z.id];
+  ZONES.forEach(zone => {
+    const spot = primitiveSpots[zone.id];
     const px = originPxX + spot.x * TILE + TILE / 2,
       py = originPxY + spot.y * TILE + TILE / 2;
     if (offscreen(px, py)) return;
@@ -267,14 +262,14 @@ export function drawPrimitivePedestals(originPxX, originPxY) {
     ctx.fillStyle = '#000';
     fillEllipse(ctx, px, py + TILE * 0.29, TILE * 0.33, TILE * 0.12);
     ctx.restore();
-    const glow = spot.collected ? RUNE_ACCENT[z.id] : COLORS.PINK_SOFT;
+    const glow = spot.collected ? RUNE_ACCENT[zone.id] : COLORS.PINK_SOFT;
     ctx.save();
     ctx.fillStyle = radialFade(
       ctx,
       px,
       py,
       TILE * 1.1,
-      spot.collected ? RUNE_ACCENT[z.id] + '4d' : COLORS.PINK_SOFT + '4d'
+      spot.collected ? RUNE_ACCENT[zone.id] + '4d' : COLORS.PINK_SOFT + '4d'
     );
     fillCircle(ctx, px, py, TILE * 1.1);
     ctx.restore();
@@ -285,18 +280,18 @@ export function drawPrimitivePedestals(originPxX, originPxY) {
       TILE * 0.34,
       spot.collected ? UI_LIGHT : COLORS.CREAM,
       glow,
-      RUNE_SHAPE[z.id]
+      RUNE_SHAPE[zone.id]
     );
   });
 }
 
 // item markers (disappear once collected)
 export function drawItems(originPxX, originPxY) {
-  items.forEach(p => {
-    const spotKey = p.zoneId + ':' + p.x + ',' + p.y;
+  items.forEach(item => {
+    const spotKey = item.zoneId + ':' + item.x + ',' + item.y;
     if (collectedItems.has(spotKey)) return;
-    const px = originPxX + p.x * TILE + TILE / 2,
-      py = originPxY + p.y * TILE + TILE / 2;
+    const px = originPxX + item.x * TILE + TILE / 2,
+      py = originPxY + item.y * TILE + TILE / 2;
     if (offscreen(px, py)) return;
     const t = performance.now() / 500;
     // shape below is drawn in BASE_TILE-pixel units — scale it to the current TILE
@@ -355,9 +350,9 @@ export function drawHubAltar(originPxX, originPxY) {
   ctx.restore();
   // stars indicating progress, no text
   for (let i = 0; i < totalItems; i++) {
-    const a = (i / totalItems) * Math.PI * 2 - Math.PI / 2;
-    const px2 = apx + Math.cos(a) * TILE * 0.85,
-      py2 = apy + Math.sin(a) * TILE * 0.85;
+    const angle = (i / totalItems) * Math.PI * 2 - Math.PI / 2;
+    const starX = apx + Math.cos(angle) * TILE * 0.85,
+      starY = apy + Math.sin(angle) * TILE * 0.85;
     ctx.save();
     ctx.fillStyle = i < collectedItems.size ? COLORS.PINK_GLOW : '#ffffff26';
     ctx.strokeStyle = i < collectedItems.size ? WHITE : '#ffffff40';
@@ -366,7 +361,7 @@ export function drawHubAltar(originPxX, originPxY) {
       ctx.shadowColor = COLORS.PINK_WARM;
       ctx.shadowBlur = 10;
     }
-    starPath(ctx, px2, py2, 7 * (TILE / BASE_TILE), 4, 0.28);
+    starPath(ctx, starX, starY, 7 * (TILE / BASE_TILE), 4, 0.28);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -375,19 +370,19 @@ export function drawHubAltar(originPxX, originPxY) {
 
 // doors: simple entry marker, cosmetic — entering the zone is no longer blocked
 export function drawDoors(originPxX, originPxY) {
-  doors.forEach(d => {
-    const px = originPxX + d.x * TILE + TILE / 2,
-      py = originPxY + d.y * TILE + TILE / 2;
+  doors.forEach(door => {
+    const px = originPxX + door.x * TILE + TILE / 2,
+      py = originPxY + door.y * TILE + TILE / 2;
     if (offscreen(px, py)) return;
-    const done = collected.has(d.roomId);
-    const haloColor = done ? RUNE_ACCENT[d.roomId] + '52' : COLORS.PINK_GLOW + '38';
+    const done = collected.has(door.roomId);
+    const haloColor = done ? RUNE_ACCENT[door.roomId] + '52' : COLORS.PINK_GLOW + '38';
     const glyphColor = done ? WHITE : COLORS.PINK_WARM;
-    const glowColor = done ? RUNE_ACCENT[d.roomId] : COLORS.PINK_WARM;
+    const glowColor = done ? RUNE_ACCENT[door.roomId] : COLORS.PINK_WARM;
     ctx.save();
     ctx.fillStyle = radialFade(ctx, px, py, TILE * 1.2, haloColor);
     fillCircle(ctx, px, py, TILE * 1.2);
     ctx.restore();
-    iconGlyph(ctx, px, py, TILE * 0.28, glyphColor, glowColor, RUNE_SHAPE[d.roomId]);
+    iconGlyph(ctx, px, py, TILE * 0.28, glyphColor, glowColor, RUNE_SHAPE[door.roomId]);
   });
 }
 

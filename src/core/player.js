@@ -20,10 +20,8 @@ export const collectedItems = new Set(); // "zoneId:x,y" of already-collected sp
 export const totalItems = items.length;
 export let hubActivated = false;
 const keysDown = {};
-// keyed by e.code (the key's physical position, not the character produced) so
-// WASD on QWERTY and ZQSD on AZERTY — same physical keys — both work from one
-// map, with no separate character list per layout (same trick DIGIT_CODES uses
-// for the rune keys in ui-panel.js)
+// keyed by e.code (physical key position) so WASD/ZQSD work from one map regardless
+// of keyboard layout — same trick as DIGIT_CODES in ui-panel.js
 const KEY_MAP = {
   ArrowUp: 'up',
   ArrowDown: 'down',
@@ -44,8 +42,7 @@ function clearRepeat(dir) {
 }
 function startRepeat(dir) {
   clearRepeat(dir);
-  // deliberately longer than a normal tap so a brief press doesn't trigger a second
-  // step (was the cause of "double movement")
+  // longer than a tap so a brief press can't trigger a second step
   repeatTimers[dir] = setTimeout(function tick() {
     if (keysDown[dir]) {
       doMove(dir);
@@ -54,11 +51,8 @@ function startRepeat(dir) {
   }, 240);
 }
 
-// two perpendicular keys held together still step independently (true diagonal
-// movement), but that used to make the sprite flicker between both facings every
-// step. dirStack tracks press order and drives visualFacing instead, only changing
-// when the currently-shown direction's key is released — so it holds steady on
-// whichever was pressed more recently.
+// tracks key press order so visualFacing holds on the most recently pressed
+// direction instead of flickering when two perpendicular keys are held together
 let dirStack = [];
 
 function pressDir(dir) {
@@ -73,13 +67,13 @@ function pressDir(dir) {
 function releaseDir(dir) {
   keysDown[dir] = false;
   clearRepeat(dir);
-  dirStack = dirStack.filter(d => d !== dir);
+  dirStack = dirStack.filter(entry => entry !== dir);
   if (dirStack.length) player.visualFacing = dirStack[dirStack.length - 1];
 }
 window.addEventListener('keydown', e => {
-  // DEBUG: unlocks all 4 runes instantly for testing spell combos — remove before submission
+  // DEBUG: unlocks all 4 runes — remove before submission
   if (e.key === '0') {
-    ZONES.forEach(z => collected.add(z.id));
+    ZONES.forEach(zone => collected.add(zone.id));
     return;
   }
   const dir = KEY_MAP[e.code];
@@ -93,49 +87,44 @@ window.addEventListener('keyup', e => {
   releaseDir(dir);
 });
 
-
-// instant logical movement: never blocked, never a lost keypress.
-// visual tracking (dispX/dispY) is a separate animation that catches up independently.
+// logical movement is instant; dispX/dispY animate toward it separately
 function doMove(dir) {
   const [dx, dy] = DIRS4[dir];
-  const tx = player.x + dx,
-    ty = player.y + dy;
-  player.facing = dir; // always look in the last direction taken, even if the step fails
+  const targetX = player.x + dx,
+    targetY = player.y + dy;
+  player.facing = dir;
 
-  const targetCell = grid.get(key(tx, ty));
-  if (!targetCell) return; // rock: impassable
-  if (isBlockingFor(tx, ty)) return; // an interactive object, or a water tile, still blocks the path
-  player.x = tx;
-  player.y = ty;
-  // collects the primitive if we arrive on its zone's pedestal
-  ZONES.forEach(z => {
-    const spot = primitiveSpots[z.id];
-    if (!spot.collected && tx === spot.x && ty === spot.y) {
+  const targetCell = grid.get(key(targetX, targetY));
+  if (!targetCell) return;
+  if (isBlockingFor(targetX, targetY)) return;
+  player.x = targetX;
+  player.y = targetY;
+  ZONES.forEach(zone => {
+    const spot = primitiveSpots[zone.id];
+    if (!spot.collected && targetX === spot.x && targetY === spot.y) {
       spot.collected = true;
-      collected.add(z.id);
-      startColorWave(z.id, spot.x, spot.y); // color spreads out from the pedestal where the rune was gathered
+      collected.add(zone.id);
+      startColorWave(zone.id, spot.x, spot.y);
       screenFlash = { color: COLORS.PINK_GLOW, until: performance.now() + 500 };
     }
   });
 
-  // picking up an item (only once unlocked)
-  items.forEach(p => {
-    const spotKey = p.zoneId + ':' + p.x + ',' + p.y;
-    if (!collectedItems.has(spotKey) && tx === p.x && ty === p.y) {
+  items.forEach(item => {
+    const spotKey = item.zoneId + ':' + item.x + ',' + item.y;
+    if (!collectedItems.has(spotKey) && targetX === item.x && targetY === item.y) {
       collectedItems.add(spotKey);
-      startColorWave('h', HUB.cx, HUB.cy); // and from the altar, a little more with each item
+      startColorWave('h', HUB.cx, HUB.cy);
       screenFlash = { color: COLORS.PINK_GLOW, until: performance.now() + 500 };
       playPickup();
     }
   });
 
-  // hub altar: once all objects are collected, activates by walking onto it
   if (
     !hubActivated &&
     collectedItems.size >= totalItems &&
     totalItems > 0 &&
-    tx === HUB.cx &&
-    ty === HUB.cy
+    targetX === HUB.cx &&
+    targetY === HUB.cy
   ) {
     hubActivated = true;
     screenFlash = { color: WHITE, until: performance.now() + 900 };

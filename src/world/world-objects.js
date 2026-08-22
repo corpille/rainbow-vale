@@ -26,9 +26,8 @@ function unweighPlateAt(x, y) {
     objectsMap.set(key(x, y), plate);
   }
 }
-// shapes whose cells sit at varying distances from the caster have a meaningful "far
-// end" a pushed crate can slide to. Contact is excluded: its one cell is already at full
-// range (1), so its slide budget would always be zero
+// max slide distance per shape; Contact is excluded since its one cell is already at
+// range 1, so its slide budget would always be zero
 const RAY_RANGE_FOR_SHAPE = {
   LINE: RANGE_LINE,
   DIAGONAL: RANGE_DIAGONAL,
@@ -47,16 +46,16 @@ function inferRoomId(x, y, fallback) {
 export function applyEffectsToWorld(result, runeCount, shape, px, py) {
   checkLocks(result, runeCount);
   const casterCell = grid.get(key(px, py));
-  result.forEach(r => {
-    if (r.effect === 'solidify_void') {
-      grid.set(key(r.cell.x, r.cell.y), {
+  result.forEach(entry => {
+    if (entry.effect === 'solidify_void') {
+      grid.set(key(entry.cell.x, entry.cell.y), {
         type: 'floor',
-        roomId: inferRoomId(r.cell.x, r.cell.y, casterCell && casterCell.roomId),
+        roomId: inferRoomId(entry.cell.x, entry.cell.y, casterCell && casterCell.roomId),
       });
-    } else if (r.effect === 'freeze_water') {
+    } else if (entry.effect === 'freeze_water') {
       // every water tile's roomId is the same fixed placeholder (see WATER_CHAR in
       // map-loader.js) — no need to read it back, just carry it forward
-      grid.set(key(r.cell.x, r.cell.y), { type: 'ice', roomId: 'h' });
+      grid.set(key(entry.cell.x, entry.cell.y), { type: 'ice', roomId: 'h' });
       bumpPuddleEpoch();
     }
   });
@@ -65,39 +64,42 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
   // advancing tile by tile and retrying blocked ones each pass, so the whole train
   // shifts together instead of each crate stopping after a single tile
   let pending = result
-    .filter(r => r.effect === 'push' && r.obj && r.obj.type === 'crate')
-    .map(r => {
-      const [dx, dy] = r.dir;
-      const traveled = dx ? (r.cell.x - px) * dx : (r.cell.y - py) * dy;
-      return { x: r.cell.x, y: r.cell.y, dx, dy, budget: maxSlide ? maxSlide - traveled : 1 };
+    .filter(entry => entry.effect === 'push' && entry.obj && entry.obj.type === 'crate')
+    .map(entry => {
+      const [dx, dy] = entry.dir;
+      const traveled = dx ? (entry.cell.x - px) * dx : (entry.cell.y - py) * dy;
+      return {
+        x: entry.cell.x,
+        y: entry.cell.y,
+        dx,
+        dy,
+        budget: maxSlide ? maxSlide - traveled : 1,
+      };
     });
   let progress = true;
   while (progress && pending.length) {
     progress = false;
-    pending = pending.filter(p => {
-      if (p.budget <= 0) return false; // ran out of range — stops here
-      const destX = p.x + p.dx,
-        destY = p.y + p.dy;
-      // Pull (a Mirrored Push) drags a crate toward the caster — never let it slide onto
-      // or through the caster's own tile, since the player isn't a blocker like a wall
+    pending = pending.filter(slide => {
+      if (slide.budget <= 0) return false; // ran out of range — stops here
+      const destX = slide.x + slide.dx,
+        destY = slide.y + slide.dy;
+      // Pull drags a crate toward the caster — the player isn't a blocker like a wall,
+      // so stop it explicitly rather than letting it slide onto/through that tile
       if (destX === px && destY === py) return true; // blocked this pass — retry later
       const destObj = worldRunes.objectAt(destX, destY);
       if (destObj && destObj.type === 'sym_plate') {
-        // crate slides onto the plate and weighs it down; plate stays registered
-        // in plateByTile so it can be found again once uncovered
         destObj.weighed = true;
-        worldRunes.moveObject(p.x, p.y, destX, destY);
-        unweighPlateAt(p.x, p.y);
+        worldRunes.moveObject(slide.x, slide.y, destX, destY);
+        unweighPlateAt(slide.x, slide.y);
         return false; // stops there, weighing the plate
       } else if (!isBlockingFor(destX, destY) && worldRunes.inBounds(destX, destY)) {
         // a dead obstacle (cut vine, opened lock) still sits in objectsMap but no longer
-        // blocks, so a crate can slide over it. Ice needs no such bookkeeping — it lives
-        // in `grid`, not objectsMap, so a crate reference here never collides with it
-        worldRunes.moveObject(p.x, p.y, destX, destY);
-        unweighPlateAt(p.x, p.y);
-        p.x = destX;
-        p.y = destY;
-        p.budget--;
+        // blocks, so a crate can slide over it
+        worldRunes.moveObject(slide.x, slide.y, destX, destY);
+        unweighPlateAt(slide.x, slide.y);
+        slide.x = destX;
+        slide.y = destY;
+        slide.budget--;
         progress = true;
         return true; // still has budget — try to keep sliding next pass
       }
@@ -119,63 +121,61 @@ export function computeSpellPreview(runes, px, py, dirName) {
 
 /* ---- the 4 interactive objects (one per signature nature) ---- */
 export function createVine() {
-  const o = {
+  const vine = {
     type: 'vine',
     destroyed: false,
     get blocksMovement() {
-      return !o.destroyed;
+      return !vine.destroyed;
     },
     // pure check reused by Spread propagation (and pierce-through checks) so probing
     // "would this react" never mutates state like reactTo does
     wouldReact(nature) {
-      return !o.destroyed && nature === Nature.CUT;
+      return !vine.destroyed && nature === Nature.CUT;
     },
     reactTo(nature) {
-      if (!o.destroyed && nature === Nature.CUT) {
-        o.destroyed = true;
+      if (!vine.destroyed && nature === Nature.CUT) {
+        vine.destroyed = true;
         return { effect: 'destroyed' };
       }
       return { effect: 'none' };
     },
   };
-  return o;
+  return vine;
 }
 export function createCrate() {
-  const o = {
+  const crate = {
     type: 'crate',
     frozen: false,
     blocksMovement: true,
     // Mirror inverts both natures that touch a crate: FREEZE normally immobilizes, mirrored
     // it thaws instead; PUSH normally shoves away, mirrored it pulls toward the caster
     wouldReact(nature, invert) {
-      if (nature === Nature.FREEZE) return invert ? o.frozen : !o.frozen;
-      return nature === Nature.PUSH && !o.frozen;
+      if (nature === Nature.FREEZE) return invert ? crate.frozen : !crate.frozen;
+      return nature === Nature.PUSH && !crate.frozen;
     },
     reactTo(nature, dir, invert) {
       if (nature === Nature.FREEZE) {
-        if (invert && o.frozen) {
-          o.frozen = false;
+        if (invert && crate.frozen) {
+          crate.frozen = false;
           return { effect: 'thawed' };
         }
-        if (!invert && !o.frozen) {
-          o.frozen = true;
+        if (!invert && !crate.frozen) {
+          crate.frozen = true;
           return { effect: 'immobilized' };
         }
       }
-      if (nature === Nature.PUSH && !o.frozen) {
+      if (nature === Nature.PUSH && !crate.frozen) {
         return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir };
       }
       return { effect: 'none' };
     },
   };
-  return o;
+  return crate;
 }
 /* ---- secondary objects: give the modifiers a concrete use ---- */
-// a mirror surface is just an obstacle that reacts to nothing — enough to serve as a
-// reflection point for any Line-shaped ray, no rune or modifier required, otherwise
-// only visually distinct. Each orientation connects 2 of the 4 cardinal directions,
-// like a 90° corner reflector: a spell entering one open face exits the other and
-// keeps its remaining range; a closed face just blocks normally
+// a mirror surface is an obstacle that reacts to nothing, but each orientation acts as
+// a 90° corner reflector connecting 2 of the 4 cardinal directions: a ray entering one
+// open face exits the other with its remaining range; a closed face just blocks
 export const MIRROR_REFLECT = {
   NE: { down: 'right', left: 'up' },
   ES: { left: 'down', up: 'right' },
@@ -196,14 +196,15 @@ export function isPairResolved(result, pairObj) {
   // a plate counts as "touched" either momentarily (hit by this resolution, e.g. a
   // wide shape catching several plates at once) or persistently (a crate weighing it down)
   const touches = new Set();
-  result.forEach(r => {
-    if (r.effect === 'activated' && r.obj && r.obj.pair === pairObj.pair) touches.add(r.obj);
+  result.forEach(entry => {
+    if (entry.effect === 'activated' && entry.obj && entry.obj.pair === pairObj.pair)
+      touches.add(entry.obj);
   });
   let totalMembers = 0;
-  plateByTile.forEach(o => {
-    if (o.pair === pairObj.pair) {
+  plateByTile.forEach(plate => {
+    if (plate.pair === pairObj.pair) {
       totalMembers++;
-      if (o.weighed) touches.add(o);
+      if (plate.weighed) touches.add(plate);
     }
   });
   return totalMembers > 0 && touches.size >= totalMembers;
@@ -211,15 +212,15 @@ export function isPairResolved(result, pairObj) {
 // a lock never reacts to a nature directly — it opens only when game logic finds
 // its condition (e.g. a pair of plates activated together) met
 export function createLock() {
-  const o = {
+  const lock = {
     type: 'lock',
     open: false,
     get blocksMovement() {
-      return !o.open;
+      return !lock.open;
     },
     reactTo() {
       return { effect: 'none' };
     },
   };
-  return o;
+  return lock;
 }

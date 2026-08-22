@@ -33,10 +33,10 @@ export const BLOB_SETS = [
   ],
 ];
 export function textureFill(ctx, x, y, w, h, baseLight, baseDark, blobColor, blobs) {
-  const g = ctx.createLinearGradient(x, y, x, y + h);
-  g.addColorStop(0, baseLight);
-  g.addColorStop(1, baseDark);
-  ctx.fillStyle = g;
+  const gradient = ctx.createLinearGradient(x, y, x, y + h);
+  gradient.addColorStop(0, baseLight);
+  gradient.addColorStop(1, baseDark);
+  ctx.fillStyle = gradient;
   ctx.fillRect(x, y, w, h);
   if (!blobs) return;
   ctx.save();
@@ -55,37 +55,37 @@ export function textureFill(ctx, x, y, w, h, baseLight, baseDark, blobColor, blo
 }
 // shared canvas micro-helpers: the beginPath->shape->fill/stroke triplet recurs
 // throughout decor.js/render.js with only the shape args changing
-export function fillEllipse(c, x, y, rx, ry, rot = 0) {
-  c.beginPath();
-  c.ellipse(x, y, rx, ry, rot, 0, 7);
-  c.fill();
+export function fillEllipse(ctx, x, y, rx, ry, rot = 0) {
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, rot, 0, 7);
+  ctx.fill();
 }
-export function fillCircle(c, x, y, r) {
-  c.beginPath();
-  c.arc(x, y, r, 0, 7);
-  c.fill();
+export function fillCircle(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, 7);
+  ctx.fill();
 }
-export function strokeCircle(c, x, y, r) {
-  c.beginPath();
-  c.arc(x, y, r, 0, 7);
-  c.stroke();
+export function strokeCircle(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, 7);
+  ctx.stroke();
 }
-export function radialFade(c, x, y, r, color) {
-  const g = c.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, color);
-  g.addColorStop(1, TRANSPARENT);
-  return g;
+export function radialFade(ctx, x, y, r, color) {
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, TRANSPARENT);
+  return gradient;
 }
 // much lighter than the original dark-palette version — the same alpha reads as a subtle
 // groove on near-black tiles, but a harsh stripe against bright pastels
 export function tileAO(ctx, x, y) {
   ctx.save();
-  const g = ctx.createLinearGradient(x, y, x, y + TILE);
-  g.addColorStop(0, '#00000014');
-  g.addColorStop(0.15, TRANSPARENT);
-  g.addColorStop(0.9, TRANSPARENT);
-  g.addColorStop(1, '#ffffff06');
-  ctx.fillStyle = g;
+  const gradient = ctx.createLinearGradient(x, y, x, y + TILE);
+  gradient.addColorStop(0, '#00000014');
+  gradient.addColorStop(0.15, TRANSPARENT);
+  gradient.addColorStop(0.9, TRANSPARENT);
+  gradient.addColorStop(1, '#ffffff06');
+  ctx.fillStyle = gradient;
   ctx.fillRect(x, y, TILE, TILE);
   ctx.restore();
 }
@@ -116,13 +116,13 @@ function flowerPath(ctx, cx, cy, r) {
   const petals = 5;
   ctx.beginPath();
   for (let i = 0; i < petals; i++) {
-    const a = (i / petals) * Math.PI * 2;
-    const px = cx + Math.cos(a) * r * 0.62,
-      py = cy + Math.sin(a) * r * 0.62;
-    const c1x = cx + Math.cos(a - 0.35) * r,
-      c1y = cy + Math.sin(a - 0.35) * r;
-    const c2x = cx + Math.cos(a + 0.35) * r,
-      c2y = cy + Math.sin(a + 0.35) * r;
+    const angle = (i / petals) * Math.PI * 2;
+    const px = cx + Math.cos(angle) * r * 0.62,
+      py = cy + Math.sin(angle) * r * 0.62;
+    const c1x = cx + Math.cos(angle - 0.35) * r,
+      c1y = cy + Math.sin(angle - 0.35) * r;
+    const c2x = cx + Math.cos(angle + 0.35) * r,
+      c2y = cy + Math.sin(angle + 0.35) * r;
     ctx.moveTo(cx, cy);
     ctx.quadraticCurveTo(c1x, c1y, px, py);
     ctx.quadraticCurveTo(c2x, c2y, cx, cy);

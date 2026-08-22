@@ -8,11 +8,10 @@ import { collected } from '../world/map-loader.js';
 import { player } from './player.js';
 import { canvas } from '../render/render-world.js';
 
-const RUNE_KEYS = ZONES.map(z => z.id); // '1'->swamp(m), '2'->cavern(j), '3'->orchard(v), '4'->marsh(b)
+const RUNE_KEYS = ZONES.map(zone => zone.id); // '1'->swamp(m), '2'->cavern(j), '3'->orchard(v), '4'->marsh(b)
 export const RUNE_SHAPE = { m: 'star', j: 'gem', v: 'flower', b: 'drop' }; // icon per zone
-// vivid (not pastel) per-zone accent for the rune glyphs — brighter/more saturated than
-// the zone's own soft tile palette so it reads against the bar's light background:
-// Breeze mint, Frost sky-blue, Bramble hot pink, Crystal violet
+// vivid per-zone accent for the rune glyphs — brighter than the zone's own soft
+// tile palette so it reads against the bar's light background
 export const RUNE_ACCENT = {
   m: '#5eeb9c',
   j: '#66d1ff',
@@ -22,7 +21,7 @@ export const RUNE_ACCENT = {
 const fontColor = '#8a7d9c';
 // plain-language name for a Nature/Shape/Modifier enum value, shown under a slot once
 // it's filled — every value is just its own key title-cased (HALF_CIRCLE -> Half-circle),
-const desc = v => v[0] + v.slice(1).toLowerCase().replace('_', '-');
+const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
 // Mirror is the only modifier whose effect depends on the nature it's paired with
 // (Pull for Push, Thaw for Freeze) — Cut/Solidify fall through to the plain "Mirror"
 // label below, since it's a no-op for them
@@ -50,24 +49,24 @@ export const comboOverlay = document.getElementById('o');
 const comboCtx = comboOverlay.getContext('2d');
 const PANEL_INK = '#453a5c'; // dark ink for icons/text on the bar's light cloud background
 
-export function panelRect(c, x, y, w, h, r) {
-  c.beginPath();
-  c.moveTo(x + r, y);
-  c.arcTo(x + w, y, x + w, y + h, r);
-  c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r);
-  c.arcTo(x, y, x + w, y, r);
-  c.closePath();
+export function panelRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
-function cloudPill(c, x, y, w, h, r) {
-  c.save();
-  c.fillStyle = '#fff9f2ee';
-  c.strokeStyle = WHITE;
-  c.lineWidth = 1.5;
-  panelRect(c, x, y, w, h, r);
-  c.fill();
-  c.stroke();
-  c.restore();
+function cloudPill(ctx, x, y, w, h, r) {
+  ctx.save();
+  ctx.fillStyle = '#fff9f2ee';
+  ctx.strokeStyle = WHITE;
+  ctx.lineWidth = 1.5;
+  panelRect(ctx, x, y, w, h, r);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 // drawComboOverlay's output only depends on the phrase, unlocked zones, and canvas
@@ -80,8 +79,6 @@ export function drawComboOverlay() {
   if (sig === _comboSig) return;
   _comboSig = sig;
 
-  // same shrink-on-small-screens / grow-past-1080p scale as before, now measured off
-  // the real game canvas — this overlay's own size IS the bar now, not the whole screen
   const shrink = Math.min(1, canvas.height / 720, canvas.width / 480);
   const grow = Math.max(1, Math.min(canvas.width, canvas.height) / 1080);
   const scale = Math.max(0.55, shrink * grow);
@@ -97,9 +94,7 @@ export function drawComboOverlay() {
     capY = cy + slotRadius + itemGap, // caption row underneath (numbers / slot titles)
     barH = cy * 2 + 10 * scale;
 
-  // lay everything out left-to-right first so the canvas is sized to fit exactly what
-  // gets drawn — a fixed guessed width previously clipped the erase icon right off
-  // the edge the moment the layout changed
+  // lay out left-to-right first so the canvas is sized to fit exactly what gets drawn
   let dx = padX;
   const runeX = [];
   ZONES.forEach(() => {
@@ -124,22 +119,20 @@ export function drawComboOverlay() {
   comboOverlay.width = Math.round(barW);
   comboOverlay.height = Math.round(barH);
   comboCtx.clearRect(0, 0, comboOverlay.width, comboOverlay.height);
-  // centered against the actual game canvas in pixels, not CSS `left: 50%` — 100vw can
-  // differ from canvas.width (window.innerWidth) by a scrollbar's width or more on some
-  // browsers, which was throwing this off; measuring off the same canvas.width the rest
-  // of the game already uses for its own layout keeps it exactly centered
+  // centered against the actual canvas width, not CSS `left: 50%` (100vw can differ
+  // from canvas.width by a scrollbar's width)
   comboOverlay.style.left = Math.round((canvas.width - barW) / 2) + 'px';
 
   cloudPill(comboCtx, 0, 0, barW, barH, 22 * scale);
 
   // --- left: the 4 runes, each with its number key underneath ---
   comboHit.runes = [];
-  ZONES.forEach((z, i) => {
+  ZONES.forEach((zone, i) => {
     const cx = runeX[i];
-    const has = collected.has(z.id);
-    if (has) comboHit.runes.push({ x: cx, y: cy, r: runeRadius * 1.3, zoneId: z.id });
-    const count = phraseRunes.filter(p => p === z.id).length;
-    const color = !has ? '#8a7fa0' : count > 0 ? COLORS.PINK_UI : RUNE_ACCENT[z.id];
+    const has = collected.has(zone.id);
+    if (has) comboHit.runes.push({ x: cx, y: cy, r: runeRadius * 1.3, zoneId: zone.id });
+    const count = phraseRunes.filter(rune => rune === zone.id).length;
+    const color = !has ? '#8a7fa0' : count > 0 ? COLORS.PINK_UI : RUNE_ACCENT[zone.id];
 
     comboCtx.save();
     comboCtx.globalAlpha = !has ? 0.14 : count > 0 ? 0.3 : 0.16;
@@ -165,7 +158,7 @@ export function drawComboOverlay() {
       runeRadius * 0.62,
       has ? PANEL_INK : '#c9c0d6',
       has ? color : '#b0a5c0',
-      RUNE_SHAPE[z.id]
+      RUNE_SHAPE[zone.id]
     );
     if (has) {
       comboCtx.save();
@@ -221,17 +214,8 @@ export function drawComboOverlay() {
   }
   divider(dividerX2);
 
-  // --- right: cast (checkmark) / erase (arrow) — same weight/shape treatment so the two
-  // read as one matched pair; cast gets its own saturated-but-dark green (not the pale
-  // COLORS.GREEN used for "activated" glows elsewhere, which washed out against the
-  // bar's cream background) so "confirm" still reads at a glance. Cast used to share the
-  // swamp rune's own star shape (just recolored), easy to mistake for a 5th rune. Drawn
-  // as a stroked path, not a text glyph — a checkmark character's actual size/weight
-  // varies wildly across fonts (and can silently fall back to an emoji-style glyph), so
-  // a path is the only way to guarantee it matches the arrow's thin, geometric look ---
-  // stale comboHit.cast/erase rects left over from the last non-empty frame stay
-  // clickable but harmless — castPhrase() and the erase pop() are both no-ops on an
-  // empty phraseRunes, so there's no need to null the rects out when hiding the icons
+  // right: cast (checkmark, drawn as a path so it doesn't depend on font glyph support)
+  // and erase (arrow). Stale hit rects from the last non-empty frame are harmless no-ops.
   if (phraseRunes.length) {
     comboCtx.save();
     comboCtx.translate(castX, cy);
@@ -276,23 +260,23 @@ function addToPhrase(zoneId) {
 
 function castPhrase() {
   if (!phraseRunes.length) return;
-  const r = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
-  if (r.ok) {
-    applyEffectsToWorld(r.result, r.runeCount, r.shape, player.x, player.y);
-    lastCast = { cellsTouched: r.cellsTouched, until: performance.now() + 500 };
+  const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
+  if (result.ok) {
+    applyEffectsToWorld(result.result, result.runeCount, result.shape, player.x, player.y);
+    lastCast = { cellsTouched: result.cellsTouched, until: performance.now() + 500 };
   }
   phraseRunes = [];
 }
 
 // touch: tap a rune to add it, tap cast/erase to act on the phrase — same actions as
 // the keyboard path below. No open/close step: the bar is always live.
-export function inRect(x, y, r) {
-  return r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+export function inRect(x, y, rect) {
+  return rect && x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 }
 comboOverlay.addEventListener('pointerdown', e => {
   const x = e.offsetX,
     y = e.offsetY;
-  const rune = comboHit.runes.find(r => Math.hypot(x - r.x, y - r.y) < r.r);
+  const rune = comboHit.runes.find(hit => Math.hypot(x - hit.x, y - hit.y) < hit.r);
   if (rune) {
     addToPhrase(rune.zoneId);
     return;

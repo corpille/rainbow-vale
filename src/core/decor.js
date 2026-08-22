@@ -41,13 +41,13 @@ const MUSHROOM_PALETTES = [
 ];
 
 export function drawMushroomClusterBig(ctx, x, y, seed) {
-  const pal = MUSHROOM_PALETTES[seed % MUSHROOM_PALETTES.length];
+  const palette = MUSHROOM_PALETTES[seed % MUSHROOM_PALETTES.length];
   const baseY = y + 8;
-  softShadow(ctx, x, baseY + 2, 18, 7, 0.16, pal.glow);
+  softShadow(ctx, x, baseY + 2, 18, 7, 0.16, palette.glow);
   const caps = 3;
-  for (let c = 0; c < caps; c++) {
-    const ox = (c - (caps - 1) / 2) * 10;
-    const h = 16 + (c % 2) * 6;
+  for (let capIndex = 0; capIndex < caps; capIndex++) {
+    const ox = (capIndex - (caps - 1) / 2) * 10;
+    const h = 16 + (capIndex % 2) * 6;
     ctx.save();
     ctx.strokeStyle = '#8a6aa5';
     ctx.lineWidth = 3;
@@ -58,15 +58,15 @@ export function drawMushroomClusterBig(ctx, x, y, seed) {
     ctx.stroke();
     ctx.restore();
     const capY = baseY - h;
-    softShadow(ctx, x + ox, capY, 11, 11, 0.3, pal.glow);
+    softShadow(ctx, x + ox, capY, 11, 11, 0.3, palette.glow);
     ctx.save();
-    ctx.fillStyle = pal.cap;
+    ctx.fillStyle = palette.cap;
     ctx.strokeStyle = '#6a4a7a';
     ctx.lineWidth = 1.4;
     fillEllipse(ctx, x + ox, capY, 6.5, 4);
     ctx.stroke();
     ctx.globalAlpha = 0.65;
-    ctx.fillStyle = pal.hi;
+    ctx.fillStyle = palette.hi;
     fillCircle(ctx, x + ox - 2, capY - 1.5, 2);
     ctx.restore();
   }
