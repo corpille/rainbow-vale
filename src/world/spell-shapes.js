@@ -46,7 +46,11 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
       }
       // Pierce punches through void/walls too; a beam that already bounced off a mirror
       // does as well — the whole point of redirecting it is to clear a gap the caster
-      // couldn't otherwise reach, so a bounced beam always crosses void from here on
+      // couldn't otherwise reach, so a bounced beam always crosses void from here on.
+      // Push still pierces a wall here same as any other nature — only true void stops
+      // it dead, since (unlike a wall) there's nothing there to push through, or for a
+      // pushed crate to slide across
+      if (nature === Nature.PUSH && isVoid(x, y)) break;
       if (withPierce || viaMirror) continue;
       break;
     }
