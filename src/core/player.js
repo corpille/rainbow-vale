@@ -11,8 +11,8 @@ export const player = {
   y: HUB.cy,
   dispX: HUB.cx,
   dispY: HUB.cy,
-  facing: 'right',
-  visualFacing: 'right', // sprite-only facing, see dirStack below — stabler than `facing` when moving diagonally
+  facing: 3, // 0=up, 1=down, 2=left, 3=right (see DIRS4 in world-zones.js)
+  visualFacing: 3, // sprite-only facing, see dirStack below — stabler than `facing` when moving diagonally
   flip: 1, // -1 when last facing left, 1 otherwise — see drawPlayer
 };
 export let screenFlash = null;
@@ -23,14 +23,14 @@ const keysDown = {};
 // keyed by e.code (physical key position) so WASD/ZQSD work from one map regardless
 // of keyboard layout — same trick as DIGIT_CODES in ui-panel.js
 const KEY_MAP = {
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-  KeyW: 'up',
-  KeyS: 'down',
-  KeyA: 'left',
-  KeyD: 'right',
+  ArrowUp: 0,
+  ArrowDown: 1,
+  ArrowLeft: 2,
+  ArrowRight: 3,
+  KeyW: 0,
+  KeyS: 1,
+  KeyA: 2,
+  KeyD: 3,
 };
 
 const repeatTimers = {};

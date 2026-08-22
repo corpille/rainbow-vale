@@ -73,8 +73,10 @@ const ALL_SYMBOLS = ZONE_DEFS.map(zone => zone.id);
 export const RANGE_LINE = 5;
 export const RANGE_SHORT = 3;
 export const RANGE_DIAGONAL = 5;
-export const DIRS4 = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-export const DIAG_OF = { up: [1, -1], right: [1, 1], down: [-1, 1], left: [-1, -1] };
+// direction names are plain numbers (0=up,1=down,2=left,3=right) — internal dispatch
+// only, never shown as text, so no need to spell them out
+export const DIRS4 = { 0: [0, -1], 1: [0, 1], 2: [-1, 0], 3: [1, 0] };
+export const DIAG_OF = { 0: [1, -1], 3: [1, 1], 1: [-1, 1], 2: [-1, -1] };
 // same 4 vectors as DIRS4, just as a plain array for "check every neighbor" scans
 // (world-objects.js's inferRoomId, spell-shapes.js's applySpreadModifier) that don't care
 // about direction names — order matters for inferRoomId's "first match wins" tie-break,

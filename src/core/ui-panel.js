@@ -9,7 +9,7 @@ import { player } from './player.js';
 import { canvas } from '../render/render-world.js';
 
 const RUNE_KEYS = ZONES.map(zone => zone.id); // '1'->swamp(m), '2'->cavern(j), '3'->orchard(v), '4'->marsh(b)
-export const RUNE_SHAPE = { m: 'star', j: 'gem', v: 'flower', b: 'drop' }; // icon per zone
+export const RUNE_SHAPE = { m: 0, j: 1, v: 2, b: 3 }; // RUNE_SHAPES index per zone (see engine-core.js)
 // vivid per-zone accent for the rune glyphs — brighter than the zone's own soft
 // tile palette so it reads against the bar's light background
 export const RUNE_ACCENT = {

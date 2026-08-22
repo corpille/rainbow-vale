@@ -146,37 +146,25 @@ const TERSER_OPTIONS = {
     toplevel: true,
     properties: {
       reserved: [
-        // zone/room ids are single chars (h/m/j/v/b) matching the map-encoding characters
-        // below, so no separate entries are needed here — those cover both
-        // rune shapes (engine-core RUNE_SHAPES / ui-panel RUNE_SHAPE)
-        'star',
-        'gem',
-        'flower',
-        'drop',
-        'heart',
-        // direction names (DIRS4, DIAG_OF, DIR_INVERSE, doMove's deltas, ...)
-        'up',
-        'down',
-        'left',
-        'right',
-        // mirror orientation codes (MIRROR_REFLECT, MIRROR_CORNER)
+        // rune shapes (engine-core RUNE_SHAPES / ui-panel RUNE_SHAPE) and direction names
+        // (DIRS4, DIAG_OF, KEY_MAP, MIRROR_REFLECT, player.facing, ...) are both keyed by
+        // plain numbers, not words, so nothing to reserve for either of them.
+        // mirror orientation codes are still words though (MIRROR_REFLECT, MIRROR_CORNER)
         'NE',
         'ES',
         'SW',
         'WN',
-        // Nature / Shape / Modifier enum values (world.js) and their DESC_* dictionaries
-        'BURN',
-        'FREEZE',
-        'PUSH',
-        'SOLIDIFY',
+        // Shape enum values only — world-zones.js's Nature/Shape/Modifier objects
+        // themselves get fully inlined away by Terser's compress step (verified: their
+        // own keys never survive as properties, so none of their values need reserving
+        // on that account alone). These 4 stay reserved because world-objects.js's
+        // RAY_RANGE_FOR_SHAPE is a SEPARATE object literal keyed by the same strings and
+        // read via RAY_RANGE_FOR_SHAPE[shape] — a dynamic access Terser can't resolve, so
+        // its literal keys must keep matching whatever string `shape` holds at runtime
         'LINE',
         'HALF_CIRCLE',
         'CONE',
         'DIAGONAL',
-        'PIERCE',
-        'BOUNCE',
-        'SPREAD',
-        'MIRROR',
         // map-encoding characters (map-loader.js FLOOR_CHARS, keyed by gridStr's literal
         // chars — same failure mode as KEY_MAP below: a renamed key here just means
         // FLOOR_CHARS[c] silently returns undefined for that tile at runtime, so anything
@@ -209,17 +197,6 @@ const TERSER_OPTIONS = {
         's',
         't',
         'u',
-        // rune symbol glyphs (SYMBOL_TO_ROLE) and direction-vector string keys
-        // (DIR_NAME_OF_VEC) — likely immune anyway (not valid unquoted identifiers),
-        // reserved since it costs nothing
-        '▲',
-        '❄',
-        '~',
-        '■',
-        '0,-1',
-        '0,1',
-        '-1,0',
-        '1,0',
         // player.js KEY_MAP, keyed by the browser's own e.code strings (ArrowUp, KeyW, ...)
         // — e.code is native so these can't be mangled, meaning KEY_MAP's own keys must
         // match exactly. Missed this once already for the arrow keys: broke all keyboard

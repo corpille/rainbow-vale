@@ -27,8 +27,9 @@ function unweighPlateAt(x, y) {
     objectsMap.set(key(x, y), plate);
   }
 }
-// max slide distance per shape; Contact is excluded since its one cell is already at
-// range 1, so its slide budget would always be zero
+// max slide distance per shape; Contact has no entry here since it has no ray to
+// measure remaining range against — it always gets a flat budget of 1 instead, via
+// the ternary's fallback below
 const RAY_RANGE_FOR_SHAPE = {
   LINE: RANGE_LINE,
   DIAGONAL: RANGE_DIAGONAL,
@@ -198,11 +199,12 @@ export function createCrate() {
 // a mirror surface is an obstacle that reacts to nothing, but each orientation acts as
 // a 90° corner reflector connecting 2 of the 4 cardinal directions: a ray entering one
 // open face exits the other with its remaining range; a closed face just blocks
+// direction codes: 0=up, 1=down, 2=left, 3=right (see DIRS4 in world-zones.js)
 export const MIRROR_REFLECT = {
-  NE: { down: 'right', left: 'up' },
-  ES: { left: 'down', up: 'right' },
-  SW: { up: 'left', right: 'down' },
-  WN: { right: 'up', down: 'left' },
+  NE: { 1: 3, 2: 0 },
+  ES: { 2: 1, 0: 3 },
+  SW: { 0: 2, 3: 1 },
+  WN: { 3: 0, 1: 2 },
 };
 export function createMirrorSurface(orientation) {
   return {

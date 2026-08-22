@@ -113,12 +113,12 @@ export function drawPlayer() {
   const moving = Math.hypot(player.x - player.dispX, player.y - player.dispY) > 0.02;
   const walkPhase = performance.now() / 110;
 
-  if (player.visualFacing === 'left') player.flip = -1;
-  else if (player.visualFacing === 'right') player.flip = 1;
+  if (player.visualFacing === 2) player.flip = -1;
+  else if (player.visualFacing === 3) player.flip = 1;
 
-  if (player.visualFacing === 'down') {
+  if (player.visualFacing === 1) {
     drawPonyDown(moving, walkPhase);
-  } else if (player.visualFacing === 'up') {
+  } else if (player.visualFacing === 0) {
     drawPonyUp(moving, walkPhase);
   } else {
     ctx.save();

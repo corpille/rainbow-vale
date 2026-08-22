@@ -147,12 +147,15 @@ function heartPath(ctx, cx, cy, r) {
   ctx.bezierCurveTo(cx + r * 0.5, cy - r, cx + r * 1.3, cy - r * 0.15, cx, cy + r * 0.85);
   ctx.closePath();
 }
+// numeric keys (star/gem/flower/drop/heart in order) — shorter than spelling the
+// shape name out, and safe since shapeKey is only ever compared by identity, never
+// shown as text
 const RUNE_SHAPES = {
-  star: starPath,
-  gem: gemPath,
-  flower: flowerPath,
-  drop: dropPath,
-  heart: heartPath,
+  0: starPath,
+  1: gemPath,
+  2: flowerPath,
+  3: dropPath,
+  4: heartPath,
 };
 export function iconGlyph(ctx, cx, cy, size, fillColor, accentColor, shapeKey) {
   ctx.save();

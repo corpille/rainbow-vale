@@ -392,6 +392,6 @@ export function drawHubGlyph(originPxX, originPxY) {
   const px = originPxX + HUB.cx * TILE + TILE / 2,
     py = originPxY + HUB.cy * TILE + TILE / 2;
   if (Math.hypot(px - canvas.width / 2, py - canvas.height / 2) < canvas.width) {
-    iconGlyph(ctx, px, py, TILE * 0.34, COLORS.CREAM, COLORS.PINK_SOFT, 'heart');
+    iconGlyph(ctx, px, py, TILE * 0.34, COLORS.CREAM, COLORS.PINK_SOFT, 4); // 4 = heart, see RUNE_SHAPES
   }
 }
