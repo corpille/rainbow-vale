@@ -105,14 +105,14 @@ export function drawComboOverlay() {
     runeX.push(dx + runeRadius);
     dx += runeRadius * 2 + itemGap;
   });
-  const dividerX1 = dx - itemGap / 2 + itemGap / 2;
+  const dividerX1 = dx;
   dx += itemGap;
   const slotX = [];
   for (let i = 0; i < 3; i++) {
     slotX.push(dx + slotRadius);
     dx += slotRadius * 2 + itemGap;
   }
-  const dividerX2 = dx - itemGap / 2 + itemGap / 2;
+  const dividerX2 = dx;
   dx += itemGap;
   const castX = dx + runeRadius;
   dx += runeRadius * 2 + itemGap;

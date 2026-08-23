@@ -300,7 +300,7 @@ export function resolvePhrase(runes, px, py, dirName) {
     // ever works on a crate, per invert's definition above), so no `invert` check needed
     if (nature === Nature.FREEZE && isWaterAt(cell.x, cell.y))
       return { cell, obj: null, dir, effect: 'freeze' };
-    return { cell, obj: null, dir, effect: 'ambiant' };
+    return { cell, obj: null, dir };
   };
   const result = cells.map(resolveCell);
   return {

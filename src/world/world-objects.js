@@ -146,54 +146,43 @@ export function computeSpellPreview(runes, px, py, dirName) {
 
 /* ---- the 4 interactive objects (one per signature nature) ---- */
 export function createVine() {
-  const vine = {
+  return {
     type: 'vine',
     destroyed: false,
     get blocksMovement() {
-      return !vine.destroyed;
+      return !this.destroyed;
     },
     // pure check reused by Spread propagation (and pierce-through checks) so probing
     // "would this react" never mutates state like reactTo does
     wouldReact(nature) {
-      return !vine.destroyed && nature === Nature.CUT;
+      return !this.destroyed && nature === Nature.CUT;
     },
     reactTo(nature) {
-      if (!vine.destroyed && nature === Nature.CUT) {
-        vine.destroyed = true;
-        return { effect: 'cut' };
-      }
+      if (!this.destroyed && nature === Nature.CUT) this.destroyed = true;
     },
   };
-  return vine;
 }
 export function createCrate() {
-  const crate = {
+  return {
     type: 'crate',
     frozen: false,
     blocksMovement: true,
     // Mirror inverts both natures that touch a crate: FREEZE normally immobilizes, mirrored
     // it thaws instead; PUSH normally shoves away, mirrored it pulls toward the caster
     wouldReact(nature, invert) {
-      if (nature === Nature.FREEZE) return invert ? crate.frozen : !crate.frozen;
-      return nature === Nature.PUSH && !crate.frozen;
+      if (nature === Nature.FREEZE) return invert ? this.frozen : !this.frozen;
+      return nature === Nature.PUSH && !this.frozen;
     },
     reactTo(nature, dir, invert) {
       if (nature === Nature.FREEZE) {
-        if (invert && crate.frozen) {
-          crate.frozen = false;
-          return { effect: 'thawed' };
-        }
-        if (!invert && !crate.frozen) {
-          crate.frozen = true;
-          return { effect: 'immobilized' };
-        }
+        if (invert && this.frozen) this.frozen = false;
+        if (!invert && !this.frozen) this.frozen = true;
       }
-      if (nature === Nature.PUSH && !crate.frozen) {
+      if (nature === Nature.PUSH && !this.frozen) {
         return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir };
       }
     },
   };
-  return crate;
 }
 /* ---- secondary objects: give the modifiers a concrete use ---- */
 // a mirror surface is an obstacle that reacts to nothing, but each orientation acts as
@@ -214,17 +203,17 @@ export function createMirrorSurface(orientation) {
     reactTo() {},
   };
 }
-export function isPairResolved(result, pairObj) {
+export function isPairResolved(result, pair) {
   // a plate counts as "touched" either momentarily (hit by this resolution, e.g. a
   // wide shape catching several plates at once) or persistently (a crate weighing it down)
   const touches = new Set();
   result.forEach(entry => {
-    if (entry.effect === 'activated' && entry.obj && entry.obj.pair === pairObj.pair)
+    if (entry.effect === 'activated' && entry.obj && entry.obj.pair === pair)
       touches.add(entry.obj);
   });
   let totalMembers = 0;
   plateByTile.forEach(plate => {
-    if (plate.pair === pairObj.pair) {
+    if (plate.pair === pair) {
       totalMembers++;
       if (plate.weighed) touches.add(plate);
     }
@@ -234,13 +223,12 @@ export function isPairResolved(result, pairObj) {
 // a lock never reacts to a nature directly — it opens only when game logic finds
 // its condition (e.g. a pair of plates activated together) met
 export function createLock() {
-  const lock = {
+  return {
     type: 'lock',
     open: false,
     get blocksMovement() {
-      return !lock.open;
+      return !this.open;
     },
     reactTo() {},
   };
-  return lock;
 }

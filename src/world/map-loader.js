@@ -175,7 +175,7 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     if (!pairEntry) return;
     verrouLinks.push({
       lock: lockObj,
-      check: result => isPairResolved(result, { pair: pairEntry.pair }),
+      check: result => isPairResolved(result, pairEntry.pair),
     });
   });
 })();

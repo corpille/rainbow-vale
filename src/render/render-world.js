@@ -78,7 +78,7 @@ function gemGradient(x0, y0, x1, y1) {
   return gradient;
 }
 
-function renderVine(obj, px, py) {
+function renderVine(px, py) {
   ctx.save();
   ctx.strokeStyle = '#4caf6b';
   ctx.lineWidth = 5;
@@ -386,7 +386,7 @@ export function renderInteractiveObject(obj, x, y, originPxX, originPxY) {
   ctx.translate(px, py);
   ctx.scale(TILE / BASE_TILE, TILE / BASE_TILE);
   if (obj.type === 'vine') {
-    if (!obj.destroyed) renderVine(obj, 0, 0);
+    if (!obj.destroyed) renderVine(0, 0);
   } else if (obj.type === 'crate') {
     renderCrate(obj, 0, 0);
   } else if (obj.type === 'mirror_surface') {
