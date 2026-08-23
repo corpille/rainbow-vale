@@ -77,13 +77,13 @@ window.addEventListener('keydown', e => {
     return;
   }
   const dir = KEY_MAP[e.code];
-  if (!dir) return;
+  if (dir === undefined) return;
   e.preventDefault();
   if (gameState === 'playing') pressDir(dir);
 });
 window.addEventListener('keyup', e => {
   const dir = KEY_MAP[e.code];
-  if (!dir) return;
+  if (dir === undefined) return;
   releaseDir(dir);
 });
 

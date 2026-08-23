@@ -58,8 +58,8 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
       const obj = worldRunes.objectAt(x, y);
       if (obj && obj.type === 'mirror_surface') {
         const inDir = DIR_NAME_OF_VEC[dx + ',' + dy];
-        const outDir = inDir && MIRROR_REFLECT[obj.orientation][inDir];
-        if (outDir) {
+        const outDir = inDir === undefined ? undefined : MIRROR_REFLECT[obj.orientation][inDir];
+        if (outDir !== undefined) {
           const [ndx, ndy] = DIRS4[outDir];
           return cells.concat(
             getCellsLine(x, y, ndx, ndy, maxRange - i, withPierce, nature, baseDist + i, true)

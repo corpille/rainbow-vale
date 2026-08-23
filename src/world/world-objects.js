@@ -64,6 +64,8 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
     } else if (entry.effect === 'switch') {
       // a pure position trade: the crate lands exactly on the caster's tile, and
       // ui-panel.js's castPhrase moves the player to the crate's old tile in turn
+      const destPlate = plateByTile.get(key(px, py));
+      if (destPlate) destPlate.weighed = true;
       unweighPlateAt(entry.cell.x, entry.cell.y);
       worldRunes.moveObject(entry.cell.x, entry.cell.y, px, py);
     }
