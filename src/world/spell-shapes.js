@@ -201,15 +201,15 @@ function effectDirectionForCell(px, py, cell, shape, dirName) {
   if (Math.abs(dx) >= Math.abs(dy)) return [Math.sign(dx), 0];
   return [0, Math.sign(dy)];
 }
-// farthest cell in a cast that holds a crate — Switch's target. Filters by distance
-// among crate-holding cells specifically, not the shape's overall reach, so a plain
-// open tile past the crate (which Push would keep sailing through anyway) never wins
-// out over the crate itself
-function findSwitchTarget(cells) {
+// nearest cell in a cast that holds a crate — Switch's target, i.e. the first crate
+// the caster would reach, not one further along the ray that Push's chaining lets the
+// cast reach past it (a plain open tile past the crate never enters here at all,
+// since only crate-holding cells are considered in the first place)
+export function findSwitchTarget(cells) {
   let target = null;
   cells.forEach(cell => {
     const obj = worldRunes.objectAt(cell.x, cell.y);
-    if (obj && obj.type === 'crate' && (!target || cell.d > target.d)) target = cell;
+    if (obj && obj.type === 'crate' && (!target || cell.d < target.d)) target = cell;
   });
   return target;
 }
@@ -279,30 +279,43 @@ export function resolvePhrase(runes, px, py, dirName) {
   if (!validatePhrase(runes)) return { ok: false };
   const { nature, shape, modifier, withPierce } = deriveSpell(runes);
   const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
-  // Mirror only means something for Push (→ Pull), Freeze (→ Thaw a crate), and now
-  // Corrode (→ mend a cracked wall back to solid); on Cut it's still a no-op, same as
-  // casting with no modifier at all
-  const invert =
-    modifier === Modifier.MIRROR &&
-    (nature === Nature.PUSH || nature === Nature.FREEZE || nature === Nature.CORRODE);
-  // Switch swaps the caster with whatever crate sits farthest along the cast, regardless
-  // of nature — a pure position trade, so it overrides that one cell's own resolution
-  const switchTarget = modifier === Modifier.SWITCH && findSwitchTarget(cells);
-  const resolveCell = cell => {
-    const obj = worldRunes.objectAt(cell.x, cell.y);
-    const dir = effectDirectionForCell(px, py, cell, shape, dirName);
-    if (switchTarget && cell.x === switchTarget.x && cell.y === switchTarget.y)
-      return { cell, obj, dir, effect: 'switch' };
-    if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
-    if (nature === Nature.CORRODE && isRock(cell.x, cell.y))
-      return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
-    // water is a grid tile type, not an object — Mirror never applies here (thaw only
-    // ever works on a crate, per invert's definition above), so no `invert` check needed
-    if (nature === Nature.FREEZE && isWaterAt(cell.x, cell.y))
-      return { cell, obj: null, dir, effect: 'freeze' };
-    return { cell, obj: null, dir };
-  };
-  const result = cells.map(resolveCell);
+  // Switch swaps the caster with the nearest crate along the cast, regardless of
+  // nature, and nothing else — every other cell the ray passes through (e.g. a second
+  // crate further along a Push cast) is ignored entirely, not just overridden
+  let result;
+  if (modifier === Modifier.SWITCH) {
+    const target = findSwitchTarget(cells);
+    result = target
+      ? [
+          {
+            cell: target,
+            obj: worldRunes.objectAt(target.x, target.y),
+            dir: effectDirectionForCell(px, py, target, shape, dirName),
+            effect: 'switch',
+          },
+        ]
+      : [];
+  } else {
+    // Mirror only means something for Push (→ Pull), Freeze (→ Thaw a crate), and now
+    // Corrode (→ mend a cracked wall back to solid); on Cut it's still a no-op, same as
+    // casting with no modifier at all
+    const invert =
+      modifier === Modifier.MIRROR &&
+      (nature === Nature.PUSH || nature === Nature.FREEZE || nature === Nature.CORRODE);
+    const resolveCell = cell => {
+      const obj = worldRunes.objectAt(cell.x, cell.y);
+      const dir = effectDirectionForCell(px, py, cell, shape, dirName);
+      if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
+      if (nature === Nature.CORRODE && isRock(cell.x, cell.y))
+        return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
+      // water is a grid tile type, not an object — Mirror never applies here (thaw only
+      // ever works on a crate, per invert's definition above), so no `invert` check needed
+      if (nature === Nature.FREEZE && isWaterAt(cell.x, cell.y))
+        return { cell, obj: null, dir, effect: 'freeze' };
+      return { cell, obj: null, dir };
+    };
+    result = cells.map(resolveCell);
+  }
   return {
     ok: true,
     nature,

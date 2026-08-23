@@ -1,6 +1,7 @@
 /* ============ Interactive objects: plates, vine/crate/mirror/lock, push resolution ============ */
 import {
   CARDINAL_OFFSETS,
+  Modifier,
   Nature,
   RANGE_DIAGONAL,
   RANGE_LINE,
@@ -12,7 +13,13 @@ import {
   objectsMap,
   worldRunes,
 } from './world-zones.js';
-import { CONE_PATTERN, checkLocks, computeSpellCells, deriveSpell } from './spell-shapes.js';
+import {
+  CONE_PATTERN,
+  checkLocks,
+  computeSpellCells,
+  deriveSpell,
+  findSwitchTarget,
+} from './spell-shapes.js';
 // plateByTile/obstacleByTile come from map-loader.js, which imports createVine/
 // createCrate/etc. back from here — same harmless cycle as world-zones.js's own
 // obstacleByTile import: only touched from closures called after every file's
@@ -143,7 +150,15 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
 export function computeSpellPreview(runes, px, py, dirName) {
   if (!runes.length) return [];
   const { nature, shape, modifier, withPierce } = deriveSpell(runes);
-  return computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
+  const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
+  // Switch only ever acts on the one crate it targets — previewing the whole ray
+  // (which may keep cracking/freezing past it) reads as "all of this will happen",
+  // so show just the actual target instead
+  if (modifier === Modifier.SWITCH) {
+    const target = findSwitchTarget(cells);
+    return target ? [target] : [];
+  }
+  return cells;
 }
 
 /* ---- the 4 interactive objects (one per signature nature) ---- */
