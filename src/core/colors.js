@@ -9,11 +9,12 @@ export const COLORS = {
   PINK_SOFT: '#ffa8dc', // uncollected-pedestal glow, hub heart-glyph accent
   CREAM: '#f0e6cf', // glyph base tone — pedestals (until collected) and the hub's heart icon
   PINK: '#ff9ad0', // crate ribbon/bow, pony blush
-  PURPLE: '#c080f0', // unweighed-plate color, lock-gate glow, menu/intro dusk background
+  PURPLE: '#c080f0', // unweighed-plate color, lock-gate glow, menu dusk background
   ICE_BLUE: '#9fd6f5', // frozen-object glow, mirror surface, lock-gate crystal accents
   GREEN: '#5aff9a', // "activated"/"done" state
   NEAR_BLACK: '#392f5c', // deep shading: wall texture, and the top of every dusk-background gradient
   RAINBOW: ['#ff6b81', '#ffab5e', '#ffe066', '#69db7c', '#66c7e8', '#9d7bff'], // mane/tail gradients, menu arch, ending celebration stars
+  STAR_CREAM: '#fff6d8', // lock-gate orbiting sparkles, hub-progress stars
 };
 
 export const FONT = 'Helvetica, Arial, sans-serif';

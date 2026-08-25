@@ -71,11 +71,6 @@ function releaseDir(dir) {
   if (dirStack.length) player.visualFacing = dirStack[dirStack.length - 1];
 }
 window.addEventListener('keydown', e => {
-  // DEBUG: unlocks all 4 runes — remove before submission
-  if (e.key === '0') {
-    ZONES.forEach(zone => collected.add(zone.id));
-    return;
-  }
   const dir = KEY_MAP[e.code];
   if (dir === undefined) return;
   e.preventDefault();

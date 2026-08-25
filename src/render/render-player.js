@@ -8,10 +8,13 @@ import { canvas, ctx } from './render-world.js';
 // only the gradient LINE (start/end point) differs per shape — so they share one
 // offset scheme instead of each call re-declaring its own addColorStop list
 const RAINBOW_STOPS = [0, 0.3, 0.5, 0.7, 0.8, 1];
-// repeated 4x/3x below (ears, eye outlines) — local consts so Terser's toplevel
-// mangling shrinks each call site to a single-char reference instead of the literal
+// repeated 4x/3x/2x below (ears, eye outlines, side-view hooves, nose dots) — local
+// consts so Terser's toplevel mangling shrinks each call site to a single-char
+// reference instead of the literal
 const EAR_LILAC = '#d9c8f5';
 const EYE_INK = '#3a3050';
+const SIDE_HOOF = '#f7c5ee';
+const NOSE_GRAY = '#b0b0b0';
 function rainbowGradient(x0, y0, x1, y1) {
   const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
   COLORS.RAINBOW.forEach((color, i) => gradient.addColorStop(RAINBOW_STOPS[i], color));
@@ -152,7 +155,7 @@ function drawFrontBackHooves(lift0, lift1) {
   // --- Left Hoof --- (translate instead of offsetting every point — equivalent, simpler)
   ctx.save();
   ctx.translate(0, -lift0);
-  fillShape('#ffb3e6', [
+  fillShape(COLORS.PINK_GLOW, [
     [-2.4, 12.1],
     [-2.5, 12.7, -2.7, 13.6],
     [-3.9, 13.8, -4.7, 13.6],
@@ -163,7 +166,7 @@ function drawFrontBackHooves(lift0, lift1) {
   // --- Right Hoof ---
   ctx.save();
   ctx.translate(0, -lift1);
-  fillShape('#ffb3e6', [
+  fillShape(COLORS.PINK_GLOW, [
     [4.9, 11.9],
     [5, 12.5, 4.6, 13.4],
     [3.4, 13.6, 2.6, 13.4],
@@ -245,10 +248,10 @@ function drawPonyDown(moving, walkPhase) {
   ]);
 
   // --- Left Nose ---
-  filledDot('#b0b0b0', -0.7, -2.2, 0.3);
+  filledDot(NOSE_GRAY, -0.7, -2.2, 0.3);
 
   // --- Right Nose ---
-  filledDot('#b0b0b0', 0.3, -2.2, 0.3);
+  filledDot(NOSE_GRAY, 0.3, -2.2, 0.3);
 
   // --- Side Mane ---
   const sideManeGrad = ctx.createLinearGradient(-6.3, -6.5, -4.7, -0.3);
@@ -291,7 +294,7 @@ function drawPonySide(moving, walkPhase) {
   // --- Hoof (back) --- (translate instead of offsetting every point)
   ctx.save();
   ctx.translate(swing0, 0);
-  fillShape('#f7c5ee', [
+  fillShape(SIDE_HOOF, [
     [2.3, 11.8],
     [3.7, 13.7, 2.7, 13.9],
     [1.6, 14.3, 0, 14.1],
@@ -302,7 +305,7 @@ function drawPonySide(moving, walkPhase) {
   // --- Hoof (front) ---
   ctx.save();
   ctx.translate(swing1, 0);
-  fillShape('#f7c5ee', [
+  fillShape(SIDE_HOOF, [
     [-7.2, 11.8],
     [-5.8, 13.7, -6.8, 13.9],
     [-7.9, 14.3, -9.5, 14.1],
@@ -399,11 +402,11 @@ function drawPonySide(moving, walkPhase) {
   });
 
   // --- Blush ---
-  filledDot('#ff9ad0', 4.8, -3.4, 0.9, 0.55);
+  filledDot(COLORS.PINK, 4.8, -3.4, 0.9, 0.55);
 
   // --- Ear front (inner) --- (a degenerate single-point path — fills nothing, kept
   // faithful to the original hand-drawn sprite rather than "fixed")
-  fillShape('#ff9ad0', [[-14.5, -5.5]]);
+  fillShape(COLORS.PINK, [[-14.5, -5.5]]);
 }
 
 function drawPonyUp(moving, walkPhase) {

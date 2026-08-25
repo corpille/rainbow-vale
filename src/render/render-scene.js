@@ -66,27 +66,26 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
         ctx.drawImage(variantSetFor(obstacle.roomId, x, y).wall[variant], destX, destY, TILE, TILE);
         if (obstacle.cracked) drawWallCrack(destX, destY);
         // only draw edges facing a non-obstacle tile, else adjacent walls double-draw
-        // their shared edge as a double line
+        // their shared edge as a double line. [dx, dy, vertical, offset] per edge
         ctx.save();
         ctx.strokeStyle = '#00000080';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        if (!obstacleByTile.has(key(x, y - 1))) {
-          ctx.moveTo(destX, destY + 1);
-          ctx.lineTo(destX + TILE, destY + 1);
-        }
-        if (!obstacleByTile.has(key(x, y + 1))) {
-          ctx.moveTo(destX, destY + TILE - 1);
-          ctx.lineTo(destX + TILE, destY + TILE - 1);
-        }
-        if (!obstacleByTile.has(key(x - 1, y))) {
-          ctx.moveTo(destX + 1, destY);
-          ctx.lineTo(destX + 1, destY + TILE);
-        }
-        if (!obstacleByTile.has(key(x + 1, y))) {
-          ctx.moveTo(destX + TILE - 1, destY);
-          ctx.lineTo(destX + TILE - 1, destY + TILE);
-        }
+        [
+          [0, -1, 0, 1],
+          [0, 1, 0, TILE - 1],
+          [-1, 0, 1, 1],
+          [1, 0, 1, TILE - 1],
+        ].forEach(([dx, dy, vertical, off]) => {
+          if (obstacleByTile.has(key(x + dx, y + dy))) return;
+          if (vertical) {
+            ctx.moveTo(destX + off, destY);
+            ctx.lineTo(destX + off, destY + TILE);
+          } else {
+            ctx.moveTo(destX, destY + off);
+            ctx.lineTo(destX + TILE, destY + off);
+          }
+        });
         ctx.stroke();
         ctx.restore();
         continue;
@@ -319,7 +318,7 @@ export function drawItems(originPxX, originPxY) {
     // the star itself: a 4-point sparkle — same alternating-radius shape as starPath,
     // just traced starting from a different vertex around the same closed octagon,
     // so it's the identical fill either way
-    ctx.fillStyle = '#fff6d8';
+    ctx.fillStyle = COLORS.STAR_CREAM;
     ctx.strokeStyle = COLORS.PINK_DARK;
     ctx.lineWidth = 1.2;
     starPath(ctx, 0, 0, 7, 4, 2.4 / 7);

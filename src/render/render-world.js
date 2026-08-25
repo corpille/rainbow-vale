@@ -338,7 +338,7 @@ function renderLockGate(px, py) {
     const sparkleX = px + Math.cos(angle) * BASE_TILE * 0.4,
       sparkleY = py + Math.sin(angle) * BASE_TILE * 0.4;
     ctx.save();
-    ctx.fillStyle = '#fff6d8';
+    ctx.fillStyle = COLORS.STAR_CREAM;
     starPath(ctx, sparkleX, sparkleY, 3.4, 4, 0.3);
     ctx.fill();
     ctx.restore();
@@ -446,36 +446,26 @@ function bakeDecorBitmap(decorInstance, filter) {
   decorInstance.drawFn(dctx, 0, 0, decorInstance.seed);
   return canvasEl;
 }
+// floor and wall bitmaps are the same bake (blank canvas -> filter -> textureFill),
+// just with different colors/AO — factored into one helper instead of two near-identical
+// unrolled blocks per variant
+function bakeTile(filter, base, dark, blob, blobSet, withAO) {
+  const tileCanvas = document.createElement('canvas');
+  tileCanvas.width = tileCanvas.height = TILE;
+  const tileCtx = tileCanvas.getContext('2d');
+  tileCtx.filter = filter;
+  textureFill(tileCtx, 0, 0, TILE, TILE, base, dark, blob, blobSet);
+  if (withAO) tileAO(tileCtx, 0, 0);
+  return tileCanvas;
+}
 function bakeRoomVariants(roomId) {
   const room = roomById[roomId];
   const filter = grayFilter(roomId);
   const floor = [],
     wall = [];
   for (let variant = 0; variant < BLOB_SETS.length; variant++) {
-    const floorCanvas = document.createElement('canvas');
-    floorCanvas.width = floorCanvas.height = TILE;
-    const floorCtx = floorCanvas.getContext('2d');
-    floorCtx.filter = filter;
-    textureFill(floorCtx, 0, 0, TILE, TILE, room.base, room.dark, room.blob, BLOB_SETS[variant]);
-    tileAO(floorCtx, 0, 0);
-    floor.push(floorCanvas);
-
-    const wallCanvas = document.createElement('canvas');
-    wallCanvas.width = wallCanvas.height = TILE;
-    const wallCtx = wallCanvas.getContext('2d');
-    wallCtx.filter = filter;
-    textureFill(
-      wallCtx,
-      0,
-      0,
-      TILE,
-      TILE,
-      room.dark,
-      COLORS.NEAR_BLACK,
-      room.blob,
-      BLOB_SETS[variant]
-    );
-    wall.push(wallCanvas);
+    floor.push(bakeTile(filter, room.base, room.dark, room.blob, BLOB_SETS[variant], true));
+    wall.push(bakeTile(filter, room.dark, COLORS.NEAR_BLACK, room.blob, BLOB_SETS[variant]));
   }
   tileVariants[roomId] = { floor, wall };
   decorInstances.forEach(decorInstance => {

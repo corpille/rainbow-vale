@@ -58,7 +58,7 @@ function drawVignette() {
   ctx.restore();
 }
 
-// shared full-bleed background for every non-gameplay screen (menu/intro/ending) — the
+// shared full-bleed background for every non-gameplay screen (menu/ending) — the
 // world is never drawn underneath any of them (see draw()'s early return below): this
 // gradient is opaque, so it would just hide the world anyway, making that rendering
 // pure waste. Only the bottom color stop varies per screen.
@@ -73,7 +73,7 @@ function drawDuskBg(bottomColor) {
   ctx.fillRect(0, 0, w, h);
 }
 
-// the glowing title text every overlay screen (menu/intro/ending) opens with —
+// the glowing title text every overlay screen (menu/ending) opens with —
 // same pink fill + warm shadow, only the text/position/size/glow amount differ
 function glowTitle(x, y, text, fontPx, shadow) {
   ctx.fillStyle = COLORS.PINK_GLOW;
@@ -145,44 +145,24 @@ function drawMenuOverlay() {
     );
   });
 
+  // what's going on, and the 3-step goal loop, so a first-time player isn't dropped in
+  // with zero context (the phrase-then-cast combo mechanic especially needs a
+  // sentence — nothing else hints at it before this)
+  ctx.fillStyle = UI_LIGHT;
+  ctx.font = `${15 * scale}px ${FONT}`;
+  const lineY = iconY + 60 * scale,
+    lineGap = 27 * scale;
+  const line =
+    "Collect each zone's rune, restore the vale's colors and bring hidden treasures back to the altar.";
+  ctx.fillText(line, w / 2, lineY);
+
   // Play button — the outline (not an animated glow) reads as clickable, and is the
   // only way to advance (pointerdown handler below hit-tests against menuBtn, not any
   // key/tap)
   const btnW = 150 * scale,
     btnH = 46 * scale;
-  menuBtn = { x: w / 2 - btnW / 2, y: iconY + 55 * scale, w: btnW, h: btnH };
+  menuBtn = { x: w / 2 - btnW / 2, y: lineY + 1.4 * lineGap, w: btnW, h: btnH };
   drawPillButton(menuBtn, 'Play', scale);
-  ctx.restore();
-}
-
-let introBtn = null; // {x,y,w,h} — see the pointerdown handler below
-// between menu and gameplay: what's going on, and the 3-step goal loop, so a first-time
-// player isn't dropped in with zero context (the phrase-then-cast combo mechanic
-// especially needs a sentence — nothing else hints at it before this)
-function drawIntroOverlay() {
-  const w = canvas.width,
-    h = canvas.height,
-    scale = TILE / BASE_TILE;
-
-  drawDuskBg(COLORS.PURPLE);
-
-  ctx.save();
-  ctx.textAlign = 'center';
-  glowTitle(w / 2, h * 0.28, 'The Vale has lost its color', 26 * scale, 12 * scale);
-
-  ctx.fillStyle = UI_LIGHT;
-  ctx.font = `${15 * scale}px ${FONT}`;
-  const lineY = h * 0.28 + 40 * scale,
-    lineGap = 27 * scale;
-  [
-    "Collect each zone's rune, press 1-4 to add it to your phrase, then Space to cast.",
-    'Bring hidden treasures back to the altar.',
-  ].forEach((line, i) => ctx.fillText(line, w / 2, lineY + i * lineGap));
-
-  const btnW = 150 * scale,
-    btnH = 46 * scale;
-  introBtn = { x: w / 2 - btnW / 2, y: lineY + 2.4 * lineGap, w: btnW, h: btnH };
-  drawPillButton(introBtn, 'Start', scale);
   ctx.restore();
 }
 
@@ -229,10 +209,9 @@ function drawEndingOverlay() {
 }
 
 function draw() {
-  // neither screen ever has the world drawn underneath — see drawDuskBg's comment above
-  if (gameState === 'menu' || gameState === 'intro') {
-    if (gameState === 'menu') drawMenuOverlay();
-    else drawIntroOverlay();
+  // menu screen never has the world drawn underneath — see drawDuskBg's comment above
+  if (gameState === 'menu') {
+    drawMenuOverlay();
     requestAnimationFrame(draw);
     return;
   }
@@ -320,8 +299,6 @@ window.addEventListener('pointerdown', e => {
   // technically read-only, but build.js strips import/export before concatenating,
   // so at runtime it's just a plain global assignment.
   if (gameState === 'menu' && inRect(x, y, menuBtn)) {
-    gameState = 'intro'; // eslint-disable-line no-import-assign
-  } else if (gameState === 'intro' && inRect(x, y, introBtn)) {
     gameState = 'playing'; // eslint-disable-line no-import-assign
     startMusic();
   }

@@ -6,7 +6,7 @@ export const BASE_TILE = 42; // tuned against a REF_MIN_DIM-tall/wide viewport �
 export let TILE = BASE_TILE; // recomputed per-viewport so the amount of world visible stays consistent
 export let VIEW_COLS, VIEW_ROWS;
 // eslint-disable-next-line prefer-const -- reassigned by the pointerdown handler in render-hud.js
-export let gameState = 'menu'; // 'menu' | 'intro' | 'playing' — see the start prompt in render-hud.js
+export let gameState = 'menu'; // 'menu' | 'playing' — see the start prompt in render-hud.js
 
 // fixed (not per-tile generated) blob layouts for the mottled/bokeh floor & wall look:
 // [x, y, r, alpha, rotation] as fractions of tile size. 3 alternate layouts, one per
