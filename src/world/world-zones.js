@@ -3,7 +3,7 @@
 // here — a real cycle, but harmless: isVoid is a closure, never called until every file
 // has already finished its own top-level setup.
 import { obstacleByTile } from './map-loader.js';
-import { WHITE } from '../core/colors.js';
+import { COLORS, WHITE } from '../core/colors.js';
 
 export const grid = new Map();
 export const key = (x, y) => x + ',' + y;
@@ -33,7 +33,7 @@ const SLOT_ORDER = [0, 2, 1, 3];
 const ZONE_DEFS = [
   { id: 'm', base: '#bdf3c9', dark: '#6fcf97', blob: '#e8fff0' }, // swamp
   { id: 'j', base: '#d6ecff', dark: '#8fc9f0', blob: WHITE }, // cavern
-  { id: 'v', base: '#ffe1b8', dark: '#ffb066', blob: '#fff3d6' }, // orchard
+  { id: 'v', base: '#ffe1b8', dark: '#ffb066', blob: COLORS.STAR_CREAM }, // orchard, close enough to STAR_CREAM to reuse it
   { id: 'b', base: '#e3d4ff', dark: '#a98af0', blob: '#f6ecff' }, // marsh
 ];
 export const ZONES = ZONE_DEFS.map((zone, i) => ({
@@ -108,11 +108,47 @@ export const worldRunes = {
   inBounds: (x, y) => grid.has(key(x, y)),
   objectAt: (x, y) => objectsMap.get(key(x, y)) || null,
   moveObject: (fromX, fromY, toX, toY) => {
-    const obj = objectsMap.get(key(fromX, fromY));
-    objectsMap.delete(key(fromX, fromY));
-    objectsMap.set(key(toX, toY), obj);
+    const fk = key(fromX, fromY),
+      tk = key(toX, toY);
+    trackMap(objectsMap, fk);
+    trackMap(objectsMap, tk);
+    const obj = objectsMap.get(fk);
+    objectsMap.delete(fk);
+    objectsMap.set(tk, obj);
   },
 };
+
+// ---- Undo: a flat log of inverse closures plus a stack of boundary marks, one mark
+// per player action (move or cast) — cheaper than nested per-action arrays.
+// track() takes a ready-made closure rather than an (obj,key) pair so every property
+// access stays a plain dot-access — a generic (obj,key) helper would need o[key]
+// bracket access, which breaks under build.js's property mangling (see its own
+// comment on that failure mode) unless every tracked field name were reserved.
+// Only ever called between a beginAction() and the next one, so no active/inactive
+// guard is needed on track/trackMap themselves.
+const uLog = [];
+export const uMarks = []; // .length > 0 while there's an action to undo — ui-panel.js's undo button reads this
+export function beginAction() {
+  uMarks.push(uLog.length);
+}
+// call right before mutating something, with a closure that reverses that exact
+// mutation — doUndo() pops these off in reverse order and runs them
+export function track(fn) {
+  uLog.push(fn);
+}
+// same idea, specialized for a Map entry: snapshots whatever was at key k before
+// this action touches it, so undo can restore or remove it as appropriate
+export function trackMap(m, k) {
+  const had = m.has(k),
+    v = m.get(k);
+  uLog.push(() => (had ? m.set(k, v) : m.delete(k)));
+}
+export function doUndo() {
+  if (!uMarks.length) return;
+  const mark = uMarks.pop();
+  while (uLog.length > mark) uLog.pop()();
+  bumpPuddleEpoch();
+}
 
 // true if this cell is a water tile, whether or not anything's parked on top of it
 export function isWaterAt(x, y) {

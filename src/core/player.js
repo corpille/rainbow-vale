@@ -1,7 +1,17 @@
 /* ============ Player & camera ============ */
 import { COLORS, WHITE } from './colors.js';
 import { gameState } from './engine-core.js';
-import { DIRS4, HUB, ZONES, grid, isBlockingFor, key } from '../world/world-zones.js';
+import {
+  DIRS4,
+  HUB,
+  ZONES,
+  beginAction,
+  doUndo,
+  grid,
+  isBlockingFor,
+  key,
+  track,
+} from '../world/world-zones.js';
 import { collected, items, primitiveSpots } from '../world/map-loader.js';
 import { startColorWave } from '../render/render-world.js';
 import { playPickup } from './music.js';
@@ -16,9 +26,19 @@ export const player = {
   flip: 1, // -1 when last facing left, 1 otherwise — see drawPlayer
 };
 export let screenFlash = null;
+function flashScreen(color, dur) {
+  screenFlash = { color, until: performance.now() + dur };
+}
 export const collectedItems = new Set(); // "zoneId:x,y" of already-collected spots
 export const totalItems = items.length;
 export let hubActivated = false;
+// snapshots the player's current tile so undo can restore it later — shared by
+// doMove below and ui-panel.js's castPhrase (the Switch modifier's teleport)
+export function snapPos() {
+  const px = player.x,
+    py = player.y;
+  track(() => ((player.x = px), (player.y = py)));
+}
 const keysDown = {};
 // keyed by e.code (physical key position) so WASD/ZQSD work from one map regardless
 // of keyboard layout — same trick as DIGIT_CODES in ui-panel.js
@@ -76,6 +96,10 @@ window.addEventListener('keydown', e => {
     ZONES.forEach(zone => collected.add(zone.id));
     return;
   }
+  if (e.code === 'KeyB') {
+    if (gameState === 'playing') doUndo();
+    return;
+  }
   const dir = KEY_MAP[e.code];
   if (dir === undefined) return;
   e.preventDefault();
@@ -97,15 +121,20 @@ function doMove(dir) {
   const targetCell = grid.get(key(targetX, targetY));
   if (!targetCell) return;
   if (isBlockingFor(targetX, targetY)) return;
+  beginAction();
+  snapPos();
   player.x = targetX;
   player.y = targetY;
+  // item/rune pickups and hub activation are one-way progress, not puzzle state — left
+  // out of the undo log on purpose (undoing the step that grants one still leaves it
+  // collected; walking back onto an already-collected spot is a harmless no-op)
   ZONES.forEach(zone => {
     const spot = primitiveSpots[zone.id];
     if (!spot.collected && targetX === spot.x && targetY === spot.y) {
       spot.collected = true;
       collected.add(zone.id);
       startColorWave(zone.id, spot.x, spot.y);
-      screenFlash = { color: COLORS.PINK_GLOW, until: performance.now() + 500 };
+      flashScreen(COLORS.PINK_GLOW, 500);
     }
   });
 
@@ -114,7 +143,7 @@ function doMove(dir) {
     if (!collectedItems.has(spotKey) && targetX === item.x && targetY === item.y) {
       collectedItems.add(spotKey);
       startColorWave('h', HUB.cx, HUB.cy);
-      screenFlash = { color: COLORS.PINK_GLOW, until: performance.now() + 500 };
+      flashScreen(COLORS.PINK_GLOW, 500);
       playPickup();
     }
   });
@@ -127,6 +156,6 @@ function doMove(dir) {
     targetY === HUB.cy
   ) {
     hubActivated = true;
-    screenFlash = { color: WHITE, until: performance.now() + 900 };
+    flashScreen(WHITE, 900);
   }
 }

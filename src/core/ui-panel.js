@@ -1,11 +1,19 @@
 /* ============ Always-on spell bar — Nature (slot1) / Shape (slot2) / Modifier (slot3) ============ */
-import { COLORS, FONT, WHITE } from './colors.js';
+import { BLACK, COLORS, FONT, WHITE } from './colors.js';
 import { gameState, iconGlyph } from './engine-core.js';
-import { Modifier, Nature, SYMBOL_TO_ROLE, ZONES } from '../world/world-zones.js';
+import {
+  Modifier,
+  Nature,
+  SYMBOL_TO_ROLE,
+  ZONES,
+  beginAction,
+  doUndo,
+  uMarks,
+} from '../world/world-zones.js';
 import { resolvePhrase } from '../world/spell-shapes.js';
 import { applyEffectsToWorld } from '../world/world-objects.js';
 import { collected } from '../world/map-loader.js';
-import { player } from './player.js';
+import { player, snapPos } from './player.js';
 import { canvas } from '../render/render-world.js';
 
 const RUNE_KEYS = ZONES.map(zone => zone.id); // '1'->swamp(m), '2'->cavern(j), '3'->orchard(v), '4'->marsh(b)
@@ -18,6 +26,9 @@ export const RUNE_ACCENT = {
   v: '#ff6fa8',
   b: '#c48aff',
 };
+// shared muted grayish-purple for inactive UI states — caption text and the
+// not-yet-collected rune tint are close enough (within a few RGB units) to be the
+// same color rather than two independently hand-picked near-duplicates
 const fontColor = '#8a7d9c';
 // plain-language name for a Nature/Shape/Modifier enum value, shown under a slot once
 // it's filled — every value is just its own key title-cased (HALF_CIRCLE -> Half-circle),
@@ -47,7 +58,7 @@ const DESC_BY_SLOT = [
 export let phraseRunes = []; // up to 3 zone ids (m/j/v/b), in the chosen order, repetition allowed
 // tap targets for the bar, recomputed every frame it's drawn — lets one pointerdown
 // handler double as "press a rune" / "cast" / "erase" on touch
-const comboHit = { runes: [], cast: null, erase: null };
+const comboHit = { runes: [], cast: null, erase: null, undo: null };
 export let lastCast = null; // { cellsTouched, until } — highlight of the last spell cast
 export const comboOverlay = document.getElementById('o');
 const comboCtx = comboOverlay.getContext('2d');
@@ -73,13 +84,22 @@ function cloudPill(ctx, x, y, w, h, r) {
   ctx.restore();
 }
 
-// drawComboOverlay's output only depends on the phrase, unlocked zones, and canvas
-// size, none of which change between frames on their own — so skip the redraw
-// entirely when none of those changed, instead of repainting 60x/sec while idle
+// drawComboOverlay's output only depends on the phrase, unlocked zones, canvas size,
+// and whether there's anything to undo, none of which change between frames on their
+// own — so skip the redraw entirely when none of those changed, instead of repainting
+// 60x/sec while idle
 let _comboSig = null;
 export function drawComboOverlay() {
   const sig =
-    canvas.width + 'x' + canvas.height + '|' + phraseRunes.join('') + '|' + collected.size;
+    canvas.width +
+    'x' +
+    canvas.height +
+    '|' +
+    phraseRunes.join('') +
+    '|' +
+    collected.size +
+    '|' +
+    uMarks.length;
   if (sig === _comboSig) return;
   _comboSig = sig;
 
@@ -117,6 +137,8 @@ export function drawComboOverlay() {
   const castX = dx + runeRadius;
   dx += runeRadius * 2 + itemGap;
   const eraseX = dx + runeRadius;
+  dx += runeRadius * 2 + itemGap;
+  const undoX = dx + runeRadius;
   dx += runeRadius * 2 + padX;
   const barW = dx;
 
@@ -136,7 +158,7 @@ export function drawComboOverlay() {
     const has = collected.has(zone.id);
     if (has) comboHit.runes.push({ x: cx, y: cy, r: runeRadius * 1.3, zoneId: zone.id });
     const count = phraseRunes.filter(rune => rune === zone.id).length;
-    const color = !has ? '#8a7fa0' : count > 0 ? COLORS.PINK_UI : RUNE_ACCENT[zone.id];
+    const color = !has ? fontColor : count > 0 ? COLORS.PINK_UI : RUNE_ACCENT[zone.id];
 
     comboCtx.save();
     comboCtx.globalAlpha = !has ? 0.14 : count > 0 ? 0.3 : 0.16;
@@ -164,19 +186,25 @@ export function drawComboOverlay() {
       has ? color : '#b0a5c0',
       RUNE_SHAPE[zone.id]
     );
-    if (has) {
-      comboCtx.save();
-      comboCtx.font = font;
-      comboCtx.fillStyle = fontColor;
-      comboCtx.textAlign = 'center';
-      comboCtx.fillText(String(i + 1), cx, capY);
-      comboCtx.restore();
-    }
+    if (has) drawCaption(String(i + 1), cx);
   });
 
+  function drawCaption(text, cx) {
+    comboCtx.save();
+    comboCtx.font = font;
+    comboCtx.fillStyle = fontColor;
+    comboCtx.textAlign = 'center';
+    comboCtx.fillText(text, cx, capY);
+    comboCtx.restore();
+  }
+  // square tap target centered on one of the action icons (cast/erase/undo), all the
+  // same size and vertical position — only the icon's own x differs per caller
+  function hitRect(x) {
+    return { x: x - runeRadius, y: cy - runeRadius, w: runeRadius * 2, h: runeRadius * 2 };
+  }
   function divider(x) {
     comboCtx.save();
-    comboCtx.strokeStyle = '#00000018';
+    comboCtx.strokeStyle = `${BLACK}18`;
     comboCtx.lineWidth = 1.4 * scale;
     comboCtx.beginPath();
     comboCtx.moveTo(x, padX);
@@ -208,12 +236,7 @@ export function drawComboOverlay() {
         RUNE_ACCENT[filled],
         RUNE_SHAPE[filled]
       );
-      comboCtx.save();
-      comboCtx.font = font;
-      comboCtx.fillStyle = fontColor;
-      comboCtx.textAlign = 'center';
-      comboCtx.fillText(DESC_BY_SLOT[i](filled, phraseRunes[0]), cx, capY);
-      comboCtx.restore();
+      drawCaption(DESC_BY_SLOT[i](filled, phraseRunes[0]), cx);
     }
   }
   divider(dividerX2);
@@ -233,12 +256,7 @@ export function drawComboOverlay() {
     comboCtx.lineTo(runeRadius * 0.6, -runeRadius * 0.45);
     comboCtx.stroke();
     comboCtx.restore();
-    comboHit.cast = {
-      x: castX - runeRadius,
-      y: cy - runeRadius,
-      w: runeRadius * 2,
-      h: runeRadius * 2,
-    };
+    comboHit.cast = hitRect(castX);
 
     comboCtx.save();
     comboCtx.font = `700 ${30 * scale}px ${FONT}`;
@@ -247,12 +265,39 @@ export function drawComboOverlay() {
     comboCtx.textBaseline = 'middle';
     comboCtx.fillText('←', eraseX, cy + 1);
     comboCtx.restore();
-    comboHit.erase = {
-      x: eraseX - runeRadius,
-      y: cy - runeRadius,
-      w: runeRadius * 2,
-      h: runeRadius * 2,
-    };
+    comboHit.erase = hitRect(eraseX);
+  }
+
+  // undo: independent of the current phrase, but only shown once there's something to
+  // undo — a rewind icon (270° arc + arrowhead), drawn as strokes/fills like the
+  // checkmark above rather than a font glyph
+  if (uMarks.length) {
+    const r = runeRadius * 0.46,
+      a0 = -Math.PI * 0.65,
+      a1 = a0 + Math.PI * 1.5,
+      hx = r * Math.cos(a0),
+      hy = r * Math.sin(a0),
+      tx = -Math.sin(a0),
+      ty = Math.cos(a0);
+    comboCtx.save();
+    comboCtx.translate(undoX, cy);
+    comboCtx.strokeStyle = '#7d6f92';
+    comboCtx.fillStyle = '#7d6f92';
+    comboCtx.lineWidth = 3 * scale;
+    comboCtx.lineCap = 'round';
+    comboCtx.beginPath();
+    comboCtx.arc(0, 0, r, a0, a1);
+    comboCtx.stroke();
+    comboCtx.beginPath();
+    comboCtx.moveTo(hx - tx * r * 0.55, hy - ty * r * 0.55);
+    comboCtx.lineTo(hx + ty * r * 0.4, hy - tx * r * 0.4);
+    comboCtx.lineTo(hx - ty * r * 0.4, hy + tx * r * 0.4);
+    comboCtx.closePath();
+    comboCtx.fill();
+    comboCtx.restore();
+    comboHit.undo = hitRect(undoX);
+  } else {
+    comboHit.undo = null;
   }
 }
 
@@ -266,12 +311,14 @@ function castPhrase() {
   if (!phraseRunes.length) return;
   const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
   if (result.ok) {
+    beginAction();
     applyEffectsToWorld(result.result, result.runeCount, result.shape, player.x, player.y);
     // Switch: the crate's own side of the trade already happened above (it now sits on
     // the caster's old tile) — snap the player onto the crate's old tile in turn, no
     // animated glide, since this is a teleport, not a walk
     const switchEntry = result.result.find(entry => entry.effect === 'switch');
     if (switchEntry) {
+      snapPos();
       player.x = player.dispX = switchEntry.cell.x;
       player.y = player.dispY = switchEntry.cell.y;
     }
@@ -295,6 +342,10 @@ comboOverlay.addEventListener('pointerdown', e => {
   }
   if (inRect(x, y, comboHit.cast)) {
     castPhrase();
+    return;
+  }
+  if (inRect(x, y, comboHit.undo)) {
+    doUndo();
     return;
   }
   if (inRect(x, y, comboHit.erase)) {

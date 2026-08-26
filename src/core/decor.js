@@ -1,6 +1,6 @@
 /* ============ Real decor per zone (carried over from the prototypes, TILE=42 scale) ============ */
 import { COLORS, VIOLET, WHITE } from './colors.js';
-import { BASE_TILE, fillCircle, fillEllipse, radialFade } from './engine-core.js';
+import { BASE_TILE, fillCircle, fillEllipse, glowFill } from './engine-core.js';
 
 // blurred elliptical shadow shared by several decors, factored out here
 function softShadow(ctx, x, y, rx, ry, alpha, color) {
@@ -15,7 +15,10 @@ function softShadow(ctx, x, y, rx, ry, alpha, color) {
 // toplevel mangling shrinks each call site to a single-char reference
 const GOLD = '#ffd166';
 const TEAL = '#66d9c2';
-const PETAL_PALETTE = ['#ff8fa8', GOLD, VIOLET, TEAL];
+// GEM_PALETTE's own pink (#ff8fa3) was a few RGB units off this one — close enough
+// to be the same color rather than two independently hand-picked near-duplicates
+const PINKISH = '#ff8fa8';
+const PETAL_PALETTE = [PINKISH, GOLD, VIOLET, TEAL];
 export function drawFlowerStalksBig(ctx, x, y) {
   softShadow(ctx, x, y + 3, 14, 5, 0.15, '#4a9a5f');
   for (let i = 0; i < 5; i++) {
@@ -76,7 +79,7 @@ export function drawMushroomClusterBig(ctx, x, y, seed) {
   }
 }
 
-const GEM_PALETTE = ['#ff8fa3', VIOLET, TEAL];
+const GEM_PALETTE = [PINKISH, VIOLET, TEAL];
 export function drawCrystalClusterBig(ctx, x, y) {
   const cy = y + 8;
   softShadow(ctx, x, cy + 4, 18, 6, 0.18, '#e0c8ff');
@@ -136,7 +139,6 @@ export function drawBloomTreeBig(ctx, x, y) {
   ctx.restore();
   ctx.save();
   ctx.globalAlpha = 0.5;
-  ctx.fillStyle = radialFade(ctx, x, by, 12, COLORS.PINK_WARM);
-  fillCircle(ctx, x, by, 12);
+  glowFill(ctx, x, by, 12, COLORS.PINK_WARM);
   ctx.restore();
 }

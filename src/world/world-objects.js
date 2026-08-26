@@ -11,6 +11,7 @@ import {
   isBlockingFor,
   key,
   objectsMap,
+  track,
   worldRunes,
 } from './world-zones.js';
 import {
@@ -26,13 +27,24 @@ import {
 // top-level setup has run.
 import { obstacleByTile, plateByTile } from './map-loader.js';
 
-// an uncovered plate goes back to being its tile's own occupant, walkable again
+// an uncovered plate goes back to being its tile's own occupant, walkable again.
+// Every caller invokes this right after worldRunes.moveObject() vacated this same
+// (x,y) — that call already snapshotted objectsMap's prior entry here (the object
+// that just left), so restoring it on undo is moveObject's job; nothing further to
+// track for the objectsMap.set below.
 function unweighPlateAt(x, y) {
   const plate = plateByTile.get(key(x, y));
   if (plate && plate.weighed) {
+    track(() => (plate.weighed = true));
     plate.weighed = false;
     objectsMap.set(key(x, y), plate);
   }
+}
+// a sliding crate's new resting tile: move it there, then let its old tile's plate
+// (if any) spring back up — shared by every branch of the push-slide loop below
+function settleSlide(slide, destX, destY) {
+  worldRunes.moveObject(slide.x, slide.y, destX, destY);
+  unweighPlateAt(slide.x, slide.y);
 }
 // max slide distance per shape; Contact has no entry here since it has no ray to
 // measure remaining range against — it always gets a flat budget of 1 instead, via
@@ -55,24 +67,27 @@ function inferRoomId(x, y, fallback) {
 export function applyEffectsToWorld(result, runeCount, shape, px, py) {
   checkLocks(result, runeCount);
   result.forEach(entry => {
-    if (entry.effect === 'crack') {
+    if (entry.effect === 'crack' || entry.effect === 'mend') {
       // still fully solid (see isBlockingFor/inBounds) — only a crate ramming into it
-      // (the push-slide loop below) actually shatters it into floor
+      // (the push-slide loop below) actually shatters it into floor. Already reversible
+      // in-game (cast Mend to un-crack), so not tracked for undo, same as crate freeze.
       const obstacle = obstacleByTile.get(key(entry.cell.x, entry.cell.y));
-      if (obstacle) obstacle.cracked = true;
-    } else if (entry.effect === 'mend') {
-      const obstacle = obstacleByTile.get(key(entry.cell.x, entry.cell.y));
-      if (obstacle) obstacle.cracked = false;
+      if (obstacle) obstacle.cracked = entry.effect === 'crack';
     } else if (entry.effect === 'freeze') {
       // every water tile's roomId is the same fixed placeholder (see WATER_CHAR in
-      // map-loader.js) — no need to read it back, just carry it forward
+      // map-loader.js) — no need to read it back, just carry it forward. One-way by
+      // design (no spell ever un-freezes a water tile back), so left out of the undo
+      // log on purpose, same as vine-cutting and wall-shattering below.
       grid.set(key(entry.cell.x, entry.cell.y), { type: 'ice', roomId: 'h' });
       bumpPuddleEpoch();
     } else if (entry.effect === 'switch') {
       // a pure position trade: the crate lands exactly on the caster's tile, and
       // ui-panel.js's castPhrase moves the player to the crate's old tile in turn
       const destPlate = plateByTile.get(key(px, py));
-      if (destPlate) destPlate.weighed = true;
+      if (destPlate) {
+        track(() => (destPlate.weighed = false));
+        destPlate.weighed = true;
+      }
       worldRunes.moveObject(entry.cell.x, entry.cell.y, px, py);
       unweighPlateAt(entry.cell.x, entry.cell.y);
     }
@@ -117,26 +132,25 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
       const destObj = worldRunes.objectAt(destX, destY);
       const destWall = obstacleByTile.get(key(destX, destY));
       if (destObj && destObj.type === 'sym_plate') {
+        track(() => (destObj.weighed = false));
         destObj.weighed = true;
-        worldRunes.moveObject(slide.x, slide.y, destX, destY);
-        unweighPlateAt(slide.x, slide.y);
+        settleSlide(slide, destX, destY);
         return false; // stops there, weighing the plate
       } else if (destWall && destWall.cracked) {
         // a cracked wall shatters into floor the instant a crate rams into it, and the
         // crate settles right there rather than sliding on through the gap it just opened
+        // — one-way by design (no spell rebuilds a wall), so not tracked for undo
         obstacleByTile.delete(key(destX, destY));
         grid.set(key(destX, destY), {
           type: 'floor',
           roomId: inferRoomId(destX, destY, destWall.roomId),
         });
-        worldRunes.moveObject(slide.x, slide.y, destX, destY);
-        unweighPlateAt(slide.x, slide.y);
+        settleSlide(slide, destX, destY);
         return false; // stops there, having shattered the wall
       } else if (!isBlockingFor(destX, destY) && worldRunes.inBounds(destX, destY)) {
         // a dead obstacle (cut vine, opened lock) still sits in objectsMap but no longer
         // blocks, so a crate can slide over it
-        worldRunes.moveObject(slide.x, slide.y, destX, destY);
-        unweighPlateAt(slide.x, slide.y);
+        settleSlide(slide, destX, destY);
         slide.x = destX;
         slide.y = destY;
         slide.budget--;
@@ -181,6 +195,7 @@ export function createVine() {
       return !this.destroyed && nature === Nature.CUT;
     },
     reactTo(nature) {
+      // one-way by design (no spell un-cuts a vine) — not tracked for undo
       if (!this.destroyed && nature === Nature.CUT) this.destroyed = true;
     },
   };
@@ -197,10 +212,10 @@ export function createCrate() {
       return nature === Nature.PUSH && !this.frozen;
     },
     reactTo(nature, dir, invert) {
-      if (nature === Nature.FREEZE) {
-        if (invert && this.frozen) this.frozen = false;
-        if (!invert && !this.frozen) this.frozen = true;
-      }
+      // frozen/thawed is already reversible in-game (cast Mirror+Freeze again to
+      // flip it back), so not tracked for undo — same budget trade-off as the
+      // one-way effects above
+      if (nature === Nature.FREEZE && this.frozen === invert) this.frozen = !invert;
       if (nature === Nature.PUSH && !this.frozen) {
         return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir, invert };
       }

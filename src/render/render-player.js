@@ -1,5 +1,5 @@
 /* ============ Player sprite: side view and front/back view, walk cycle ============ */
-import { COLORS, PONY_OUTLINE, UI_LIGHT, VIOLET } from '../core/colors.js';
+import { BLACK, COLORS, PONY_OUTLINE, UI_LIGHT, VIOLET } from '../core/colors.js';
 import { BASE_TILE, TILE, fillCircle, fillEllipse } from '../core/engine-core.js';
 import { player } from '../core/player.js';
 import { canvas, ctx } from './render-world.js';
@@ -73,6 +73,14 @@ function fillShape(fill, points) {
   ctx.fill();
   ctx.restore();
 }
+// a hoof shape drawn at an offset — front/back legs lift on y, side-view legs swing on
+// x — translating instead of offsetting every point in the shape itself
+function drawHoof(fill, dx, dy, points) {
+  ctx.save();
+  ctx.translate(dx, dy);
+  fillShape(fill, points);
+  ctx.restore();
+}
 // almost every call is one beginPath/tracePath/stroke, so a plain points array is
 // enough — except the eye (+ lash), which strokes 2 independent subpaths in the same
 // save/restore, so a callback is still accepted there
@@ -109,7 +117,7 @@ export function drawPlayer() {
 
   ctx.save();
   ctx.globalAlpha = 0.25;
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = BLACK;
   fillEllipse(ctx, 0, 15, 9, 3);
   ctx.restore();
 
@@ -152,27 +160,21 @@ function drawFrontBackLegs(lift0, lift1) {
   ]);
 }
 function drawFrontBackHooves(lift0, lift1) {
-  // --- Left Hoof --- (translate instead of offsetting every point — equivalent, simpler)
-  ctx.save();
-  ctx.translate(0, -lift0);
-  fillShape(COLORS.PINK_GLOW, [
+  // --- Left Hoof ---
+  drawHoof(COLORS.PINK_GLOW, 0, -lift0, [
     [-2.4, 12.1],
     [-2.5, 12.7, -2.7, 13.6],
     [-3.9, 13.8, -4.7, 13.6],
     [-4.9, 12.8, -4.9, 12.1],
   ]);
-  ctx.restore();
 
   // --- Right Hoof ---
-  ctx.save();
-  ctx.translate(0, -lift1);
-  fillShape(COLORS.PINK_GLOW, [
+  drawHoof(COLORS.PINK_GLOW, 0, -lift1, [
     [4.9, 11.9],
     [5, 12.5, 4.6, 13.4],
     [3.4, 13.6, 2.6, 13.4],
     [2.4, 12.6, 2.4, 11.9],
   ]);
-  ctx.restore();
 }
 function drawFrontBackBody() {
   fillStrokeGlow(UI_LIGHT, PONY_OUTLINE, [
@@ -291,27 +293,21 @@ function drawPonySide(moving, walkPhase) {
     [-9.2 + swing1 * 0.4, 9.5, -8.5 + swing1, 12.4],
   ]);
 
-  // --- Hoof (back) --- (translate instead of offsetting every point)
-  ctx.save();
-  ctx.translate(swing0, 0);
-  fillShape(SIDE_HOOF, [
+  // --- Hoof (back) ---
+  drawHoof(SIDE_HOOF, swing0, 0, [
     [2.3, 11.8],
     [3.7, 13.7, 2.7, 13.9],
     [1.6, 14.3, 0, 14.1],
     [-0.7, 13.2, -0.6, 12.1],
   ]);
-  ctx.restore();
 
   // --- Hoof (front) ---
-  ctx.save();
-  ctx.translate(swing1, 0);
-  fillShape(SIDE_HOOF, [
+  drawHoof(SIDE_HOOF, swing1, 0, [
     [-7.2, 11.8],
     [-5.8, 13.7, -6.8, 13.9],
     [-7.9, 14.3, -9.5, 14.1],
     [-10.2, 13.2, -10.1, 12.1],
   ]);
-  ctx.restore();
 
   // --- Tail ---
   fillShape(rainbowGradient(-10.5, -0.5, -17.1, 6.8), [
@@ -403,10 +399,6 @@ function drawPonySide(moving, walkPhase) {
 
   // --- Blush ---
   filledDot(COLORS.PINK, 4.8, -3.4, 0.9, 0.55);
-
-  // --- Ear front (inner) --- (a degenerate single-point path — fills nothing, kept
-  // faithful to the original hand-drawn sprite rather than "fixed")
-  fillShape(COLORS.PINK, [[-14.5, -5.5]]);
 }
 
 function drawPonyUp(moving, walkPhase) {

@@ -1,14 +1,13 @@
 /* ============ Per-frame scene draw: tiles, highlights, interactive objects, markers ============ */
-import { COLORS, UI_LIGHT, WHITE } from '../core/colors.js';
+import { BLACK, COLORS, UI_LIGHT, WHITE } from '../core/colors.js';
 import {
   BASE_TILE,
   TILE,
   VIEW_COLS,
   VIEW_ROWS,
-  fillCircle,
   fillEllipse,
+  glowFill,
   iconGlyph,
-  radialFade,
   starPath,
   strokeCircle,
 } from '../core/engine-core.js';
@@ -42,16 +41,23 @@ import {
   waveRevealed,
 } from './render-world.js';
 
+// tile-grid range visible around the camera, padded by 1 so edge tiles aren't clipped
+// mid-scroll — shared by drawWorldTiles and drawDecor below
+function viewBounds(camX, camY) {
+  const colsHalf = Math.ceil(VIEW_COLS / 2) + 1,
+    rowsHalf = Math.ceil(VIEW_ROWS / 2) + 1;
+  return [
+    Math.floor(camX - colsHalf),
+    Math.ceil(camX + colsHalf),
+    Math.floor(camY - rowsHalf),
+    Math.ceil(camY + rowsHalf),
+  ];
+}
 // draws only tiles in the viewport: a pre-rendered variant blit (gray/color state
 // already baked in, see bakeRoomVariants) for plain floor, or a per-tile draw for
 // anything that isn't ('ice' — see below — and wall borders, which depend on neighbors)
 export function drawWorldTiles(originPxX, originPxY, camX, camY) {
-  const colsHalf = Math.ceil(VIEW_COLS / 2) + 1,
-    rowsHalf = Math.ceil(VIEW_ROWS / 2) + 1;
-  const x0 = Math.floor(camX - colsHalf),
-    x1 = Math.ceil(camX + colsHalf);
-  const y0 = Math.floor(camY - rowsHalf),
-    y1 = Math.ceil(camY + rowsHalf);
+  const [x0, x1, y0, y1] = viewBounds(camX, camY);
 
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
@@ -68,7 +74,7 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
         // only draw edges facing a non-obstacle tile, else adjacent walls double-draw
         // their shared edge as a double line. [dx, dy, vertical, offset] per edge
         ctx.save();
-        ctx.strokeStyle = '#00000080';
+        ctx.strokeStyle = `${BLACK}80`;
         ctx.lineWidth = 2;
         ctx.beginPath();
         [
@@ -113,12 +119,7 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
 // since its bitmap (DECOR_BITMAP_SIZE) is wider than one tile and would otherwise get
 // clipped by a neighboring tile drawn later in the same tile loop
 export function drawDecor(originPxX, originPxY, camX, camY) {
-  const colsHalf = Math.ceil(VIEW_COLS / 2) + 1,
-    rowsHalf = Math.ceil(VIEW_ROWS / 2) + 1;
-  const x0 = Math.floor(camX - colsHalf),
-    x1 = Math.ceil(camX + colsHalf);
-  const y0 = Math.floor(camY - rowsHalf),
-    y1 = Math.ceil(camY + rowsHalf);
+  const [x0, x1, y0, y1] = viewBounds(camX, camY);
 
   // row-major top-to-bottom so decor in a lower row (closer to camera) draws over
   // decor spilling down from the row above it
@@ -258,21 +259,15 @@ export function drawPrimitivePedestals(originPxX, originPxY) {
     const px = originPxX + spot.x * TILE + TILE / 2,
       py = originPxY + spot.y * TILE + TILE / 2;
     if (offscreen(px, py)) return;
-    ctx.save();
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = '#000';
-    fillEllipse(ctx, px, py + TILE * 0.29, TILE * 0.33, TILE * 0.12);
-    ctx.restore();
     const glow = spot.collected ? RUNE_ACCENT[zone.id] : COLORS.PINK_SOFT;
     ctx.save();
-    ctx.fillStyle = radialFade(
+    glowFill(
       ctx,
       px,
       py,
       TILE * 1.1,
       spot.collected ? RUNE_ACCENT[zone.id] + '4d' : COLORS.PINK_SOFT + '4d'
     );
-    fillCircle(ctx, px, py, TILE * 1.1);
     ctx.restore();
     iconGlyph(
       ctx,
@@ -307,14 +302,6 @@ export function drawItems(originPxX, originPxY) {
     ctx.save();
     ctx.shadowColor = COLORS.PINK_WARM;
     ctx.shadowBlur = 8 + Math.sin(t) * 3;
-    // fading trail behind the star, selling the "shooting" motion
-    for (let i = 3; i >= 1; i--) {
-      ctx.save();
-      ctx.globalAlpha = 0.4 - i * 0.1;
-      ctx.fillStyle = '#fff6f0';
-      fillCircle(ctx, -i * 3.2, -i * 2.2, 2.6 - i * 0.5);
-      ctx.restore();
-    }
     // the star itself: a 4-point sparkle — same alternating-radius shape as starPath,
     // just traced starting from a different vertex around the same closed octagon,
     // so it's the identical fill either way
@@ -340,8 +327,7 @@ export function drawHubAltar(originPxX, originPxY) {
   ctx.save();
   ctx.globalAlpha = 0.25 + ratio * 0.35 + (hubActivated ? Math.sin(t) * 0.15 : 0);
   const ac = hubActivated ? '#fff' : COLORS.PINK_GLOW;
-  ctx.fillStyle = radialFade(ctx, apx, apy, TILE * 1.6, ac);
-  fillCircle(ctx, apx, apy, TILE * 1.6);
+  glowFill(ctx, apx, apy, TILE * 1.6, ac);
   ctx.restore();
   ctx.save();
   ctx.strokeStyle = ac;
@@ -355,8 +341,8 @@ export function drawHubAltar(originPxX, originPxY) {
     const starX = apx + Math.cos(angle) * TILE * 0.85,
       starY = apy + Math.sin(angle) * TILE * 0.85;
     ctx.save();
-    ctx.fillStyle = i < collectedItems.size ? COLORS.PINK_GLOW : '#ffffff26';
-    ctx.strokeStyle = i < collectedItems.size ? WHITE : '#ffffff40';
+    ctx.fillStyle = i < collectedItems.size ? COLORS.PINK_GLOW : `${WHITE}26`;
+    ctx.strokeStyle = i < collectedItems.size ? WHITE : `${WHITE}40`;
     ctx.lineWidth = 1;
     if (i < collectedItems.size) {
       ctx.shadowColor = COLORS.PINK_WARM;
@@ -376,13 +362,8 @@ export function drawDoors(originPxX, originPxY) {
       py = originPxY + door.y * TILE + TILE / 2;
     if (offscreen(px, py)) return;
     const done = collected.has(door.roomId);
-    const haloColor = done ? RUNE_ACCENT[door.roomId] + '52' : COLORS.PINK_GLOW + '38';
     const glyphColor = done ? WHITE : COLORS.PINK_WARM;
     const glowColor = done ? RUNE_ACCENT[door.roomId] : COLORS.PINK_WARM;
-    ctx.save();
-    ctx.fillStyle = radialFade(ctx, px, py, TILE * 1.2, haloColor);
-    fillCircle(ctx, px, py, TILE * 1.2);
-    ctx.restore();
     iconGlyph(ctx, px, py, TILE * 0.28, glyphColor, glowColor, RUNE_SHAPE[door.roomId]);
   });
 }

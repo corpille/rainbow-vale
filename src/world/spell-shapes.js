@@ -16,6 +16,7 @@ import {
   isWaterAt,
   key,
   reachableCell,
+  track,
   validatePhrase,
   worldRunes,
 } from './world-zones.js';
@@ -79,6 +80,12 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
   }
   return cells;
 }
+// shared by getCellsArc and getConeCells below: a wall between caster and cell blocks
+// it (unless Pierce) — Pierce alone still requires the cell be reachable at all
+function pushIfReachable(cells, from, x, y, d, nature, withPierce) {
+  if (!withPierce && isBlocked(from, { x, y }, nature)) return;
+  if (!withPierce || reachableCell(x, y, nature)) cells.push({ x, y, d });
+}
 function getCellsArc(px, py, dx, dy, maxRange, angleMaxDeg, nature, withPierce) {
   const cells = [];
   for (let oy = -maxRange; oy <= maxRange; oy++)
@@ -89,13 +96,7 @@ function getCellsArc(px, py, dx, dy, maxRange, angleMaxDeg, nature, withPierce) 
       const dot = (ox * dx + oy * dy) / dist;
       const angle = (Math.acos(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI;
       if (angle > angleMaxDeg + 1e-6) continue;
-      const x = px + ox,
-        y = py + oy;
-      // same line-of-sight rule as Cone: a wall between caster and cell blocks it
-      // (unless Pierce), so the radius+angle fill can't reach straight through corners
-      if (!withPierce && isBlocked({ x: px, y: py }, { x, y }, nature)) continue;
-      const reachable = reachableCell(x, y, nature);
-      if (!withPierce || reachable) cells.push({ x, y, d: dist });
+      pushIfReachable(cells, { x: px, y: py }, px + ox, py + oy, dist, nature, withPierce);
     }
   return cells;
 }
@@ -116,13 +117,15 @@ function getConeCells(playerPos, dir, withPierce, nature) {
 
   for (const { row, offsets } of CONE_PATTERN) {
     for (const offset of offsets) {
-      const target = {
-        x: playerPos.x + dir.x * row - dir.y * offset,
-        y: playerPos.y + dir.y * row + dir.x * offset,
-      };
-      if (!withPierce && isBlocked(playerPos, target, nature)) continue;
-      const reachable = reachableCell(target.x, target.y, nature);
-      if (!withPierce || reachable) cells.push({ ...target, d: row });
+      pushIfReachable(
+        cells,
+        playerPos,
+        playerPos.x + dir.x * row - dir.y * offset,
+        playerPos.y + dir.y * row + dir.x * offset,
+        row,
+        nature,
+        withPierce
+      );
     }
   }
   return cells;
@@ -332,6 +335,9 @@ export function resolvePhrase(runes, px, py, dirName) {
 export const verrouLinks = []; // { lock, check(result, runeCount) -> bool }
 export function checkLocks(result, runeCount) {
   verrouLinks.forEach(link => {
-    link.lock.open = link.check(result, runeCount);
+    const lock = link.lock,
+      wasOpen = lock.open;
+    track(() => (lock.open = wasOpen));
+    lock.open = link.check(result, runeCount);
   });
 }

@@ -1,5 +1,5 @@
 /* ============ Canvas setup, per-tile bitmap cache, interactive-object shapes ============ */
-import { COLORS, VIOLET, WHITE } from '../core/colors.js';
+import { BLACK, COLORS, VIOLET, WHITE } from '../core/colors.js';
 import {
   BASE_TILE,
   BLOB_SETS,
@@ -11,7 +11,7 @@ import {
   fillCircle,
   fillEllipse,
   gemPath,
-  radialFade,
+  glowFill,
   starPath,
   strokeCircle,
   textureFill,
@@ -112,7 +112,7 @@ export function renderPuddle(ctx, px, py) {
   grad.addColorStop(1, '#bfe0ff');
   ctx.fillStyle = grad;
   ctx.fillRect(px - BASE_TILE * 0.5, py - BASE_TILE * 0.5, BASE_TILE, BASE_TILE);
-  ctx.strokeStyle = '#ffffff80';
+  ctx.strokeStyle = `${WHITE}80`;
   ctx.lineWidth = 1.2;
   for (let i = 0; i < 3; i++) {
     const oy = py + (i - 1) * BASE_TILE * 0.25;
@@ -198,7 +198,7 @@ export function renderPonds(originPxX, originPxY) {
     ctx.restore();
 
     ctx.save();
-    ctx.strokeStyle = '#ffffff90';
+    ctx.strokeStyle = `${WHITE}90`;
     ctx.lineWidth = 1.3 * scale;
     group.ripples.forEach((ripple, i) => {
       const px = originPxX + ripple.x * TILE + half,
@@ -303,7 +303,7 @@ export function drawWallCrack(destX, destY) {
     cy = destY + TILE / 2,
     s = TILE * 0.28;
   ctx.save();
-  ctx.strokeStyle = '#00000090';
+  ctx.strokeStyle = `${BLACK}90`;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(cx - s, cy - s * 1.2);
@@ -320,8 +320,7 @@ function renderLockGate(px, py) {
   const t = performance.now();
   const pulse = Math.sin(t / 500);
   ctx.save();
-  ctx.fillStyle = radialFade(ctx, px, py, BASE_TILE * 0.5, COLORS.PURPLE + '55');
-  fillCircle(ctx, px, py, BASE_TILE * 0.5);
+  glowFill(ctx, px, py, BASE_TILE * 0.5, COLORS.PURPLE + '55');
   ctx.restore();
   // rune ring: a solid outer band plus a dashed inner one, like a seal of light
   ctx.save();
@@ -355,14 +354,14 @@ function renderLockGate(px, py) {
   );
   gemPath(ctx, px, py, BASE_TILE * 0.21);
   ctx.fill();
-  ctx.strokeStyle = '#ffffffaa';
+  ctx.strokeStyle = `${WHITE}aa`;
   ctx.lineWidth = 1.4;
   ctx.stroke();
   ctx.restore();
   // hairline cracks hinting at the shatter — scaled to the crystal's own radius
   // (BASE_TILE * 0.21 from gemPath above) so they stay inside the gem, not poking past it
   ctx.save();
-  ctx.strokeStyle = '#ffffff70';
+  ctx.strokeStyle = `${WHITE}70`;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(px - 2, py - 5);

@@ -1,5 +1,5 @@
 /* ============ Base engine (carried over from the prototypes) ============ */
-import { TRANSPARENT } from './colors.js';
+import { BLACK, TRANSPARENT, WHITE } from './colors.js';
 
 export const BASE_TILE = 42; // tuned against a REF_MIN_DIM-tall/wide viewport — see resizeCanvas
 // eslint-disable-next-line prefer-const -- reassigned in render-world.js's resizeCanvas()
@@ -76,15 +76,22 @@ export function radialFade(ctx, x, y, r, color) {
   gradient.addColorStop(1, TRANSPARENT);
   return gradient;
 }
+// the radialFade+fillCircle pair recurs (glowing halos: pedestals, hub altar, mirror
+// surfaces, sparkle motes) with only x/y/r/color changing — same spirit as the
+// fillEllipse/fillCircle/strokeCircle triplet above
+export function glowFill(ctx, x, y, r, color) {
+  ctx.fillStyle = radialFade(ctx, x, y, r, color);
+  fillCircle(ctx, x, y, r);
+}
 // much lighter than the original dark-palette version — the same alpha reads as a subtle
 // groove on near-black tiles, but a harsh stripe against bright pastels
 export function tileAO(ctx, x, y) {
   ctx.save();
   const gradient = ctx.createLinearGradient(x, y, x, y + TILE);
-  gradient.addColorStop(0, '#00000014');
+  gradient.addColorStop(0, `${BLACK}14`);
   gradient.addColorStop(0.15, TRANSPARENT);
   gradient.addColorStop(0.9, TRANSPARENT);
-  gradient.addColorStop(1, '#ffffff06');
+  gradient.addColorStop(1, `${WHITE}06`);
   ctx.fillStyle = gradient;
   ctx.fillRect(x, y, TILE, TILE);
   ctx.restore();

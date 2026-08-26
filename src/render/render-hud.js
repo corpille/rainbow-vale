@@ -52,7 +52,7 @@ function drawVignette() {
     canvas.height * 0.75
   );
   gradient.addColorStop(0, TRANSPARENT);
-  gradient.addColorStop(1, '#3a2f5540');
+  gradient.addColorStop(1, `${COLORS.NEAR_BLACK}40`);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
@@ -114,23 +114,24 @@ function drawMenuOverlay() {
   ctx.textAlign = 'center';
   ctx.lineCap = 'round';
 
-  // rainbow arch flourish echoing the vale's name — centered well above the title
-  // so its stroke width never dips into the text (used to overlap)
-  const archY = h * 0.34;
-  COLORS.RAINBOW.forEach((color, i) => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 5 * scale;
-    ctx.beginPath();
-    ctx.arc(w / 2, archY, (30 + i * 7) * scale, Math.PI, 0);
-    ctx.stroke();
-  });
-
-  const titleY = archY + 90 * scale;
-  glowTitle(w / 2, titleY, 'Rainbow Vale', 46 * scale, 16 * scale);
+  // vertical layout: title/icons/description/button each offset from the one above,
+  // so centering the whole block in the viewport just means solving for titleY that
+  // puts that whole span in the middle. titleFontPx*0.8 approximates how far the
+  // (baseline-anchored) title's ascenders reach above titleY itself.
+  const titleFontPx = 46 * scale,
+    titleTop = titleFontPx * 0.8,
+    toIcons = 50 * scale,
+    toLine = 60 * scale,
+    lineGap = 27 * scale,
+    toBtn = 1.4 * lineGap,
+    btnH = 46 * scale;
+  const contentH = titleTop + toIcons + toLine + toBtn + btnH;
+  const titleY = h / 2 - contentH / 2 + titleTop;
+  glowTitle(w / 2, titleY, 'Rainbow Vale', titleFontPx, 16 * scale);
 
   // the four runes to gather, same icon/color as the combo panel; row width clamped
   // to 80% of viewport so it never overflows on narrow phones
-  const iconY = titleY + 50 * scale,
+  const iconY = titleY + toIcons,
     spacing = Math.min(70 * scale, (w * 0.8) / (ZONES.length - 1)),
     totalW = spacing * (ZONES.length - 1);
   ZONES.forEach((zone, i) => {
@@ -150,8 +151,7 @@ function drawMenuOverlay() {
   // sentence — nothing else hints at it before this)
   ctx.fillStyle = UI_LIGHT;
   ctx.font = `${15 * scale}px ${FONT}`;
-  const lineY = iconY + 60 * scale,
-    lineGap = 27 * scale;
+  const lineY = iconY + toLine;
   const line =
     "Collect each zone's rune, restore the vale's colors and bring hidden treasures back to the altar.";
   ctx.fillText(line, w / 2, lineY);
@@ -159,9 +159,8 @@ function drawMenuOverlay() {
   // Play button — the outline (not an animated glow) reads as clickable, and is the
   // only way to advance (pointerdown handler below hit-tests against menuBtn, not any
   // key/tap)
-  const btnW = 150 * scale,
-    btnH = 46 * scale;
-  menuBtn = { x: w / 2 - btnW / 2, y: lineY + 1.4 * lineGap, w: btnW, h: btnH };
+  const btnW = 150 * scale;
+  menuBtn = { x: w / 2 - btnW / 2, y: lineY + toBtn, w: btnW, h: btnH };
   drawPillButton(menuBtn, 'Play', scale);
   ctx.restore();
 }
