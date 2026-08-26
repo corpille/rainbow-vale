@@ -35,10 +35,10 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
     // floor tile of its own, since it's positioned via MAP_DATA.objects independent
     // of gridStr's floor/rock/void code
     if (!worldRunes.inBounds(x, y) && !worldRunes.objectAt(x, y)) {
-      // Corrode cracks a wall in place (still fully solid until a crate shatters it),
-      // so the ray keeps going through it by default, chaining across a whole row of
-      // rock instead of stopping at the first one
-      if (nature === Nature.CORRODE && isRock(x, y)) {
+      // Crack marks a wall cracked in place (still fully solid until a crate shatters
+      // it), so the ray keeps going through it by default, chaining across a whole row
+      // of rock instead of stopping at the first one
+      if (nature === Nature.CRACK && isRock(x, y)) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
@@ -70,9 +70,10 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
       if (nature === Nature.FREEZE && isWaterAt(x, y)) continue;
       const reacts = obj && typeof obj.wouldReact === 'function' && obj.wouldReact(nature);
       // Push chains through whatever it just pushed, same as Cut through a vine it just
-      // destroyed — only Pierce is needed for obstacles that stay solid regardless (a crate)
+      // destroyed — Pierce alone goes through obstacles that stay solid regardless (a
+      // crate under Crack, say), with no reacts requirement
       const clearsPath = obj && obj.type === 'vine' && nature === Nature.CUT;
-      if ((withPierce || nature === Nature.PUSH || clearsPath) && reacts) continue;
+      if (withPierce || ((nature === Nature.PUSH || clearsPath) && reacts)) continue;
       break;
     }
   }
@@ -134,7 +135,7 @@ function isBlocked(from, to, nature) {
     const cell = line[i];
     if (
       !worldRunes.inBounds(cell.x, cell.y) &&
-      !(nature === Nature.CORRODE && isRock(cell.x, cell.y)) &&
+      !(nature === Nature.CRACK && isRock(cell.x, cell.y)) &&
       !isVoid(cell.x, cell.y)
     )
       return true; // a wall stands before (or at) the target
@@ -214,12 +215,12 @@ export function findSwitchTarget(cells) {
   return target;
 }
 // type of whatever's at a cell, for Spread's same-type chaining: object's own type,
-// 'rock' for a wall Corrode could crack, 'water' for a tile Freeze could freeze;
+// 'rock' for a wall Crack could crack, 'water' for a tile Freeze could freeze;
 // null means nothing to chain through
 function spreadTypeAt(x, y, nature) {
   const obj = worldRunes.objectAt(x, y);
   if (obj) return obj.type;
-  if (nature === Nature.CORRODE && isRock(x, y)) return 'rock';
+  if (nature === Nature.CRACK && isRock(x, y)) return 'rock';
   return nature === Nature.FREEZE && isWaterAt(x, y) ? 'water' : null;
 }
 // 'rock' and 'water' are tile types, not objects — nothing to call wouldReact on, and
@@ -297,16 +298,16 @@ export function resolvePhrase(runes, px, py, dirName) {
       : [];
   } else {
     // Mirror only means something for Push (→ Pull), Freeze (→ Thaw a crate), and now
-    // Corrode (→ mend a cracked wall back to solid); on Cut it's still a no-op, same as
+    // Crack (→ mend a cracked wall back to solid); on Cut it's still a no-op, same as
     // casting with no modifier at all
     const invert =
       modifier === Modifier.MIRROR &&
-      (nature === Nature.PUSH || nature === Nature.FREEZE || nature === Nature.CORRODE);
+      (nature === Nature.PUSH || nature === Nature.FREEZE || nature === Nature.CRACK);
     const resolveCell = cell => {
       const obj = worldRunes.objectAt(cell.x, cell.y);
       const dir = effectDirectionForCell(px, py, cell, shape, dirName);
       if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
-      if (nature === Nature.CORRODE && isRock(cell.x, cell.y))
+      if (nature === Nature.CRACK && isRock(cell.x, cell.y))
         return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
       // water is a grid tile type, not an object — Mirror never applies here (thaw only
       // ever works on a crate, per invert's definition above), so no `invert` check needed
@@ -331,6 +332,6 @@ export function resolvePhrase(runes, px, py, dirName) {
 export const verrouLinks = []; // { lock, check(result, runeCount) -> bool }
 export function checkLocks(result, runeCount) {
   verrouLinks.forEach(link => {
-    if (!link.lock.open && link.check(result, runeCount)) link.lock.open = true;
+    link.lock.open = link.check(result, runeCount);
   });
 }

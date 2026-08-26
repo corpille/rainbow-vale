@@ -295,7 +295,7 @@ function renderMirror(px, py, orientation) {
   ctx.restore();
 }
 
-// a corroded wall's crack: a jagged line hinting it'll shatter the next time a crate
+// a cracked wall's crack: a jagged line hinting it'll shatter the next time a crate
 // rams into it. Drawn directly in tile-pixel space rather than baked into the room's
 // variant bitmaps, since cracked is a per-tile toggle (obstacleByTile), not room-wide
 export function drawWallCrack(destX, destY) {

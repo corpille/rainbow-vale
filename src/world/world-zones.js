@@ -45,7 +45,7 @@ export const ZONES = ZONE_DEFS.map((zone, i) => ({
 export const roomById = { h: HUB };
 ZONES.forEach(zone => (roomById[zone.id] = zone));
 
-export const Nature = { CUT: 'CUT', FREEZE: 'FREEZE', PUSH: 'PUSH', CORRODE: 'CORRODE' };
+export const Nature = { CUT: 'CUT', FREEZE: 'FREEZE', PUSH: 'PUSH', CRACK: 'CRACK' };
 export const Shape = {
   LINE: 'LINE',
   HALF_CIRCLE: 'HALF_CIRCLE',
@@ -67,7 +67,7 @@ export const SYMBOL_TO_ROLE = {
   v: { slot1: Nature.CUT, slot2: Shape.CONE, slot3: Modifier.SPREAD },
   j: { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.MIRROR },
   m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.PIERCE },
-  b: { slot1: Nature.CORRODE, slot2: Shape.DIAGONAL, slot3: Modifier.SWITCH },
+  b: { slot1: Nature.CRACK, slot2: Shape.DIAGONAL, slot3: Modifier.SWITCH },
 };
 const ALL_SYMBOLS = ZONE_DEFS.map(zone => zone.id);
 export const RANGE_LINE = 5;
@@ -131,12 +131,12 @@ export const isRock = (x, y) => obstacleByTile.has(key(x, y));
 // a cell is a valid spell destination if it's real ground, if it holds a placed object
 // (mirror_surface/sym_plate are positioned via MAP_DATA.objects, independent of gridStr's
 // floor code underneath them, so a plain floor check would strand them), if it's true
-// void (nothing blocks a spell reaching past that gap), or — Corrode only — a rock wall
+// void (nothing blocks a spell reaching past that gap), or — Crack only — a rock wall
 export function reachableCell(x, y, nature) {
   return (
     worldRunes.inBounds(x, y) ||
     !!worldRunes.objectAt(x, y) ||
     isVoid(x, y) ||
-    (nature === Nature.CORRODE && isRock(x, y))
+    (nature === Nature.CRACK && isRock(x, y))
   );
 }

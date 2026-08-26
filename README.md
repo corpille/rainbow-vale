@@ -17,7 +17,7 @@ central hub, and everywhere you go is drained to gray until you bring it back.
 
 Spells are built by combining three runes in a row: a **Nature** (what it does), a
 **Shape** (where it hits), and a **Modifier** (how it behaves). Freeze water into a
-crossable bridge, push a crate onto a switch, crack a wall open with corrode, cut through
+crossable bridge, push a crate onto a switch, crack a wall open, cut through
 overgrown vines — then bend those same effects further: pull a crate back toward you
 instead of shoving it away, thaw one you froze earlier, mend a wall you'd cracked, switch
 places with the farthest crate in range, or spread an effect through everything it's

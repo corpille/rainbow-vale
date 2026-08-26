@@ -73,8 +73,8 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
       // ui-panel.js's castPhrase moves the player to the crate's old tile in turn
       const destPlate = plateByTile.get(key(px, py));
       if (destPlate) destPlate.weighed = true;
-      unweighPlateAt(entry.cell.x, entry.cell.y);
       worldRunes.moveObject(entry.cell.x, entry.cell.y, px, py);
+      unweighPlateAt(entry.cell.x, entry.cell.y);
     }
   });
   const maxSlide = RAY_RANGE_FOR_SHAPE[shape];
@@ -85,13 +85,23 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
     .filter(entry => entry.effect === 'push' && entry.obj && entry.obj.type === 'crate')
     .map(entry => {
       const [dx, dy] = entry.dir;
-      const traveled = dx ? (entry.cell.x - px) * dx : (entry.cell.y - py) * dy;
+      // entry.cell.d is the cumulative range already spent reaching this cell (set by
+      // every shape tracer in spell-shapes.js), which — unlike a straight-line
+      // displacement from px,py — stays correct across a mirror bounce, where the
+      // cell's x/y no longer move along the original cast direction.
+      // Pull (Mirror on Push, entry.invert) sends the crate back the way it came
+      // instead of onward, so "range left ahead on the ray" (maxSlide - d) doesn't
+      // apply: it's only ever bounded by the gap back to the caster, capped at d - 1
+      // tiles so it can't land on the caster's own tile (the destX/destY === px/py
+      // guard below stops it there regardless, this just avoids under/over-budgeting
+      // the approach)
+      const budget = !maxSlide ? 1 : entry.invert ? entry.cell.d - 1 : maxSlide - entry.cell.d;
       return {
         x: entry.cell.x,
         y: entry.cell.y,
         dx,
         dy,
-        budget: maxSlide ? maxSlide - traveled : 1,
+        budget,
       };
     });
   let progress = true;
@@ -112,8 +122,8 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
         unweighPlateAt(slide.x, slide.y);
         return false; // stops there, weighing the plate
       } else if (destWall && destWall.cracked) {
-        // a cracked wall shatters into floor the instant a crate rams into it, then
-        // the crate keeps sliding into the space it just opened up
+        // a cracked wall shatters into floor the instant a crate rams into it, and the
+        // crate settles right there rather than sliding on through the gap it just opened
         obstacleByTile.delete(key(destX, destY));
         grid.set(key(destX, destY), {
           type: 'floor',
@@ -121,11 +131,7 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
         });
         worldRunes.moveObject(slide.x, slide.y, destX, destY);
         unweighPlateAt(slide.x, slide.y);
-        slide.x = destX;
-        slide.y = destY;
-        slide.budget--;
-        progress = true;
-        return true;
+        return false; // stops there, having shattered the wall
       } else if (!isBlockingFor(destX, destY) && worldRunes.inBounds(destX, destY)) {
         // a dead obstacle (cut vine, opened lock) still sits in objectsMap but no longer
         // blocks, so a crate can slide over it
@@ -196,7 +202,7 @@ export function createCrate() {
         if (!invert && !this.frozen) this.frozen = true;
       }
       if (nature === Nature.PUSH && !this.frozen) {
-        return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir };
+        return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir, invert };
       }
     },
   };

@@ -23,12 +23,12 @@ const fontColor = '#8a7d9c';
 // it's filled — every value is just its own key title-cased (HALF_CIRCLE -> Half-circle),
 const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
 // Mirror is the only modifier whose effect depends on the nature it's paired with
-// (Pull for Push, Thaw for Freeze, Mend for Corrode) — Cut falls through to the plain
+// (Pull for Push, Thaw for Freeze, Mend for Crack) — Cut falls through to the plain
 // "Mirror" label below, since it's still a no-op there
 const DESC_MIRROR_INVERT = {
   [Nature.PUSH]: 'Pull',
   [Nature.FREEZE]: 'Thaw',
-  [Nature.CORRODE]: 'Mend',
+  [Nature.CRACK]: 'Mend',
 };
 // which slot a rune lands in picks which enum (nature/shape/modifier) it's describing,
 // not the rune itself — see SYMBOL_TO_ROLE in world-zones.js
