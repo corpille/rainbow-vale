@@ -1,7 +1,7 @@
 /* ============ Background music: a tiny looping melody, raw Web Audio, no library ============ */
-// Started on Play (browsers block audio before a user gesture — see render-hud.js's
-// pointerdown handler). Every 4th note also gets a major triad (root/major-third/fifth
-// ratios) held underneath for the full 4-note group instead of a short pluck.
+// Started on Play — browsers block audio before a user gesture (see render-hud.js's
+// pointerdown handler). Every 4th note also gets a major triad (root/third/fifth) held
+// under the group instead of a short pluck.
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const NOTES = [
   261.63, 329.63, 392.0, 523.25, 587.33, 523.25, 392.0, 329.63, 349.23, 440.0, 523.25, 659.25,

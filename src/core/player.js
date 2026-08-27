@@ -32,16 +32,16 @@ function flashScreen(color, dur) {
 export const collectedItems = new Set(); // "zoneId:x,y" of already-collected spots
 export const totalItems = items.length;
 export let hubActivated = false;
-// snapshots the player's current tile so undo can restore it later — shared by
-// doMove below and ui-panel.js's castPhrase (the Switch modifier's teleport)
+// snapshots the player's tile so undo can restore it later — used by doMove
+// below and by ui-panel.js's castPhrase (the Switch modifier's teleport)
 export function snapPos() {
   const px = player.x,
     py = player.y;
   track(() => ((player.x = px), (player.y = py)));
 }
 const keysDown = {};
-// keyed by e.code (physical key position) so WASD/ZQSD work from one map regardless
-// of keyboard layout — same trick as DIGIT_CODES in ui-panel.js
+// keyed by e.code (physical key position) so WASD/ZQSD work regardless of keyboard
+// layout, same trick as DIGIT_CODES in ui-panel.js
 const KEY_MAP = {
   ArrowUp: 0,
   ArrowDown: 1,
@@ -71,8 +71,8 @@ function startRepeat(dir) {
   }, 240);
 }
 
-// tracks key press order so visualFacing holds on the most recently pressed
-// direction instead of flickering when two perpendicular keys are held together
+// tracks key press order so visualFacing sticks to the most recent direction
+// instead of flickering when two perpendicular keys are held together
 let dirStack = [];
 
 function pressDir(dir) {
@@ -91,11 +91,6 @@ function releaseDir(dir) {
   if (dirStack.length) player.visualFacing = dirStack[dirStack.length - 1];
 }
 window.addEventListener('keydown', e => {
-  // DEBUG: unlocks all 4 runes — remove before submission
-  if (e.key === '0') {
-    ZONES.forEach(zone => collected.add(zone.id));
-    return;
-  }
   if (e.code === 'KeyB') {
     if (gameState === 'playing') doUndo();
     return;
@@ -125,9 +120,8 @@ function doMove(dir) {
   snapPos();
   player.x = targetX;
   player.y = targetY;
-  // item/rune pickups and hub activation are one-way progress, not puzzle state — left
-  // out of the undo log on purpose (undoing the step that grants one still leaves it
-  // collected; walking back onto an already-collected spot is a harmless no-op)
+  // item/rune pickups and hub activation are one-way progress, not puzzle state, so
+  // they're left out of the undo log (walking back onto a collected spot is a no-op)
   ZONES.forEach(zone => {
     const spot = primitiveSpots[zone.id];
     if (!spot.collected && targetX === spot.x && targetY === spot.y) {

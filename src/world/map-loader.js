@@ -1,8 +1,7 @@
 /* ================================================================================
-   STATIC MAP — frozen once and for all from a validated generation
-   (strict connectivity verified, zero phantom objects, everything reachable once solved).
-   No more procedural generation: changing the map is now done by editing MAP_DATA
-   or the objects below directly, not by tweaking an algorithm.
+   STATIC MAP — frozen from a validated generation (connectivity checked, no phantom
+   objects, everything reachable). No more procedural generation: edit MAP_DATA or the
+   objects below directly instead of tweaking an algorithm.
    ================================================================================ */
 import { grid, key, objectsMap } from './world-zones.js';
 import {
@@ -21,8 +20,8 @@ import {
 } from './world-objects.js';
 import { verrouLinks } from './spell-shapes.js';
 
-// MAP_DATA isn't a real import: build.js delta-encodes map-data.json's objects array and
-// splices the result in here at build time — it only exists post-build, never as a real export.
+// MAP_DATA isn't a real import: build.js delta-encodes map-data.json's objects array
+// and splices it in here at build time, so it only exists post-build.
 /*BUILD:MAP_DATA*/
 const ZORDER = ['m', 'j', 'v', 'b'];
 export const doors = [];
@@ -30,9 +29,9 @@ export const primitiveSpots = {};
 export const items = [];
 export const obstacles = [];
 export const obstacleByTile = new Map();
-// permanent registry of every sym_plate, independent of objectsMap: a crate pushed onto
-// a plate's tile becomes the tile's objectsMap occupant, but the plate must stay
-// findable underneath to unweigh it later
+// registry of every sym_plate, independent of objectsMap: a crate pushed onto a plate's
+// tile becomes the objectsMap occupant, but the plate needs to stay findable underneath
+// to unweigh it later
 export const plateByTile = new Map();
 export const decorInstances = [];
 export const collected = new Set(); // ids of zones whose rune has already been collected
@@ -40,11 +39,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
 (function loadStaticMap() {
   const [minX, minY, maxX, maxY] = MAP_DATA.bounds;
   // each floor tile's char is its room, optionally fused with the one positional object
-  // (vine/crate/lock — no extra data beyond its tile) that sits on it. mirror_surface/
-  // sym_plate carry extra data (orientation, pair id) so they still go through
-  // MAP_DATA.objects below. Water gets its own char (WATER_CHAR): it's a grid tile
-  // TYPE, not an object, and its room is never read since the opaque water/ice fill
-  // always covers the floor underneath.
+  // (vine/crate/lock, no extra data beyond its tile) that sits on it. mirror_surface and
+  // sym_plate carry extra data (orientation, pair id), so they go through MAP_DATA.objects
+  // below instead. Water gets its own char (WATER_CHAR) since it's a grid tile TYPE, not
+  // an object, and its room is never read — the opaque water/ice fill covers the floor.
   const FLOOR_CHARS = {
     h: ['h'],
     m: ['m'],
@@ -65,10 +63,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     u: ['b', createLock],
   };
   const WATER_CHAR = 'w';
-  // decor is cosmetic only: instead of a per-instance array, it's placed by a coordinate
-  // hash below — ~1% of each zone's unoccupied floor tiles get that zone's signature
-  // prop. Floor only, since a tree/flower anchored on a rock block would float in the
-  // air. Deterministic (same seed every load), so no gameplay/connectivity depends on it.
+  // decor is cosmetic only: placed by a coordinate hash below instead of a per-instance
+  // array, so ~1% of each zone's unoccupied floor tiles get that zone's signature prop.
+  // Floor only (a tree/flower on a rock block would float in the air), and deterministic
+  // so no gameplay depends on it.
   const ZONE_DECOR_FN = {
     m: drawFlowerStalksBig,
     j: drawCrystalClusterBig,
@@ -81,8 +79,8 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     for (let x = minX; x <= maxX; x++) {
       const gridChar = MAP_DATA.gridStr[idx++];
       if (gridChar === '.') continue;
-      // rocks ('1'-'4', one per zone) don't go into the grid — tracked as obstacles
-      // instead. Char is 1-based ('1' = ZORDER[0]); non-digit chars fall through to NaN.
+      // rocks ('1'-'4', one per zone) don't go into the grid, they're tracked as obstacles.
+      // Char is 1-based ('1' = ZORDER[0]); non-digit chars fall through to NaN.
       const zoneObs = ZORDER[gridChar - 1];
       let roomId, occupied;
       if (zoneObs) {
@@ -103,7 +101,7 @@ export const collected = new Set(); // ids of zones whose rune has already been 
       }
       const decorFn = ZONE_DECOR_FN[roomId];
       // large odd multipliers mix x/y into one int so the low bits (what % keys off)
-      // don't line up into a visible lattice at this density
+      // don't form a visible lattice at this density
       const hash = (x * 374761393 + y * 668265263) >>> 0;
       if (!zoneObs && !occupied && decorFn && hash % DECOR_DENSITY === 0) {
         decorInstances.push({ x, y, roomId, drawFn: decorFn, seed: hash });
@@ -124,14 +122,14 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   );
 
   // rebuilds interactive objects that carry extra data beyond position (mirror_surface's
-  // orientation, sym_plate's pair id) — vine/crate/lock/water are purely positional and
+  // orientation, sym_plate's pair id). vine/crate/lock/water are purely positional and
   // already decoded from gridStr above.
-  // same 4 orientation codes as MIRROR_REFLECT's own keys — reused via Object.keys
-  // instead of re-typed, so relies on that object's key insertion order
+  // same 4 orientation codes as MIRROR_REFLECT's own keys, reused via Object.keys instead
+  // of re-typed — relies on that object's key insertion order
   const MIRROR_ORIENTATIONS = Object.keys(MIRROR_REFLECT);
   const pairsById = {}; // pairId -> { pair } — shared marker every plate of that group points to
-  // MAP_DATA.objects stores x/y as deltas from the previous entry (build.js encodes
-  // them this way since placements cluster tightly); running sum recovers real position
+  // MAP_DATA.objects stores x/y as deltas from the previous entry (placements cluster
+  // tightly, so build.js encodes it this way); running sum recovers the real position
   let objPx = 0,
     objPy = 0;
   MAP_DATA.objects.forEach(entry => {
@@ -141,9 +139,9 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     const x = objPx,
       y = objPy;
     const tileKey = key(x, y);
-    if (typeCode === 9) {
-      // sym_plate: plates sharing a pairId point to the same marker, so a group
-      // can be any size — a pair, a triple, etc.
+    if (typeCode === 1) {
+      // sym_plate: plates sharing a pairId point to the same marker, so a group can be
+      // any size — a pair, a triple, etc.
       if (extra !== undefined && !pairsById[extra]) pairsById[extra] = { pair: {} };
       const plate = {
         type: 'sym_plate',
@@ -156,12 +154,12 @@ export const collected = new Set(); // ids of zones whose rune has already been 
       };
       objectsMap.set(tileKey, plate);
       plateByTile.set(tileKey, plate);
-    } else if (typeCode === 8) {
+    } else if (typeCode === 0) {
       // mirror_surface, extra = orientation code 0-3
       objectsMap.set(tileKey, createMirrorSurface(MIRROR_ORIENTATIONS[extra] || 'NE'));
-    } else if (typeCode === 10) {
-      // marks a crate already placed via gridStr (decoded above, so it exists by now)
-      // as starting the level frozen — not a new object, just a flag on the existing one
+    } else if (typeCode === 2) {
+      // marks a crate already placed via gridStr as starting the level frozen — just a
+      // flag on the existing object, not a new one
       const existingCrate = objectsMap.get(tileKey);
       if (existingCrate && existingCrate.type === 'crate') existingCrate.frozen = true;
     }
@@ -170,9 +168,8 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   // rebuilds the locks: tied to a pair of plates
   MAP_DATA.verrouLinks.forEach(([lockX, lockY, pairId]) => {
     const lockObj = objectsMap.get(key(lockX, lockY));
-    if (!lockObj) return;
     const pairEntry = pairsById[pairId];
-    if (!pairEntry) return;
+    if (!lockObj || !pairEntry) return;
     verrouLinks.push({
       lock: lockObj,
       check: result => isPairResolved(result, pairEntry.pair),

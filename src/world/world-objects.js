@@ -22,16 +22,13 @@ import {
   findSwitchTarget,
 } from './spell-shapes.js';
 // plateByTile/obstacleByTile come from map-loader.js, which imports createVine/
-// createCrate/etc. back from here — same harmless cycle as world-zones.js's own
-// obstacleByTile import: only touched from closures called after every file's
-// top-level setup has run.
+// createCrate/etc. back from here. Same harmless cycle as world-zones.js's own
+// obstacleByTile import — only touched from closures called after setup finishes.
 import { obstacleByTile, plateByTile } from './map-loader.js';
 
 // an uncovered plate goes back to being its tile's own occupant, walkable again.
-// Every caller invokes this right after worldRunes.moveObject() vacated this same
-// (x,y) — that call already snapshotted objectsMap's prior entry here (the object
-// that just left), so restoring it on undo is moveObject's job; nothing further to
-// track for the objectsMap.set below.
+// Every caller runs this right after moveObject() vacated this (x,y), and that call
+// already snapshotted the prior objectsMap entry, so undo is moveObject's job here.
 function unweighPlateAt(x, y) {
   const plate = plateByTile.get(key(x, y));
   if (plate && plate.weighed) {
@@ -46,9 +43,8 @@ function settleSlide(slide, destX, destY) {
   worldRunes.moveObject(slide.x, slide.y, destX, destY);
   unweighPlateAt(slide.x, slide.y);
 }
-// max slide distance per shape; Contact has no entry here since it has no ray to
-// measure remaining range against — it always gets a flat budget of 1 instead, via
-// the ternary's fallback below
+// max slide distance per shape. Contact has no ray to measure range against, so it's
+// missing here and just gets a flat budget of 1 via the ternary's fallback below.
 const RAY_RANGE_FOR_SHAPE = {
   LINE: RANGE_LINE,
   DIAGONAL: RANGE_DIAGONAL,
@@ -68,16 +64,14 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
   checkLocks(result, runeCount);
   result.forEach(entry => {
     if (entry.effect === 'crack' || entry.effect === 'mend') {
-      // still fully solid (see isBlockingFor/inBounds) — only a crate ramming into it
-      // (the push-slide loop below) actually shatters it into floor. Already reversible
-      // in-game (cast Mend to un-crack), so not tracked for undo, same as crate freeze.
+      // still fully solid — only a crate ramming into it (push-slide loop below) actually
+      // shatters it. Reversible in-game (Mend un-cracks it), so no undo tracking needed.
       const obstacle = obstacleByTile.get(key(entry.cell.x, entry.cell.y));
       if (obstacle) obstacle.cracked = entry.effect === 'crack';
     } else if (entry.effect === 'freeze') {
-      // every water tile's roomId is the same fixed placeholder (see WATER_CHAR in
-      // map-loader.js) — no need to read it back, just carry it forward. One-way by
-      // design (no spell ever un-freezes a water tile back), so left out of the undo
-      // log on purpose, same as vine-cutting and wall-shattering below.
+      // every water tile shares the same fixed roomId placeholder (see WATER_CHAR in
+      // map-loader.js), so no need to read it back. One-way effect, no spell un-freezes
+      // water, so it's left out of the undo log on purpose, same as below.
       grid.set(key(entry.cell.x, entry.cell.y), { type: 'ice', roomId: 'h' });
       bumpPuddleEpoch();
     } else if (entry.effect === 'switch') {
@@ -94,22 +88,15 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
   });
   const maxSlide = RAY_RANGE_FOR_SHAPE[shape];
   // several crates can line up in one push (e.g. a Line): resolve as a worklist,
-  // advancing tile by tile and retrying blocked ones each pass, so the whole train
-  // shifts together instead of each crate stopping after a single tile
+  // advancing tile by tile and retrying blocked ones, so the whole train moves together.
   let pending = result
     .filter(entry => entry.effect === 'push' && entry.obj && entry.obj.type === 'crate')
     .map(entry => {
       const [dx, dy] = entry.dir;
-      // entry.cell.d is the cumulative range already spent reaching this cell (set by
-      // every shape tracer in spell-shapes.js), which — unlike a straight-line
-      // displacement from px,py — stays correct across a mirror bounce, where the
-      // cell's x/y no longer move along the original cast direction.
-      // Pull (Mirror on Push, entry.invert) sends the crate back the way it came
-      // instead of onward, so "range left ahead on the ray" (maxSlide - d) doesn't
-      // apply: it's only ever bounded by the gap back to the caster, capped at d - 1
-      // tiles so it can't land on the caster's own tile (the destX/destY === px/py
-      // guard below stops it there regardless, this just avoids under/over-budgeting
-      // the approach)
+      // entry.cell.d is the range already spent reaching this cell — stays correct across
+      // a mirror bounce, unlike a straight-line distance from px,py.
+      // Pull sends the crate back toward the caster instead of onward, so its budget is
+      // the gap back to the caster (capped at d - 1 so it can't land on the caster's tile).
       const budget = !maxSlide ? 1 : entry.invert ? entry.cell.d - 1 : maxSlide - entry.cell.d;
       return {
         x: entry.cell.x,
@@ -137,9 +124,8 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
         settleSlide(slide, destX, destY);
         return false; // stops there, weighing the plate
       } else if (destWall && destWall.cracked) {
-        // a cracked wall shatters into floor the instant a crate rams into it, and the
-        // crate settles right there rather than sliding on through the gap it just opened
-        // — one-way by design (no spell rebuilds a wall), so not tracked for undo
+        // a cracked wall shatters into floor the instant a crate rams into it; the crate
+        // settles right there rather than sliding through the new gap. One-way, no undo.
         obstacleByTile.delete(key(destX, destY));
         grid.set(key(destX, destY), {
           type: 'floor',
@@ -172,8 +158,7 @@ export function computeSpellPreview(runes, px, py, dirName) {
   const { nature, shape, modifier, withPierce } = deriveSpell(runes);
   const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
   // Switch only ever acts on the one crate it targets — previewing the whole ray
-  // (which may keep cracking/freezing past it) reads as "all of this will happen",
-  // so show just the actual target instead
+  // would look like everything on it is about to happen, so show just the target.
   if (modifier === Modifier.SWITCH) {
     const target = findSwitchTarget(cells);
     return target ? [target] : [];
@@ -212,9 +197,8 @@ export function createCrate() {
       return nature === Nature.PUSH && !this.frozen;
     },
     reactTo(nature, dir, invert) {
-      // frozen/thawed is already reversible in-game (cast Mirror+Freeze again to
-      // flip it back), so not tracked for undo — same budget trade-off as the
-      // one-way effects above
+      // frozen/thawed is reversible in-game (Mirror+Freeze again flips it back),
+      // so not tracked for undo, same as the one-way effects above.
       if (nature === Nature.FREEZE && this.frozen === invert) this.frozen = !invert;
       if (nature === Nature.PUSH && !this.frozen) {
         return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir, invert };
@@ -223,9 +207,9 @@ export function createCrate() {
   };
 }
 /* ---- secondary objects: give the modifiers a concrete use ---- */
-// a mirror surface is an obstacle that reacts to nothing, but each orientation acts as
-// a 90° corner reflector connecting 2 of the 4 cardinal directions: a ray entering one
-// open face exits the other with its remaining range; a closed face just blocks
+// a mirror surface reacts to nothing, but each orientation acts as a 90° corner
+// reflector connecting 2 of the 4 cardinal directions: a ray entering one open face
+// exits the other with its remaining range; a closed face just blocks.
 // direction codes: 0=up, 1=down, 2=left, 3=right (see DIRS4 in world-zones.js)
 export const MIRROR_REFLECT = {
   NE: { 1: 3, 2: 0 },

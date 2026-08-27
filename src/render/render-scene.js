@@ -41,8 +41,8 @@ import {
   waveRevealed,
 } from './render-world.js';
 
-// tile-grid range visible around the camera, padded by 1 so edge tiles aren't clipped
-// mid-scroll — shared by drawWorldTiles and drawDecor below
+// visible tile-grid range around the camera, padded by 1 so edge tiles don't clip
+// mid-scroll. Shared by drawWorldTiles and drawDecor below.
 function viewBounds(camX, camY) {
   const colsHalf = Math.ceil(VIEW_COLS / 2) + 1,
     rowsHalf = Math.ceil(VIEW_ROWS / 2) + 1;
@@ -53,9 +53,9 @@ function viewBounds(camX, camY) {
     Math.ceil(camY + rowsHalf),
   ];
 }
-// draws only tiles in the viewport: a pre-rendered variant blit (gray/color state
-// already baked in, see bakeRoomVariants) for plain floor, or a per-tile draw for
-// anything that isn't ('ice' — see below — and wall borders, which depend on neighbors)
+// draws only viewport tiles: a pre-rendered variant blit (baked in bakeRoomVariants)
+// for plain floor, or a per-tile draw for anything else (ice, and wall borders since
+// those depend on neighbors)
 export function drawWorldTiles(originPxX, originPxY, camX, camY) {
   const [x0, x1, y0, y1] = viewBounds(camX, camY);
 
@@ -72,7 +72,7 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
         ctx.drawImage(variantSetFor(obstacle.roomId, x, y).wall[variant], destX, destY, TILE, TILE);
         if (obstacle.cracked) drawWallCrack(destX, destY);
         // only draw edges facing a non-obstacle tile, else adjacent walls double-draw
-        // their shared edge as a double line. [dx, dy, vertical, offset] per edge
+        // the shared edge. [dx, dy, vertical, offset] per edge
         ctx.save();
         ctx.strokeStyle = `${BLACK}80`;
         ctx.lineWidth = 2;
@@ -97,9 +97,8 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
         continue;
       }
 
-      // water/ice both paint fully opaque (ice right here, water later via renderPonds —
-      // see draw() in render-hud.js), so the floor underneath never shows. Skip drawing
-      // it for those two instead of drawing it just to cover it back up.
+      // water/ice both paint fully opaque (ice here, water later via renderPonds in
+      // render-hud.js), so the floor underneath never shows — skip drawing it for those two.
       if (cell.type === 'floor') {
         ctx.drawImage(variantSetFor(cell.roomId, x, y).floor[variant], destX, destY, TILE, TILE);
       } else if (cell.type === 'ice') {
@@ -115,9 +114,9 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
   }
 }
 
-// decor (trees, mushrooms, ...) gets its own pass, called well after drawWorldTiles,
-// since its bitmap (DECOR_BITMAP_SIZE) is wider than one tile and would otherwise get
-// clipped by a neighboring tile drawn later in the same tile loop
+// decor (trees, mushrooms, ...) gets its own pass after drawWorldTiles, since its
+// bitmap (DECOR_BITMAP_SIZE) is wider than one tile and would get clipped by a
+// neighboring tile drawn later in the same loop otherwise
 export function drawDecor(originPxX, originPxY, camX, camY) {
   const [x0, x1, y0, y1] = viewBounds(camX, camY);
 
@@ -129,10 +128,10 @@ export function drawDecor(originPxX, originPxY, camX, camY) {
       if (!decor) continue;
       const destX = Math.round(originPxX + x * TILE),
         destY = Math.round(originPxY + y * TILE);
-      // pre-baked bitmap (bakeDecorBitmap), anchored near its bottom (DECOR_ANCHOR_Y
-      // from its own top) since drawFns grow upward from a ground point. Explicit
-      // destination width/height (not the bitmap's own dims) stays correct if a resize
-      // lands mid-wave and decor.oldBitmap is still sized for the previous TILE.
+      // pre-baked bitmap (bakeDecorBitmap), anchored near its bottom (DECOR_ANCHOR_Y from
+      // its own top) since drawFns grow upward from a ground point. Explicit destination
+      // width/height keeps this correct if a resize lands mid-wave and decor.oldBitmap is
+      // still sized for the previous TILE.
       const scale = TILE / BASE_TILE;
       const w = DECOR_BITMAP_SIZE * scale;
       const h = DECOR_BITMAP_HEIGHT * scale;
@@ -158,9 +157,8 @@ export function drawCastHighlight(originPxX, originPxY) {
   } else if (lastCast) lastCast = null;
 }
 
-// range preview during composition: shape depends only on phrase + player position/facing,
-// none of which change between frames while the combo panel is open — cache it instead
-// of recomputing cells and rebuilding the lookup Set 60x/sec while idle-composing
+// range preview shape only depends on phrase + player position/facing, which don't change
+// while the combo panel is open — cache it instead of recomputing 60x/sec while idle-composing
 let _spellPreviewCache = { key: null, cells: [], cellSet: null };
 function getSpellPreviewCells() {
   const cacheKey = phraseRunes.join('') + '|' + player.x + ',' + player.y + '|' + player.facing;
@@ -218,8 +216,8 @@ export function drawSpellPreview(originPxX, originPxY) {
   ctx.restore();
 }
 
-// symmetric plates: always drawn at their fixed spot, whether or not a crate currently
-// covers them — a weighed plate glows green
+// symmetric plates: always drawn at their fixed spot whether or not a crate covers
+// them — a weighed plate glows green
 export function drawPlates(originPxX, originPxY) {
   plateByTile.forEach((plate, tileKey) => {
     const [tileX, tileY] = unkey(tileKey);
@@ -302,9 +300,8 @@ export function drawItems(originPxX, originPxY) {
     ctx.save();
     ctx.shadowColor = COLORS.PINK_WARM;
     ctx.shadowBlur = 8 + Math.sin(t) * 3;
-    // the star itself: a 4-point sparkle — same alternating-radius shape as starPath,
-    // just traced starting from a different vertex around the same closed octagon,
-    // so it's the identical fill either way
+    // the star itself: a 4-point sparkle, same alternating-radius shape as starPath just
+    // traced from a different vertex — identical fill either way
     ctx.fillStyle = COLORS.STAR_CREAM;
     ctx.strokeStyle = COLORS.PINK_DARK;
     ctx.lineWidth = 1.2;

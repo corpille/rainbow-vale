@@ -19,9 +19,8 @@ export const COLORS = {
 
 export const FONT = 'Helvetica, Arial, sans-serif';
 // bright off-white for icon/text on dark or colored backgrounds (pony sprite, HUD
-// buttons/overlays, collected-pedestal glyph) — a plain top-level const, not a
-// COLORS property, so Terser's toplevel mangling can shrink its many call sites
-// to a single character
+// buttons/overlays, collected-pedestal glyph). Kept as a plain top-level const so
+// Terser's toplevel mangling can shrink its many call sites to a single character.
 export const UI_LIGHT = '#fffdfa';
 export const TRANSPARENT = '#00000000'; // fade-to-nothing gradient stop, reused by several glows
 export const PONY_OUTLINE = '#e0a8c8'; // pony body/head highlight stroke, shared by both sprite views

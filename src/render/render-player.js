@@ -1,44 +1,45 @@
 /* ============ Player sprite: side view and front/back view, walk cycle ============ */
 import { BLACK, COLORS, PONY_OUTLINE, UI_LIGHT, VIOLET } from '../core/colors.js';
-import { BASE_TILE, TILE, fillCircle, fillEllipse } from '../core/engine-core.js';
+import { BASE_TILE, TILE, fillCircle, fillEllipse, linGrad } from '../core/engine-core.js';
 import { player } from '../core/player.js';
 import { canvas, ctx } from './render-world.js';
 
-// mane/tail gradients all use the same 6-color rainbow at the same relative stops —
-// only the gradient LINE (start/end point) differs per shape — so they share one
-// offset scheme instead of each call re-declaring its own addColorStop list
+// mane/tail gradients all use the same 6-color rainbow at the same stops — only the
+// gradient line differs per shape — so they share one offset scheme instead of each
+// call re-declaring its own addColorStop list
 const RAINBOW_STOPS = [0, 0.3, 0.5, 0.7, 0.8, 1];
 // repeated 4x/3x/2x below (ears, eye outlines, side-view hooves, nose dots) — local
-// consts so Terser's toplevel mangling shrinks each call site to a single-char
-// reference instead of the literal
+// consts so Terser can mangle each call site to a single-char reference instead of
+// the literal
 const EAR_LILAC = '#d9c8f5';
 const EYE_INK = '#3a3050';
 const SIDE_HOOF = '#f7c5ee';
 const NOSE_GRAY = '#b0b0b0';
-function rainbowGradient(x0, y0, x1, y1) {
-  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
-  COLORS.RAINBOW.forEach((color, i) => gradient.addColorStop(RAINBOW_STOPS[i], color));
-  return gradient;
-}
+const rainbowGradient = (x0, y0, x1, y1) =>
+  linGrad(
+    ctx,
+    x0,
+    y0,
+    x1,
+    y1,
+    COLORS.RAINBOW.map((color, i) => [RAINBOW_STOPS[i], color])
+  );
 // the horn's gold-to-orange gradient is identical in all 3 views, just aimed along a
 // different line each time
-function hornGradient(x0, y0, x1, y1) {
-  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
-  gradient.addColorStop(0, '#ffd980');
-  gradient.addColorStop(1, '#ff9d5c');
-  return gradient;
-}
+const hornGradient = (x0, y0, x1, y1) =>
+  linGrad(ctx, x0, y0, x1, y1, [
+    [0, '#ffd980'],
+    [1, '#ff9d5c'],
+  ]);
 // walk-cycle offset formulas: down/up legs/hooves lift straight up, the side view's
 // legs/hooves swing fore/aft instead
-function legLift(moving, walkPhase, legIndex) {
-  return moving ? ((1 - Math.cos(walkPhase + legIndex * Math.PI)) / 2) * 2.5 : 0;
-}
-function legSwing(moving, walkPhase, legIndex) {
-  return moving ? Math.sin(walkPhase + legIndex * Math.PI) * 2.6 : 0;
-}
-// a point is [x, y] (moveTo the first entry, lineTo any later one) or [cx, cy, x, y]
-// (quadraticCurveTo) — this replaces the moveTo/lineTo/quadraticCurveTo chain every
-// shape below would otherwise repeat call-by-call
+const legLift = (moving, walkPhase, legIndex) =>
+  moving ? ((1 - Math.cos(walkPhase + legIndex * Math.PI)) / 2) * 2.5 : 0;
+const legSwing = (moving, walkPhase, legIndex) =>
+  moving ? Math.sin(walkPhase + legIndex * Math.PI) * 2.6 : 0;
+// a point is [x, y] (moveTo the first entry, lineTo the rest) or [cx, cy, x, y]
+// (quadraticCurveTo) — replaces the moveTo/lineTo/quadraticCurveTo chain each shape
+// below would otherwise repeat
 function tracePath(points) {
   ctx.moveTo(points[0][0], points[0][1]);
   for (let i = 1; i < points.length; i++) {
@@ -74,16 +75,16 @@ function fillShape(fill, points) {
   ctx.restore();
 }
 // a hoof shape drawn at an offset — front/back legs lift on y, side-view legs swing on
-// x — translating instead of offsetting every point in the shape itself
+// x. Translates instead of offsetting every point in the shape itself
 function drawHoof(fill, dx, dy, points) {
   ctx.save();
   ctx.translate(dx, dy);
   fillShape(fill, points);
   ctx.restore();
 }
-// almost every call is one beginPath/tracePath/stroke, so a plain points array is
-// enough — except the eye (+ lash), which strokes 2 independent subpaths in the same
-// save/restore, so a callback is still accepted there
+// almost every call is just beginPath/tracePath/stroke, so a plain points array is
+// enough — except the eye (+ lash), which strokes 2 subpaths in the same save/restore,
+// so a callback is accepted too
 function strokeShape(color, width, pointsOrFn) {
   ctx.save();
   ctx.strokeStyle = color;
@@ -141,11 +142,9 @@ export function drawPlayer() {
   ctx.restore(); // matches the outer translate/scale
 }
 
-// the down (facing camera) and up (facing away) views share the exact same legs,
-// hooves, head, and body — seen from directly in front or behind, the pony's
-// silhouette there doesn't change — so they're factored out once instead of
-// duplicated in both draw functions below. Mane/tail/horn/face differ between
-// the two and stay inline in each.
+// down (facing camera) and up (facing away) share the same legs, hooves, head, and
+// body — the pony's silhouette doesn't change between front and behind — so they're
+// factored out here. Mane/tail/horn/face differ and stay inline in each.
 function drawFrontBackLegs(lift0, lift1) {
   // --- Leg (left) ---
   strokeShape(UI_LIGHT, 2.5, [
@@ -256,16 +255,19 @@ function drawPonyDown(moving, walkPhase) {
   filledDot(NOSE_GRAY, 0.3, -2.2, 0.3);
 
   // --- Side Mane ---
-  const sideManeGrad = ctx.createLinearGradient(-6.3, -6.5, -4.7, -0.3);
-  sideManeGrad.addColorStop(0, '#66c7e8');
-  sideManeGrad.addColorStop(1, VIOLET);
-  fillShape(sideManeGrad, [
-    [-5.5, -4.3],
-    [-6.3, -4, -5.6, -1.3],
-    [-5.3, 0, -6.3, 0.9],
-    [-3.7, 1.2, -3.2, -1.1],
-    [-5, -3, -5.2, -3.6],
-  ]);
+  fillShape(
+    linGrad(ctx, -6.3, -6.5, -4.7, -0.3, [
+      [0, '#66c7e8'],
+      [1, VIOLET],
+    ]),
+    [
+      [-5.5, -4.3],
+      [-6.3, -4, -5.6, -1.3],
+      [-5.3, 0, -6.3, 0.9],
+      [-3.7, 1.2, -3.2, -1.1],
+      [-5, -3, -5.2, -3.6],
+    ]
+  );
 
   drawFrontBackHooves(lift0, lift1);
 

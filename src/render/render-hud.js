@@ -1,6 +1,6 @@
 /* ============ Screen effects, start menu, main draw() loop, page-level DOM wiring ============ */
 import { COLORS, FONT, TRANSPARENT, UI_LIGHT } from '../core/colors.js';
-import { BASE_TILE, TILE, gameState, iconGlyph, starPath } from '../core/engine-core.js';
+import { BASE_TILE, TILE, gameState, iconGlyph, linGrad, starPath } from '../core/engine-core.js';
 import { ZONES, isBlockingFor, worldRunes } from '../world/world-zones.js';
 import { hubActivated, player, screenFlash } from '../core/player.js';
 import { startMusic } from '../core/music.js';
@@ -58,18 +58,17 @@ function drawVignette() {
   ctx.restore();
 }
 
-// shared full-bleed background for every non-gameplay screen (menu/ending) — the
-// world is never drawn underneath any of them (see draw()'s early return below): this
-// gradient is opaque, so it would just hide the world anyway, making that rendering
-// pure waste. Only the bottom color stop varies per screen.
+// shared full-bleed background for every non-gameplay screen (menu/ending) — the world
+// is never drawn underneath them anyway (see draw()'s early return below). Only the
+// bottom color stop varies per screen.
 function drawDuskBg(bottomColor) {
   const w = canvas.width,
     h = canvas.height;
-  const gradient = ctx.createLinearGradient(0, 0, 0, h);
-  gradient.addColorStop(0, COLORS.NEAR_BLACK);
-  gradient.addColorStop(0.6, '#5a4a8a');
-  gradient.addColorStop(1, bottomColor);
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = linGrad(ctx, 0, 0, 0, h, [
+    [0, COLORS.NEAR_BLACK],
+    [0.6, '#5a4a8a'],
+    [1, bottomColor],
+  ]);
   ctx.fillRect(0, 0, w, h);
 }
 
@@ -107,17 +106,15 @@ function drawMenuOverlay() {
 
   drawDuskBg(COLORS.PURPLE);
 
-  // one save/restore for the rest of the frame instead of per-section — each block
-  // still sets every property it cares about, so nothing leaks except shadowBlur,
-  // which is explicitly zeroed where unwanted
+  // one save/restore for the whole frame instead of per-section — each block sets
+  // what it needs, only shadowBlur is explicitly zeroed where unwanted
   ctx.save();
   ctx.textAlign = 'center';
   ctx.lineCap = 'round';
 
-  // vertical layout: title/icons/description/button each offset from the one above,
-  // so centering the whole block in the viewport just means solving for titleY that
-  // puts that whole span in the middle. titleFontPx*0.8 approximates how far the
-  // (baseline-anchored) title's ascenders reach above titleY itself.
+  // vertical layout: title/icons/description/button each offset from the one above, so
+  // centering the block just means solving for titleY. titleFontPx*0.8 approximates how
+  // far the title's ascenders reach above its (baseline-anchored) titleY.
   const titleFontPx = 46 * scale,
     titleTop = titleFontPx * 0.8,
     toIcons = 50 * scale,
@@ -146,28 +143,24 @@ function drawMenuOverlay() {
     );
   });
 
-  // what's going on, and the 3-step goal loop, so a first-time player isn't dropped in
-  // with zero context (the phrase-then-cast combo mechanic especially needs a
-  // sentence — nothing else hints at it before this)
+  // spells out what's going on and the 3-step goal loop so a first-time player isn't
+  // lost — the phrase-then-cast combo mechanic especially needs a sentence somewhere
   ctx.fillStyle = UI_LIGHT;
   ctx.font = `${15 * scale}px ${FONT}`;
   const lineY = iconY + toLine;
-  const line =
-    "Collect each zone's rune, restore the vale's colors and bring hidden treasures back to the altar.";
+  const line = "Collect each zone's rune, restore the vale, and return its treasures to the altar.";
   ctx.fillText(line, w / 2, lineY);
 
-  // Play button — the outline (not an animated glow) reads as clickable, and is the
-  // only way to advance (pointerdown handler below hit-tests against menuBtn, not any
-  // key/tap)
+  // Play button — the outline (not a glow) reads as clickable, and it's the only way
+  // to advance (pointerdown handler below hit-tests against menuBtn, not any key/tap)
   const btnW = 150 * scale;
   menuBtn = { x: w / 2 - btnW / 2, y: lineY + toBtn, w: btnW, h: btnH };
   drawPillButton(menuBtn, 'Play', scale);
   ctx.restore();
 }
 
-// celebration screen once every item's home and the hub lights up. Rainbow stars orbit
-// and twinkle around the title using the same starPath/RAINBOW building blocks used
-// everywhere else.
+// celebration screen once every item's home and the hub lights up — rainbow stars
+// orbit and twinkle around the title using the same starPath/RAINBOW building blocks.
 function drawEndingOverlay() {
   const w = canvas.width,
     h = canvas.height,
@@ -223,12 +216,10 @@ function draw() {
     prevDispY = player.dispY;
   player.dispX += (player.x - player.dispX) * follow;
   player.dispY += (player.y - player.dispY) * follow;
-  // two quick perpendicular steps (diagonal movement) can land close enough together
-  // that the camera glides straight through the corner tile neither step entered. If
-  // that corner is a wall, freeze the blocked axis for a few frames instead — a fixed
-  // frame count rather than "wait until settled", since a held diagonal keeps advancing
-  // the other axis's target and would never count as settled.
-  // _hold's sign picks the axis (+ = x, - = y), its magnitude the frames left
+  // two quick perpendicular steps (diagonal movement) can land close enough that the
+  // camera glides through the corner tile neither step entered. If that corner's a wall,
+  // freeze the blocked axis for a few frames instead of waiting for things to settle.
+  // _hold's sign picks the axis (+ = x, - = y), its magnitude is the frames left.
   const blocked = (x, y) => !worldRunes.inBounds(x, y) || isBlockingFor(x, y);
   if (draw._hold > 0) {
     player.dispX = prevDispX;
@@ -263,9 +254,8 @@ function draw() {
   const originPxY = Math.round(canvas.height / 2 - camY * TILE - TILE / 2);
 
   drawWorldTiles(originPxX, originPxY, camX, camY);
-  // ground layer, same as the ice inside drawWorldTiles — has to land before any
-  // highlight/preview/object draw now that it's opaque, not translucent enough to
-  // show through
+  // ground layer, same as the ice inside drawWorldTiles — has to draw before any
+  // highlight/preview/object now that it's opaque, not translucent enough to show through
   renderPonds(originPxX, originPxY);
   drawCastHighlight(originPxX, originPxY);
   drawSpellPreview(originPxX, originPxY);
@@ -294,9 +284,9 @@ generateTileVariants();
 window.addEventListener('pointerdown', e => {
   const x = e.clientX,
     y = e.clientY;
-  // declared `let` in engine-core.js so this handler can flip it — imports are
-  // technically read-only, but build.js strips import/export before concatenating,
-  // so at runtime it's just a plain global assignment.
+  // declared `let` in engine-core.js so this handler can flip it — imports are normally
+  // read-only, but build.js strips import/export before concatenating, so this is
+  // really just a plain global assignment at runtime.
   if (gameState === 'menu' && inRect(x, y, menuBtn)) {
     gameState = 'playing'; // eslint-disable-line no-import-assign
     startMusic();

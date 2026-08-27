@@ -11,12 +11,11 @@ function softShadow(ctx, x, y, rx, ry, alpha, color) {
   ctx.restore();
 }
 
-// each reused 2x/3x below (petal/mushroom palettes) — local consts so Terser's
-// toplevel mangling shrinks each call site to a single-char reference
+// reused 2x/3x below (petal/mushroom palettes) — local consts so Terser can mangle
+// each call site down to a single-char reference
 const GOLD = '#ffd166';
 const TEAL = '#66d9c2';
-// GEM_PALETTE's own pink (#ff8fa3) was a few RGB units off this one — close enough
-// to be the same color rather than two independently hand-picked near-duplicates
+// close enough to GEM_PALETTE's pink (#ff8fa3) to just treat them as the same color
 const PINKISH = '#ff8fa8';
 const PETAL_PALETTE = [PINKISH, GOLD, VIOLET, TEAL];
 export function drawFlowerStalksBig(ctx, x, y) {

@@ -8,10 +8,9 @@ export let VIEW_COLS, VIEW_ROWS;
 // eslint-disable-next-line prefer-const -- reassigned by the pointerdown handler in render-hud.js
 export let gameState = 'menu'; // 'menu' | 'playing' — see the start prompt in render-hud.js
 
-// fixed (not per-tile generated) blob layouts for the mottled/bokeh floor & wall look:
-// [x, y, r, alpha, rotation] as fractions of tile size. 3 alternate layouts, one per
-// pre-rendered tile variant (generateTileVariants in render-world.js), so neighboring
-// tiles don't look like an obvious repeating stamp.
+// Fixed blob layouts for the mottled/bokeh floor & wall look: [x, y, r, alpha, rotation]
+// as fractions of tile size. 3 layouts, one per pre-rendered tile variant (see
+// generateTileVariants in render-world.js), so neighboring tiles don't repeat obviously.
 export const BLOB_SETS = [
   [
     [0.22, 0.28, 0.28, 0.09, 0.4],
@@ -33,10 +32,10 @@ export const BLOB_SETS = [
   ],
 ];
 export function textureFill(ctx, x, y, w, h, baseLight, baseDark, blobColor, blobs) {
-  const gradient = ctx.createLinearGradient(x, y, x, y + h);
-  gradient.addColorStop(0, baseLight);
-  gradient.addColorStop(1, baseDark);
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = linGrad(ctx, x, y, x, y + h, [
+    [0, baseLight],
+    [1, baseDark],
+  ]);
   ctx.fillRect(x, y, w, h);
   if (!blobs) return;
   ctx.save();
@@ -53,8 +52,8 @@ export function textureFill(ctx, x, y, w, h, baseLight, baseDark, blobColor, blo
   ctx.restore();
   ctx.globalAlpha = 1;
 }
-// shared canvas micro-helpers: the beginPath->shape->fill/stroke triplet recurs
-// throughout decor.js/render.js with only the shape args changing
+// Shared canvas helpers — the beginPath->shape->fill/stroke triplet repeats across
+// decor.js/render.js with just the shape args changing.
 export function fillEllipse(ctx, x, y, rx, ry, rot = 0) {
   ctx.beginPath();
   ctx.ellipse(x, y, rx, ry, rot, 0, 7);
@@ -76,29 +75,36 @@ export function radialFade(ctx, x, y, r, color) {
   gradient.addColorStop(1, TRANSPARENT);
   return gradient;
 }
-// the radialFade+fillCircle pair recurs (glowing halos: pedestals, hub altar, mirror
-// surfaces, sparkle motes) with only x/y/r/color changing — same spirit as the
-// fillEllipse/fillCircle/strokeCircle triplet above
+// every other linear gradient in the game is just createLinearGradient + a couple
+// addColorStop calls with the offsets/colors changing — shared here so each call site
+// is just its own stops list instead of repeating the 2-4 lines of boilerplate
+export function linGrad(ctx, x0, y0, x1, y1, stops) {
+  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+  stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
+  return gradient;
+}
+// radialFade+fillCircle recurs for glowing halos (pedestals, hub altar, mirror surfaces,
+// sparkle motes) with only x/y/r/color changing — same idea as the triplet above.
 export function glowFill(ctx, x, y, r, color) {
   ctx.fillStyle = radialFade(ctx, x, y, r, color);
   fillCircle(ctx, x, y, r);
 }
-// much lighter than the original dark-palette version — the same alpha reads as a subtle
-// groove on near-black tiles, but a harsh stripe against bright pastels
+// Much lighter than the original dark-palette version — the same alpha reads as a subtle
+// groove on near-black tiles but a harsh stripe against bright pastels.
 export function tileAO(ctx, x, y) {
   ctx.save();
-  const gradient = ctx.createLinearGradient(x, y, x, y + TILE);
-  gradient.addColorStop(0, `${BLACK}14`);
-  gradient.addColorStop(0.15, TRANSPARENT);
-  gradient.addColorStop(0.9, TRANSPARENT);
-  gradient.addColorStop(1, `${WHITE}06`);
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = linGrad(ctx, x, y, x, y + TILE, [
+    [0, `${BLACK}14`],
+    [0.15, TRANSPARENT],
+    [0.9, TRANSPARENT],
+    [1, `${WHITE}06`],
+  ]);
   ctx.fillRect(x, y, TILE, TILE);
   ctx.restore();
 }
 
-// whimsical rune icons: a small filled charm (star/gem/flower/droplet/heart) instead
-// of the earlier abstract carved-line sigils
+// Whimsical rune icons — small filled charms (star/gem/flower/droplet/heart) instead
+// of the old abstract carved-line sigils.
 export function starPath(ctx, cx, cy, r, points = 5, inset = 0.5) {
   ctx.beginPath();
   for (let i = 0; i < points * 2; i++) {
@@ -137,9 +143,8 @@ function flowerPath(ctx, cx, cy, r) {
   ctx.closePath();
 }
 function dropPath(ctx, cx, cy, r) {
-  // the pointed tip (cy-r) and round bottom (cy+r*0.55) aren't symmetric around cy, so
-  // drawn straight this sits visibly high in whatever circle/badge it's centered in —
-  // recenter by shifting the whole path down so its vertical midpoint lands on cy
+  // Tip (cy-r) and round bottom (cy+r*0.55) aren't symmetric around cy, so drawn straight
+  // this sits visibly high — shift the whole path down so its midpoint lands on cy.
   const oy = cy + r * 0.225;
   ctx.beginPath();
   ctx.moveTo(cx, oy - r);
@@ -154,9 +159,8 @@ function heartPath(ctx, cx, cy, r) {
   ctx.bezierCurveTo(cx + r * 0.5, cy - r, cx + r * 1.3, cy - r * 0.15, cx, cy + r * 0.85);
   ctx.closePath();
 }
-// numeric keys (star/gem/flower/drop/heart in order) — shorter than spelling the
-// shape name out, and safe since shapeKey is only ever compared by identity, never
-// shown as text
+// Numeric keys (star/gem/flower/drop/heart in order) — shorter than spelling names out,
+// and safe since shapeKey is only ever compared by identity, never shown as text.
 const RUNE_SHAPES = {
   0: starPath,
   1: gemPath,

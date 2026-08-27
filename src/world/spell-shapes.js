@@ -22,8 +22,7 @@ import {
 } from './world-zones.js';
 import { MIRROR_REFLECT } from './world-objects.js';
 
-// reverse of DIRS4 (vector -> name instead of name -> vector), built once instead of
-// hand-duplicating the same 4 pairs
+// reverse of DIRS4 (vector -> name), built once instead of duplicating the 4 pairs
 const DIR_NAME_OF_VEC = {};
 Object.entries(DIRS4).forEach(([name, [dx, dy]]) => (DIR_NAME_OF_VEC[dx + ',' + dy] = name));
 function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, viaMirror) {
@@ -32,21 +31,18 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
   for (let i = 1; i <= maxRange; i++) {
     const x = px + dx * i,
       y = py + dy * i;
-    // a placed object (mirror_surface, sym_plate, ...) is reachable even without a
-    // floor tile of its own, since it's positioned via MAP_DATA.objects independent
-    // of gridStr's floor/rock/void code
+    // a placed object (mirror_surface, sym_plate, ...) is reachable even without its own
+    // floor tile, since it's positioned via MAP_DATA.objects, independent of gridStr
     if (!worldRunes.inBounds(x, y) && !worldRunes.objectAt(x, y)) {
-      // Crack marks a wall cracked in place (still fully solid until a crate shatters
-      // it), so the ray keeps going through it by default, chaining across a whole row
-      // of rock instead of stopping at the first one
+      // Crack marks a wall cracked but still fully solid until a crate shatters it, so
+      // the ray keeps going through it by default, chaining across a whole row of rock
       if (nature === Nature.CRACK && isRock(x, y)) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
-      // true void never blocks a spell, for any nature, with or without Pierce — only
-      // a real wall needs Pierce (or a mirror bounce) to cross. Nothing can ever stand
-      // in void though (see isBlockingFor/inBounds elsewhere), so this only ever lets
-      // an effect reach past the gap, never anything physically occupy it
+      // true void never blocks a spell, with or without Pierce — only a real wall needs
+      // Pierce (or a mirror bounce) to cross. Nothing can ever stand in void either, so
+      // this just lets an effect reach past the gap, not occupy it
       if (isVoid(x, y)) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
@@ -71,8 +67,7 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
       if (nature === Nature.FREEZE && isWaterAt(x, y)) continue;
       const reacts = obj && typeof obj.wouldReact === 'function' && obj.wouldReact(nature);
       // Push chains through whatever it just pushed, same as Cut through a vine it just
-      // destroyed — Pierce alone goes through obstacles that stay solid regardless (a
-      // crate under Crack, say), with no reacts requirement
+      // destroyed. Pierce alone goes through obstacles that stay solid (crate under Crack)
       const clearsPath = obj && obj.type === 'vine' && nature === Nature.CUT;
       if (withPierce || ((nature === Nature.PUSH || clearsPath) && reacts)) continue;
       break;
@@ -80,8 +75,8 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
   }
   return cells;
 }
-// shared by getCellsArc and getConeCells below: a wall between caster and cell blocks
-// it (unless Pierce) — Pierce alone still requires the cell be reachable at all
+// shared by getCellsArc and getConeCells: a wall between caster and cell blocks it
+// unless Pierce, which still requires the cell be reachable at all
 function pushIfReachable(cells, from, x, y, d, nature, withPierce) {
   if (!withPierce && isBlocked(from, { x, y }, nature)) return;
   if (!withPierce || reachableCell(x, y, nature)) cells.push({ x, y, d });
@@ -133,7 +128,7 @@ function getConeCells(playerPos, dir, withPierce, nature) {
 
 function isBlocked(from, to, nature) {
   const line = bresenhamLine(from, to);
-  // skip the starting cell (the caster) — check every cell up to and including the target
+  // skip the starting cell (the caster), check every cell up to and including the target
   for (let i = 1; i < line.length; i++) {
     const cell = line[i];
     if (
@@ -194,7 +189,7 @@ function applyShape(shape, px, py, dirName, nature, withPierce) {
   }
 }
 function effectDirectionForCell(px, py, cell, shape, dirName) {
-  // a mirror_surface reflection changes the ray's direction mid-flight — cells past
+  // a mirror_surface reflection changes the ray's direction mid-flight, so cells past
   // that point carry their own travel direction, not the cast's original
   if (cell.dir) return cell.dir;
   if (shape === Shape.LINE) return DIRS4[dirName];
@@ -205,10 +200,8 @@ function effectDirectionForCell(px, py, cell, shape, dirName) {
   if (Math.abs(dx) >= Math.abs(dy)) return [Math.sign(dx), 0];
   return [0, Math.sign(dy)];
 }
-// nearest cell in a cast that holds a crate — Switch's target, i.e. the first crate
-// the caster would reach, not one further along the ray that Push's chaining lets the
-// cast reach past it (a plain open tile past the crate never enters here at all,
-// since only crate-holding cells are considered in the first place)
+// nearest cell in a cast that holds a crate — Switch's target, i.e. the first crate the
+// caster would reach, not one further along that Push's chaining could reach past it
 export function findSwitchTarget(cells) {
   let target = null;
   cells.forEach(cell => {
@@ -218,20 +211,18 @@ export function findSwitchTarget(cells) {
   return target;
 }
 // type of whatever's at a cell, for Spread's same-type chaining: object's own type,
-// 'rock' for a wall Crack could crack, 'water' for a tile Freeze could freeze;
-// null means nothing to chain through
+// 'rock' for a wall Crack could crack, 'water' for a tile Freeze could freeze, else null
 function spreadTypeAt(x, y, nature) {
   const obj = worldRunes.objectAt(x, y);
   if (obj) return obj.type;
   if (nature === Nature.CRACK && isRock(x, y)) return 'rock';
   return nature === Nature.FREEZE && isWaterAt(x, y) ? 'water' : null;
 }
-// 'rock' and 'water' are tile types, not objects — nothing to call wouldReact on, and
+// 'rock' and 'water' are tile types, not objects, so there's no wouldReact to call —
 // reaching one at all already means the nature applies
 const TILE_TYPES = new Set(['rock', 'water']);
-// Spread keeps the base shape's hits, then hops to adjacent cells/objects of that SAME
-// type that would ALSO react, chaining outward (e.g. cutting one vine catches the whole
-// connected thicket, not just a fixed ring of tiles)
+// Spread keeps the base shape's hits, then hops to adjacent cells/objects of the SAME
+// type that would ALSO react, chaining outward (cutting one vine catches the whole thicket)
 function applySpreadModifier(nature, initialCells) {
   const visited = new Set(initialCells.map(cell => key(cell.x, cell.y)));
   const extra = [];
@@ -267,13 +258,13 @@ function applySpreadModifier(nature, initialCells) {
 // phrase is shorter than 3
 export function deriveSpell(runes) {
   const nature = SYMBOL_TO_ROLE[runes[0]].slot1;
-  const shape = runes.length >= 2 ? SYMBOL_TO_ROLE[runes[1]].slot2 : Shape.CONTACT_DEFAULT;
+  const shape = runes.length >= 2 ? SYMBOL_TO_ROLE[runes[1]].slot2 : Shape.CONTACT;
   const modifier = runes.length === 3 ? SYMBOL_TO_ROLE[runes[2]].slot3 : Modifier.NONE;
   return { nature, shape, modifier, withPierce: modifier === Modifier.PIERCE };
 }
-// full set of cells a spell touches: base shape plus any SPREAD modifier — Switch and
-// Mirror only change what happens at resolution, not which cells are touched. Shared by
-// resolvePhrase and the live range preview
+// full set of cells a spell touches: base shape plus any SPREAD modifier. Switch and
+// Mirror only change what happens at resolution, not which cells are touched. Shared
+// by resolvePhrase and the live range preview
 export function computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName) {
   const cells = applyShape(shape, px, py, dirName, nature, withPierce);
   if (modifier === Modifier.SPREAD) return cells.concat(applySpreadModifier(nature, cells));
@@ -283,9 +274,8 @@ export function resolvePhrase(runes, px, py, dirName) {
   if (!validatePhrase(runes)) return { ok: false };
   const { nature, shape, modifier, withPierce } = deriveSpell(runes);
   const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
-  // Switch swaps the caster with the nearest crate along the cast, regardless of
-  // nature, and nothing else — every other cell the ray passes through (e.g. a second
-  // crate further along a Push cast) is ignored entirely, not just overridden
+  // Switch swaps the caster with the nearest crate along the cast, regardless of nature,
+  // and nothing else — every other cell the ray passes through is ignored entirely
   let result;
   if (modifier === Modifier.SWITCH) {
     const target = findSwitchTarget(cells);
@@ -300,9 +290,8 @@ export function resolvePhrase(runes, px, py, dirName) {
         ]
       : [];
   } else {
-    // Mirror only means something for Push (→ Pull), Freeze (→ Thaw a crate), and now
-    // Crack (→ mend a cracked wall back to solid); on Cut it's still a no-op, same as
-    // casting with no modifier at all
+    // Mirror only means something for Push (→ Pull), Freeze (→ Thaw a crate), and Crack
+    // (→ mend a wall back to solid). On Cut it's still a no-op, same as no modifier
     const invert =
       modifier === Modifier.MIRROR &&
       (nature === Nature.PUSH || nature === Nature.FREEZE || nature === Nature.CRACK);
@@ -312,8 +301,8 @@ export function resolvePhrase(runes, px, py, dirName) {
       if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
       if (nature === Nature.CRACK && isRock(cell.x, cell.y))
         return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
-      // water is a grid tile type, not an object — Mirror never applies here (thaw only
-      // ever works on a crate, per invert's definition above), so no `invert` check needed
+      // water is a grid tile, not an object — Mirror never applies here (thaw only ever
+      // works on a crate, per invert's definition above), so no `invert` check needed
       if (nature === Nature.FREEZE && isWaterAt(cell.x, cell.y))
         return { cell, obj: null, dir, effect: 'freeze' };
       return { cell, obj: null, dir };

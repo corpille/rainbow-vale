@@ -1,7 +1,6 @@
 /* ============ World model: zones, coordinate keys, spell vocabulary ============ */
 // obstacleByTile comes from map-loader.js, which imports grid/key/objectsMap back from
-// here — a real cycle, but harmless: isVoid is a closure, never called until every file
-// has already finished its own top-level setup.
+// here. Harmless cycle — isVoid is a closure that only runs after every file has loaded.
 import { obstacleByTile } from './map-loader.js';
 import { COLORS, WHITE } from '../core/colors.js';
 
@@ -29,7 +28,7 @@ const SLOTS = [
 const SLOT_ORDER = [0, 2, 1, 3];
 // ids match FLOOR_CHARS' grid codes in map-loader.js (m/j/v/b = swamp/cavern/orchard/marsh).
 // Public names: swamp=Clover Fields (Breeze), cavern=Cloud Cavern (Frost),
-// orchard=Sunbeam Grove (Bramble), marsh=Starlight Marsh (Crystal)
+// orchard=Sunbeam Grove (Bramble), marsh=Starlight Marsh (Crystal).
 const ZONE_DEFS = [
   { id: 'm', base: '#bdf3c9', dark: '#6fcf97', blob: '#e8fff0' }, // swamp
   { id: 'j', base: '#d6ecff', dark: '#8fc9f0', blob: WHITE }, // cavern
@@ -51,7 +50,7 @@ export const Shape = {
   HALF_CIRCLE: 'HALF_CIRCLE',
   CONE: 'CONE',
   DIAGONAL: 'DIAGONAL',
-  CONTACT_DEFAULT: 'CONTACT_DEFAULT',
+  CONTACT: 'CONTACT',
 };
 export const Modifier = {
   PIERCE: 'PIERCE',
@@ -60,9 +59,8 @@ export const Modifier = {
   MIRROR: 'MIRROR',
   NONE: 'NONE',
 };
-// keyed by zone id itself (m/j/v/b) rather than an arbitrary rune glyph — a phrase rune
-// IS the zone id it was collected from, so this doubles as "which spell role does this
-// zone's rune play" with no separate symbol layer to keep in sync
+// keyed by zone id itself (m/j/v/b), not an arbitrary rune glyph — a phrase rune IS the
+// zone id it came from, so this also answers "which spell role does this rune play".
 export const SYMBOL_TO_ROLE = {
   v: { slot1: Nature.CUT, slot2: Shape.CONE, slot3: Modifier.SPREAD },
   j: { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.MIRROR },
@@ -74,13 +72,12 @@ export const RANGE_LINE = 5;
 export const RANGE_SHORT = 3;
 export const RANGE_DIAGONAL = 5;
 // direction names are plain numbers (0=up,1=down,2=left,3=right) — internal dispatch
-// only, never shown as text, so no need to spell them out
+// only, never shown as text.
 export const DIRS4 = { 0: [0, -1], 1: [0, 1], 2: [-1, 0], 3: [1, 0] };
 export const DIAG_OF = { 0: [1, -1], 3: [1, 1], 1: [-1, 1], 2: [-1, -1] };
-// same 4 vectors as DIRS4, just as a plain array for "check every neighbor" scans
-// (world-objects.js's inferRoomId, spell-shapes.js's applySpreadModifier) that don't care
-// about direction names — order matters for inferRoomId's "first match wins" tie-break,
-// so this stays a fixed literal rather than Object.values(DIRS4) (different order)
+// same 4 vectors as DIRS4, as a plain array for "check every neighbor" scans (inferRoomId
+// in world-objects.js, applySpreadModifier in spell-shapes.js). Kept as a fixed literal
+// rather than Object.values(DIRS4) since inferRoomId's tie-break depends on this order.
 export const CARDINAL_OFFSETS = [
   [1, 0],
   [-1, 0],
@@ -88,17 +85,14 @@ export const CARDINAL_OFFSETS = [
   [0, -1],
 ];
 
-export function validatePhrase(runes) {
-  if (runes.length < 1 || runes.length > 3 || !runes.every(rune => ALL_SYMBOLS.includes(rune)))
-    return false;
-  return true;
-}
+export const validatePhrase = runes =>
+  runes.length >= 1 && runes.length <= 3 && runes.every(rune => ALL_SYMBOLS.includes(rune));
 
 export const objectsMap = new Map(); // "x,y" -> interactive object (Vine, Crate, ...)
 
-// bumped whenever a water tile freezes into ice (see applyEffectsToWorld's
-// 'freeze' handling in world-objects.js) — lets renderPonds (render-world.js)
-// know its cached connected-pond groups need rebuilding, instead of every frame
+// bumped when a water tile freezes (see world-objects.js's 'freeze' handling), so
+// renderPonds (render-world.js) knows to rebuild its cached pond groups instead of
+// redoing that every frame.
 export let puddleEpoch = 0;
 export function bumpPuddleEpoch() {
   puddleEpoch++;
@@ -118,26 +112,25 @@ export const worldRunes = {
   },
 };
 
-// ---- Undo: a flat log of inverse closures plus a stack of boundary marks, one mark
-// per player action (move or cast) — cheaper than nested per-action arrays.
-// track() takes a ready-made closure rather than an (obj,key) pair so every property
-// access stays a plain dot-access — a generic (obj,key) helper would need o[key]
-// bracket access, which breaks under build.js's property mangling (see its own
-// comment on that failure mode) unless every tracked field name were reserved.
-// Only ever called between a beginAction() and the next one, so no active/inactive
-// guard is needed on track/trackMap themselves.
+// ---- Undo: a flat log of inverse closures, plus a stack of boundary marks (one per
+// player action) — cheaper than nested per-action arrays.
+// track() takes a ready-made closure instead of an (obj,key) pair so property access
+// stays plain dot-access — a generic (obj,key) helper would need o[key] bracket access,
+// which breaks under build.js's property mangling.
+// Always called between a beginAction() and the next one, so track/trackMap don't need
+// their own active/inactive guard.
 const uLog = [];
 export const uMarks = []; // .length > 0 while there's an action to undo — ui-panel.js's undo button reads this
 export function beginAction() {
   uMarks.push(uLog.length);
 }
-// call right before mutating something, with a closure that reverses that exact
-// mutation — doUndo() pops these off in reverse order and runs them
+// call right before mutating something, with a closure that reverses that mutation —
+// doUndo() pops these off in reverse order and runs them.
 export function track(fn) {
   uLog.push(fn);
 }
-// same idea, specialized for a Map entry: snapshots whatever was at key k before
-// this action touches it, so undo can restore or remove it as appropriate
+// same idea, specialized for a Map entry: snapshots whatever was at key k so undo
+// can restore or remove it as needed.
 export function trackMap(m, k) {
   const had = m.has(k),
     v = m.get(k);
@@ -151,28 +144,20 @@ export function doUndo() {
 }
 
 // true if this cell is a water tile, whether or not anything's parked on top of it
-export function isWaterAt(x, y) {
-  const cell = grid.get(key(x, y));
-  return !!cell && cell.type === 'water';
-}
-export function isBlockingFor(x, y) {
-  const obj = worldRunes.objectAt(x, y);
-  return (obj && obj.blocksMovement) || isWaterAt(x, y);
-}
-// true void: no floor tile, no obstacle rock — empty space no one can ever stand in,
-// though every nature's spells now pass straight through it (see getCellsLine)
+export const isWaterAt = (x, y) => grid.get(key(x, y))?.type === 'water';
+export const isBlockingFor = (x, y) =>
+  !!worldRunes.objectAt(x, y)?.blocksMovement || isWaterAt(x, y);
+// true void: no floor tile, no obstacle rock — nobody can stand here, but every
+// nature's spells pass straight through it (see getCellsLine).
 export const isVoid = (x, y) => !grid.has(key(x, y)) && !obstacleByTile.has(key(x, y));
 // a solid rock wall — cracked or not, it's still fully solid until a crate shatters it
 export const isRock = (x, y) => obstacleByTile.has(key(x, y));
 // a cell is a valid spell destination if it's real ground, if it holds a placed object
-// (mirror_surface/sym_plate are positioned via MAP_DATA.objects, independent of gridStr's
-// floor code underneath them, so a plain floor check would strand them), if it's true
-// void (nothing blocks a spell reaching past that gap), or — Crack only — a rock wall
-export function reachableCell(x, y, nature) {
-  return (
-    worldRunes.inBounds(x, y) ||
-    !!worldRunes.objectAt(x, y) ||
-    isVoid(x, y) ||
-    (nature === Nature.CRACK && isRock(x, y))
-  );
-}
+// (mirror_surface/sym_plate are positioned via MAP_DATA.objects independent of gridStr's
+// floor code, so a plain floor check would miss them), if it's true void (nothing blocks
+// a spell passing through), or — Crack only — a rock wall.
+export const reachableCell = (x, y, nature) =>
+  worldRunes.inBounds(x, y) ||
+  !!worldRunes.objectAt(x, y) ||
+  isVoid(x, y) ||
+  (nature === Nature.CRACK && isRock(x, y));

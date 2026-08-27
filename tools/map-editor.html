@@ -644,16 +644,13 @@
       }; // darkened room.dark
       const OBSTACLE_CHAR_ZONES = new Set(['swamp', 'cavern', 'orchard', 'marsh']); // hub has no rock texture
 
-      // code 3 (pit) is retired — Solidify grows floor directly on void tiles now (right-click
-      // erase to carve one). Codes 6/7 (target/grouped_target) are retired too.
+      // vine/puddle/crate/lock never appear here — they're POSITIONAL_TYPES, fused into
+      // gridStr instead (see the export loop below), so only the 3 object kinds that
+      // actually ride in MAP_DATA.objects get a code.
       const TYPE_CODE = {
-        vine: 0,
-        puddle: 1,
-        crate: 2,
-        lock: 4,
-        mirror_surface: 8,
-        sym_plate: 9,
-        frozen_crate_marker: 10,
+        mirror_surface: 0,
+        sym_plate: 1,
+        frozen_crate_marker: 2,
       };
       const CODE_TYPE = {};
       Object.entries(TYPE_CODE).forEach(([k, v]) => (CODE_TYPE[v] = k));

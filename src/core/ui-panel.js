@@ -18,8 +18,8 @@ import { canvas } from '../render/render-world.js';
 
 const RUNE_KEYS = ZONES.map(zone => zone.id); // '1'->swamp(m), '2'->cavern(j), '3'->orchard(v), '4'->marsh(b)
 export const RUNE_SHAPE = { m: 0, j: 1, v: 2, b: 3 }; // RUNE_SHAPES index per zone (see engine-core.js)
-// vivid per-zone accent for the rune glyphs — brighter than the zone's own soft
-// tile palette so it reads against the bar's light background
+// vivid per-zone accent for the rune glyphs — brighter than the zone's tile
+// palette so it stands out against the bar's light background
 export const RUNE_ACCENT = {
   m: '#5eeb9c',
   j: '#66d1ff',
@@ -27,21 +27,20 @@ export const RUNE_ACCENT = {
   b: '#c48aff',
 };
 // shared muted grayish-purple for inactive UI states — caption text and the
-// not-yet-collected rune tint are close enough (within a few RGB units) to be the
-// same color rather than two independently hand-picked near-duplicates
+// not-yet-collected rune tint were close enough to just merge into one color
 const fontColor = '#8a7d9c';
-// plain-language name for a Nature/Shape/Modifier enum value, shown under a slot once
-// it's filled — every value is just its own key title-cased (HALF_CIRCLE -> Half-circle),
+// plain-language name for a Nature/Shape/Modifier enum value, shown under a slot
+// once it's filled — just the key title-cased (HALF_CIRCLE -> Half-circle)
 const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
 // Mirror is the only modifier whose effect depends on the nature it's paired with
-// (Pull for Push, Thaw for Freeze, Mend for Crack) — Cut falls through to the plain
-// "Mirror" label below, since it's still a no-op there
+// (Pull for Push, Thaw for Freeze, Mend for Crack). Cut falls through to the plain
+// "Mirror" label below since it's a no-op there.
 const DESC_MIRROR_INVERT = {
   [Nature.PUSH]: 'Pull',
   [Nature.FREEZE]: 'Thaw',
   [Nature.CRACK]: 'Mend',
 };
-// which slot a rune lands in picks which enum (nature/shape/modifier) it's describing,
+// which slot a rune lands in picks the enum it's describing (nature/shape/modifier),
 // not the rune itself — see SYMBOL_TO_ROLE in world-zones.js
 const DESC_BY_SLOT = [
   sym => desc(SYMBOL_TO_ROLE[sym].slot1),
@@ -56,8 +55,8 @@ const DESC_BY_SLOT = [
   },
 ];
 export let phraseRunes = []; // up to 3 zone ids (m/j/v/b), in the chosen order, repetition allowed
-// tap targets for the bar, recomputed every frame it's drawn — lets one pointerdown
-// handler double as "press a rune" / "cast" / "erase" on touch
+// tap targets for the bar, recomputed every frame — lets one pointerdown handler
+// cover "press a rune" / "cast" / "erase" on touch
 const comboHit = { runes: [], cast: null, erase: null, undo: null };
 export let lastCast = null; // { cellsTouched, until } — highlight of the last spell cast
 export const comboOverlay = document.getElementById('o');
@@ -84,10 +83,8 @@ function cloudPill(ctx, x, y, w, h, r) {
   ctx.restore();
 }
 
-// drawComboOverlay's output only depends on the phrase, unlocked zones, canvas size,
-// and whether there's anything to undo, none of which change between frames on their
-// own — so skip the redraw entirely when none of those changed, instead of repainting
-// 60x/sec while idle
+// output only depends on the phrase, unlocked zones, canvas size, and undo state —
+// skip the redraw when none of those changed instead of repainting 60x/sec while idle
 let _comboSig = null;
 export function drawComboOverlay() {
   const sig =
@@ -145,8 +142,8 @@ export function drawComboOverlay() {
   comboOverlay.width = Math.round(barW);
   comboOverlay.height = Math.round(barH);
   comboCtx.clearRect(0, 0, comboOverlay.width, comboOverlay.height);
-  // centered against the actual canvas width, not CSS `left: 50%` (100vw can differ
-  // from canvas.width by a scrollbar's width)
+  // centered against the actual canvas width, not CSS `left: 50%` — 100vw can differ
+  // by a scrollbar's width
   comboOverlay.style.left = Math.round((canvas.width - barW) / 2) + 'px';
 
   cloudPill(comboCtx, 0, 0, barW, barH, 22 * scale);
@@ -197,8 +194,8 @@ export function drawComboOverlay() {
     comboCtx.fillText(text, cx, capY);
     comboCtx.restore();
   }
-  // square tap target centered on one of the action icons (cast/erase/undo), all the
-  // same size and vertical position — only the icon's own x differs per caller
+  // square tap target for an action icon (cast/erase/undo) — same size and y,
+  // only the x differs per caller
   function hitRect(x) {
     return { x: x - runeRadius, y: cy - runeRadius, w: runeRadius * 2, h: runeRadius * 2 };
   }
@@ -241,8 +238,8 @@ export function drawComboOverlay() {
   }
   divider(dividerX2);
 
-  // right: cast (checkmark, drawn as a path so it doesn't depend on font glyph support)
-  // and erase (arrow). Stale hit rects from the last non-empty frame are harmless no-ops.
+  // right: cast (checkmark, drawn as a path rather than a font glyph) and erase
+  // (arrow). Stale hit rects from the last frame are harmless no-ops.
   if (phraseRunes.length) {
     comboCtx.save();
     comboCtx.translate(castX, cy);
@@ -268,9 +265,8 @@ export function drawComboOverlay() {
     comboHit.erase = hitRect(eraseX);
   }
 
-  // undo: independent of the current phrase, but only shown once there's something to
-  // undo — a rewind icon (270° arc + arrowhead), drawn as strokes/fills like the
-  // checkmark above rather than a font glyph
+  // undo: independent of the current phrase, shown only once there's something to
+  // undo. Rewind icon (270° arc + arrowhead), drawn as strokes/fills like the checkmark above.
   if (uMarks.length) {
     const r = runeRadius * 0.46,
       a0 = -Math.PI * 0.65,
@@ -313,9 +309,9 @@ function castPhrase() {
   if (result.ok) {
     beginAction();
     applyEffectsToWorld(result.result, result.runeCount, result.shape, player.x, player.y);
-    // Switch: the crate's own side of the trade already happened above (it now sits on
-    // the caster's old tile) — snap the player onto the crate's old tile in turn, no
-    // animated glide, since this is a teleport, not a walk
+    // Switch: the crate's side of the trade already happened above (it's on the
+    // caster's old tile now) — snap the player onto the crate's old tile too, no
+    // glide since this is a teleport, not a walk
     const switchEntry = result.result.find(entry => entry.effect === 'switch');
     if (switchEntry) {
       snapPos();
@@ -327,11 +323,10 @@ function castPhrase() {
   phraseRunes = [];
 }
 
-// touch: tap a rune to add it, tap cast/erase to act on the phrase — same actions as
-// the keyboard path below. No open/close step: the bar is always live.
-export function inRect(x, y, rect) {
-  return rect && x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
-}
+// touch: tap a rune to add it, tap cast/erase to act on the phrase, same as the
+// keyboard path below. No open/close step, the bar is always live.
+export const inRect = (x, y, rect) =>
+  rect && x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 comboOverlay.addEventListener('pointerdown', e => {
   const x = e.offsetX,
     y = e.offsetY;
