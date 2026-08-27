@@ -199,7 +199,12 @@ export function createCrate() {
     reactTo(nature, dir, invert) {
       // frozen/thawed is reversible in-game (Mirror+Freeze again flips it back),
       // so not tracked for undo, same as the one-way effects above.
-      if (nature === Nature.FREEZE && this.frozen === invert) this.frozen = !invert;
+      // routed through wouldReact's own truthy check rather than `this.frozen === invert`
+      // on purpose: Terser's booleans_as_integers pass (build.js) turns the `frozen: false`
+      // literal (and map-loader.js's `existingCrate.frozen = true`) into a plain *number*
+      // (0/1), while `invert` stays a real boolean from spell-shapes.js's comparison chain —
+      // `1 === true` is strictly false, so a map-authored frozen crate could never thaw.
+      if (nature === Nature.FREEZE && this.wouldReact(nature, invert)) this.frozen = !invert;
       if (nature === Nature.PUSH && !this.frozen) {
         return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir, invert };
       }

@@ -96,6 +96,14 @@ function stripModuleSyntax(src) {
   return src;
 }
 
+// `/*BUILD:DEV_ONLY_START*/...*/BUILD:DEV_ONLY_END*/`-wrapped blocks (debug shortcuts,
+// cheats, etc.) — kept only for the dev server, cut from the real submission build so
+// they never eat into the js13k budget or ship to players.
+function stripDevOnly(src, dev) {
+  const re = /\/\*BUILD:DEV_ONLY_START\*\/[\s\S]*?\/\*BUILD:DEV_ONLY_END\*\//g;
+  return dev ? src.replace(/\/\*BUILD:DEV_ONLY_(START|END)\*\//g, '') : src.replace(re, '');
+}
+
 // Order matters: mirrors the original single-file layout — each group below used to be
 // one file (world.js, render.js), now split into same-topic files under src/core,
 // src/world, src/render, still concatenated back-to-back (paths relative to SRC).
@@ -222,7 +230,7 @@ const TERSER_OPTIONS = {
 };
 
 async function build(opts = {}) {
-  const { minifyJs = true, pack = true } = opts;
+  const { minifyJs = true, pack = true, dev = false } = opts;
   if (pack && !minifyJs)
     console.warn(
       'Roadroller works best on already-minified input — consider dropping --no-minify.'
@@ -247,6 +255,7 @@ async function build(opts = {}) {
   const rawJs = JS_ORDER.map(name => {
     let content = fs.readFileSync(path.join(SRC, name), 'utf8');
     content = stripModuleSyntax(content);
+    content = stripDevOnly(content, dev);
     if (content.includes('/*BUILD:MAP_DATA*/')) {
       content = content.replace('/*BUILD:MAP_DATA*/', mapData);
     }

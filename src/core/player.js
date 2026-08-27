@@ -91,6 +91,13 @@ function releaseDir(dir) {
   if (dirStack.length) player.visualFacing = dirStack[dirStack.length - 1];
 }
 window.addEventListener('keydown', e => {
+  /*BUILD:DEV_ONLY_START*/
+  // DEBUG: unlocks all 4 runes — dev-server only, stripped from the real build
+  if (e.key === '0') {
+    ZONES.forEach(zone => collected.add(zone.id));
+    return;
+  }
+  /*BUILD:DEV_ONLY_END*/
   if (e.code === 'KeyB') {
     if (gameState === 'playing') doUndo();
     return;
