@@ -10,11 +10,8 @@ import {
   VIEW_ROWS, // eslint-disable-line no-unused-vars
   fillCircle,
   fillEllipse,
-  gemPath,
-  glowFill,
   linGrad,
   starPath,
-  strokeCircle,
   textureFill,
   tileAO,
 } from '../core/engine-core.js';
@@ -367,49 +364,20 @@ export function drawWallCrack(destX, destY) {
   ctx.restore();
 }
 
-// a glowing crystal set in a rune-ring seal, not prison bars — hairline cracks hint
-// it's meant to shatter, and it vanishes once the paired plates satisfy the lock
 function renderLockGate(px, py) {
-  const t = performance.now();
-  const pulse = Math.sin(t / 500);
+  const n = 5,
+    totalW = BASE_TILE * 0.8,
+    halfH = totalW / 2,
+    gap = BASE_TILE * 0.1,
+    rectW = (totalW - gap * (n - 1)) / n;
   ctx.save();
-  glowFill(ctx, px, py, BASE_TILE * 0.5, COLORS.PURPLE + '55');
-  ctx.restore();
-  // rune ring: a solid outer band plus a dashed inner one, like a seal of light
-  ctx.save();
-  ctx.strokeStyle = '#f7e9c9';
-  ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.85;
-  strokeCircle(ctx, px, py, BASE_TILE * 0.4);
-  ctx.setLineDash([4, 5]);
-  strokeCircle(ctx, px, py, BASE_TILE * 0.33);
-  ctx.restore();
-  // sparkles slowly orbiting the ring
-  for (let i = 0; i < 4; i++) {
-    const angle = (i / 4) * Math.PI * 2 + t / 1400;
-    const sparkleX = px + Math.cos(angle) * BASE_TILE * 0.4,
-      sparkleY = py + Math.sin(angle) * BASE_TILE * 0.4;
-    ctx.save();
-    ctx.fillStyle = COLORS.STAR_CREAM;
-    starPath(ctx, sparkleX, sparkleY, 3.4, 4, 0.3);
-    ctx.fill();
-    ctx.restore();
+  for (let i = 0; i < n; i++) {
+    const rx = px - totalW / 2 + i * (rectW + gap);
+    ctx.fillStyle = linGrad(ctx, rx, py - halfH, rx + rectW, py + halfH, [
+      [0,COLORS.PINK_GLOW], [0.5, COLORS.PINK], [1, COLORS.PURPLE]]);
+    
+    ctx.fillRect(rx, py - halfH, rectW, halfH * 2);
   }
-  // the crystal itself
-  ctx.save();
-  ctx.shadowColor = COLORS.ICE_BLUE;
-  ctx.shadowBlur = 12 + pulse * 4;
-  ctx.fillStyle = gemGradient(
-    px - BASE_TILE * 0.18,
-    py - BASE_TILE * 0.18,
-    px + BASE_TILE * 0.18,
-    py + BASE_TILE * 0.22
-  );
-  gemPath(ctx, px, py, BASE_TILE * 0.21);
-  ctx.fill();
-  ctx.strokeStyle = `${WHITE}aa`;
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -431,6 +399,8 @@ export function renderInteractiveObject(obj, px, py) {
     // sym_plate renders separately (plateByTile loop in draw()) so it stays visible
     // under a crate weighing it down in the same tile slot
   } else if (obj.type === 'lock') {
+    // world x/y (stable, unlike screen px/py which drifts with the camera) seeds which
+    // pattern this particular lock grows, so it doesn't shift/jitter as the player moves
     if (!obj.open) renderLockGate(0, 0);
   }
   ctx.restore(); // matches the outer translate/scale
