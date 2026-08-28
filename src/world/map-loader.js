@@ -148,9 +148,10 @@ export const collected = new Set(); // ids of zones whose rune has already been 
         blocksMovement: false,
         weighed: false,
         pair: extra === undefined ? {} : pairsById[extra].pair,
-        reactTo() {
-          return { effect: 'activated' };
-        },
+        // a plate only ever activates by being weighed down (see the crate-landing paths
+        // in applyEffectsToWorld/settleSlide below) — a spell merely passing over its tile,
+        // even a Push, is not the same as a crate resting on it
+        reactTo() {},
       };
       objectsMap.set(tileKey, plate);
       plateByTile.set(tileKey, plate);
@@ -162,6 +163,11 @@ export const collected = new Set(); // ids of zones whose rune has already been 
       // flag on the existing object, not a new one
       const existingCrate = objectsMap.get(tileKey);
       if (existingCrate && existingCrate.type === 'crate') existingCrate.frozen = true;
+    } else if (typeCode === 3) {
+      // marks a rock wall already placed via gridStr as crackable — every other wall is
+      // permanent, so Crack can't be used to tunnel through arbitrary rock (see isCrackableRock)
+      const existingObstacle = obstacleByTile.get(tileKey);
+      if (existingObstacle) existingObstacle.crackable = true;
     }
   });
 
@@ -172,7 +178,7 @@ export const collected = new Set(); // ids of zones whose rune has already been 
     if (!lockObj || !pairEntry) return;
     verrouLinks.push({
       lock: lockObj,
-      check: result => isPairResolved(result, pairEntry.pair),
+      check: () => isPairResolved(pairEntry.pair),
     });
   });
 })();

@@ -151,17 +151,35 @@ function computePondGroups() {
       });
     }
     // ripples and sparkles are scaled to the pond's size (capped) and placed off an
-    // anchor tile's own coordinates, so positions/phases stay stable without a stored RNG seed
+    // anchor tile's own coordinates, so positions/phases stay stable without a stored RNG seed.
+    // No floor above 1 here — a flat minimum used to hand a 1-2 tile puddle 3 "ripples"
+    // that all collapsed onto the same tile or two (index cycles mod tileCount), so tiny
+    // and small ponds looked equally busy; scaling from 1 makes the size difference read.
     const tileCount = tiles.length;
     const ripples = [];
-    for (let i = 0; i < Math.min(3, 1 + Math.floor(tileCount / 8)); i++) {
-      ripples.push(tiles[(i * 11 + 5) % tileCount]);
+    for (let i = 0; i < Math.min(12, 1 + Math.floor(tileCount / 2)); i++) {
+      const tile = tiles[(i * 11 + 5) % tileCount];
+      // same position-hash trick as the sparkles below — stable "random" vertical offset
+      // and width/horizontal offset, so ripples don't all sit dead-center spanning the
+      // full tile like a row of identical little rulers
+      const hash1 = Math.abs(Math.sin(tile.x * 12.99 + tile.y * 78.23 + i * 37.1));
+      const hash2 = Math.abs(Math.sin(hash1 * 6180 + i));
+      // |ox| and half of w must never sum past half a tile, or the stroke pokes into the
+      // neighboring tile — worst case 0.1 + 0.35 = 0.45, a comfortable margin inside the
+      // 0.5 tile-half boundary
+      ripples.push({
+        x: tile.x,
+        y: tile.y,
+        oy: (hash1 - 0.5) * BASE_TILE * 0.5,
+        ox: (hash2 - 0.5) * BASE_TILE * 0.2,
+        w: BASE_TILE * (0.4 + hash2 * 0.3),
+      });
     }
     const sparkles = [];
     for (let i = 0; i < Math.min(10, 3 + Math.floor(tileCount / 3)); i++) {
       const tile = tiles[(i * 7 + 3) % tileCount];
-      const hash1 = Math.abs(Math.sin(tile.x * 12.9898 + tile.y * 78.233 + i * 37.1));
-      const hash2 = Math.abs(Math.sin(hash1 * 6180.5 + i));
+      const hash1 = Math.abs(Math.sin(tile.x * 12.99 + tile.y * 78.23 + i * 37.1));
+      const hash2 = Math.abs(Math.sin(hash1 * 6180 + i));
       sparkles.push({
         x: tile.x,
         y: tile.y,
@@ -184,10 +202,13 @@ export function renderPonds(originPxX, originPxY) {
   const scale = TILE / BASE_TILE;
   const half = TILE / 2;
   pondGroups.forEach(group => {
-    // fixed blue-violet, never keyed by position or time, so the pool reads as one sheet.
-    // Opaque since water skips its floor tile (see drawWorldTiles)
+    // fixed blue, never keyed by position or time, so the pool reads as one sheet. Opaque
+    // since water skips its floor tile (see drawWorldTiles). A touch darker/more saturated
+    // than the zones' own pastel floors on purpose — the original pale blue-violet sat too
+    // close to cavern's and marsh's own floor tones to read as a different material at a
+    // glance — but kept gentle, matching the rest of the game's soft palette.
     ctx.save();
-    ctx.fillStyle = 'hsl(220, 35%, 75%)';
+    ctx.fillStyle = 'hsl(215, 40%, 70%)';
     ctx.beginPath();
     group.tiles.forEach(({ x, y }) =>
       ctx.rect(originPxX + x * TILE, originPxY + y * TILE, TILE, TILE)
@@ -195,15 +216,49 @@ export function renderPonds(originPxX, originPxY) {
     ctx.fill();
     ctx.restore();
 
+    // shoreline: only draw the edge facing a non-water neighbor, so adjoining water tiles
+    // don't double-draw their shared edge — thin and light like a foam line, not a dark
+    // outline, so it reads as part of the water's own surface rather than a bulky
+    // sticker-style border
+    ctx.save();
+    ctx.strokeStyle = `${WHITE}60`;
+    ctx.lineWidth = scale;
+    ctx.beginPath();
+    group.tiles.forEach(({ x, y }) => {
+      const destX = originPxX + x * TILE,
+        destY = originPxY + y * TILE;
+      [
+        [0, -1, 0, 0],
+        [0, 1, 0, TILE],
+        [-1, 0, 1, 0],
+        [1, 0, 1, TILE],
+      ].forEach(([dx, dy, vertical, off]) => {
+        const neighbor = grid.get(key(x + dx, y + dy));
+        if (neighbor && neighbor.type === 'water') return;
+        if (vertical) {
+          ctx.moveTo(destX + off, destY);
+          ctx.lineTo(destX + off, destY + TILE);
+        } else {
+          ctx.moveTo(destX, destY + off);
+          ctx.lineTo(destX + TILE, destY + off);
+        }
+      });
+    });
+    ctx.stroke();
+    ctx.restore();
+
+    // more, slightly bigger ripples than before — with the twinkles gone, this carries
+    // more of the "this is moving water" read on its own
     ctx.save();
     ctx.strokeStyle = `${WHITE}90`;
     ctx.lineWidth = 1.3 * scale;
     group.ripples.forEach((ripple, i) => {
-      const px = originPxX + ripple.x * TILE + half,
-        py = originPxY + ripple.y * TILE + half;
+      const px = originPxX + ripple.x * TILE + half + ripple.ox * scale,
+        py = originPxY + ripple.y * TILE + half + ripple.oy * scale,
+        halfW = (ripple.w * scale) / 2;
       ctx.beginPath();
-      ctx.moveTo(px - half, py);
-      ctx.quadraticCurveTo(px, py + Math.sin(t / 800 + i * 2) * 3 * scale, px + half, py);
+      ctx.moveTo(px - halfW, py);
+      ctx.quadraticCurveTo(px, py + Math.sin(t / 800 + i * 2) * 4 * scale, px + halfW, py);
       ctx.stroke();
     });
     ctx.restore();
@@ -360,9 +415,7 @@ function renderLockGate(px, py) {
 
 // the 4 interactive objects: rendered dynamically (never frozen into the world cache),
 // one signature color per type to stay recognizable at a glance
-export function renderInteractiveObject(obj, x, y, originPxX, originPxY) {
-  const px = originPxX + x * TILE + TILE / 2,
-    py = originPxY + y * TILE + TILE / 2;
+export function renderInteractiveObject(obj, px, py) {
   if (offscreen(px, py)) return;
   // drawn in BASE_TILE-pixel units relative to (0,0) — scale+translate once here instead
   // of tying every shape's numbers to the current (viewport-scaled) TILE

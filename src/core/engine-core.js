@@ -176,7 +176,7 @@ export function iconGlyph(ctx, cx, cy, size, fillColor, accentColor, shapeKey) {
   ctx.strokeStyle = accentColor;
   ctx.lineWidth = Math.max(1.5, size * 0.06);
   RUNE_SHAPES[shapeKey](ctx, cx, cy, size);
-  ctx.fill();
+  if (fillColor) ctx.fill();
   ctx.stroke();
   ctx.restore();
 }

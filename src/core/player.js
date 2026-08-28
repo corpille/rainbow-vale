@@ -140,7 +140,7 @@ function doMove(dir) {
   });
 
   items.forEach(item => {
-    const spotKey = item.zoneId + ':' + item.x + ',' + item.y;
+    const spotKey = item.zoneId + ':' + key(item.x, item.y);
     if (!collectedItems.has(spotKey) && targetX === item.x && targetY === item.y) {
       collectedItems.add(spotKey);
       startColorWave('h', HUB.cx, HUB.cy);

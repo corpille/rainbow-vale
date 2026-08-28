@@ -483,10 +483,16 @@
             <button class="obj-btn" data-obj="sym_plate">⬥ Plate</button>
             <button id="btnEraseObj" class="danger-ghost">✕ Erase object</button>
             <button id="btnFreezeTool">❄ Toggle start-frozen</button>
+            <button id="btnCrackTool">🪨 Toggle crackable wall</button>
           </div>
           <p class="desc">
             <b>Toggle start-frozen</b> — click a placed crate to flag it as immobilized from the
             start of the level (needs Mirror+Frost to thaw in-game). Click again to unflag.
+          </p>
+          <p class="desc">
+            <b>Toggle crackable wall</b> — click a rock wall to flag it as crackable (Crack can
+            mark it and a crate ramming it shatters it into floor). Every other wall is
+            permanent, no matter how Crack is cast at it. Click again to unflag.
           </p>
           <label class="field">Mirror orientation (which 2 sides bounce a spell):</label>
           <select id="mirrorOrientation">
@@ -651,6 +657,7 @@
         mirror_surface: 0,
         sym_plate: 1,
         frozen_crate_marker: 2,
+        crackable_wall_marker: 3,
       };
       const CODE_TYPE = {};
       Object.entries(TYPE_CODE).forEach(([k, v]) => (CODE_TYPE[v] = k));
@@ -803,7 +810,12 @@
       let rectStart = null;
       let movingMarker = null; // {kind, obj}
       let linkMode = null; // 'group' | 'link' | null — which of the 2 plate-group tools is armed
-      const LINK_MODE_LABEL = { group: 'group plates', link: 'link lock↔group' };
+      const LINK_MODE_LABEL = {
+        group: 'group plates',
+        link: 'link lock↔group',
+        freeze: 'toggle start-frozen',
+        crack: 'toggle crackable wall',
+      };
       // the ONE group being built/edited right now — every Group/Link click acts on this,
       // so there's always a single unambiguous answer to "what am I editing?" (shown live
       // in the panel + highlighted on the map), instead of separate create/select/add tools
@@ -952,6 +964,10 @@
             // flags a crate already decoded from gridStr above — never a standalone object
             const c = objectsMap.get(key(x, y));
             if (c && c.type === 'crate') c.startsFrozen = true;
+          } else if (type === 'crackable_wall_marker') {
+            // flags a wall already decoded into obstacles above — never a standalone object
+            const wall = obstacles.find(o => o.x === x && o.y === y);
+            if (wall) wall.crackable = true;
           } else {
             objectsMap.set(key(x, y), { type });
           }
@@ -1012,7 +1028,7 @@
           y1 = Math.ceil(camera.y + tilesY / 2);
 
         const obstacleMap = new Map();
-        obstacles.forEach(o => obstacleMap.set(key(o.x, o.y), o.roomId));
+        obstacles.forEach(o => obstacleMap.set(key(o.x, o.y), o));
 
         for (let y = y0; y <= y1; y++) {
           for (let x = x0; x <= x1; x++) {
@@ -1024,11 +1040,19 @@
               ctx.fillStyle = color;
               ctx.fillRect(sx - tilePx / 2, sy - tilePx / 2, tilePx - 1, tilePx - 1);
             } else if (obstacleMap.has(k)) {
-              const zoneId = obstacleMap.get(k);
-              ctx.fillStyle = OBSTACLE_COLOR[zoneId] || '#1a1a1a';
+              const wall = obstacleMap.get(k);
+              // same hue-rotate filter as the in-game crackable-wall tint (render-scene.js's
+              // drawWorldTiles), applied to this same fill, so the editor preview matches
+              // what players will actually see
+              // matches the game's crackable-wall tint (render-scene.js's drawWorldTiles)
+              // in its collected-zone form — the editor's wall fill is always full-color,
+              // it has no grayscale-until-collected state to compensate for
+              if (wall.crackable) ctx.filter = 'hue-rotate(40deg)';
+              ctx.fillStyle = OBSTACLE_COLOR[wall.roomId] || '#1a1a1a';
               ctx.globalAlpha = 0.55;
               ctx.fillRect(sx - tilePx / 2, sy - tilePx / 2, tilePx - 1, tilePx - 1);
               ctx.globalAlpha = 1;
+              if (wall.crackable) ctx.filter = 'none';
             }
           }
         }
@@ -1505,6 +1529,15 @@
         o.startsFrozen = !o.startsFrozen;
         showToast(o.startsFrozen ? 'Crate starts frozen' : 'Crate starts unfrozen');
       }
+      function tryCrackClick(x, y) {
+        const wall = obstacles.find(o => o.x === x && o.y === y);
+        if (!wall) {
+          showToast('Click a wall');
+          return;
+        }
+        wall.crackable = !wall.crackable;
+        showToast(wall.crackable ? 'Wall is crackable' : 'Wall is permanent');
+      }
       function removeMemberFromGroup(k) {
         const o = objectsMap.get(k);
         if (!o || o.type !== 'sym_plate' || !o.pair) return;
@@ -1665,6 +1698,12 @@
         if (linkMode === 'freeze') {
           pushUndo();
           tryFreezeClick(t.x, t.y);
+          render();
+          return;
+        }
+        if (linkMode === 'crack') {
+          pushUndo();
+          tryCrackClick(t.x, t.y);
           render();
           return;
         }
@@ -1852,7 +1891,7 @@
       function clearAllModesUi() {
         document
           .querySelectorAll(
-            '.zone-btn,.obj-btn,#btnTypeFloor,#btnTypeWall,#btnEraseObj,#btnGroupTool,#btnLinkLockTool,#btnFreezeTool,#btnAddItem,#btnEraseItem'
+            '.zone-btn,.obj-btn,#btnTypeFloor,#btnTypeWall,#btnEraseObj,#btnGroupTool,#btnLinkLockTool,#btnFreezeTool,#btnCrackTool,#btnAddItem,#btnEraseItem'
           )
           .forEach(x => x.classList.remove('active'));
         linkMode = null;
@@ -1927,6 +1966,12 @@
         linkMode = 'freeze';
         this.classList.add('active');
         showToast('Click a crate to toggle whether it starts frozen');
+      });
+      document.getElementById('btnCrackTool').addEventListener('click', function () {
+        clearAllModesUi();
+        linkMode = 'crack';
+        this.classList.add('active');
+        showToast('Click a wall to toggle whether it is crackable');
       });
 
       // same mode-select pattern as .obj-btn: arm the tool, then click/drag to paint —
@@ -2085,6 +2130,12 @@
           if (o.type !== 'crate' || !o.startsFrozen) return;
           const [x, y] = k.split(',').map(Number);
           objects.push([x, y, TYPE_CODE.frozen_crate_marker]);
+        });
+        // crackable walls are flagged the same way, riding alongside the wall's own
+        // gridStr rock char instead of a standalone object
+        obstacles.forEach(o => {
+          if (!o.crackable) return;
+          objects.push([o.x, o.y, TYPE_CODE.crackable_wall_marker]);
         });
 
         // verrouLinks: rebuilt live from lockLinks, dropping any link whose lock or pair no longer exists

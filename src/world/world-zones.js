@@ -132,9 +132,7 @@ export function track(fn) {
 // same idea, specialized for a Map entry: snapshots whatever was at key k so undo
 // can restore or remove it as needed.
 export function trackMap(m, k) {
-  const had = m.has(k),
-    v = m.get(k);
-  uLog.push(() => (had ? m.set(k, v) : m.delete(k)));
+  uLog.push(() => (m.has(k) ? m.set(k,  m.get(k)) : m.delete(k)));
 }
 export function doUndo() {
   if (!uMarks.length) return;
@@ -152,12 +150,14 @@ export const isBlockingFor = (x, y) =>
 export const isVoid = (x, y) => !grid.has(key(x, y)) && !obstacleByTile.has(key(x, y));
 // a solid rock wall — cracked or not, it's still fully solid until a crate shatters it
 export const isRock = (x, y) => obstacleByTile.has(key(x, y));
+// only a subset of rock is flagged crackable in the map data (see map-loader.js's
+// typeCode 3 marker) — everything else is permanent, no matter how Crack is cast at it
+export const isCrackableRock = (x, y) => !!obstacleByTile.get(key(x, y))?.crackable;
+// shared by every Crack-specific check across world-zones.js/spell-shapes.js
+export const canCrack = (nature, x, y) => nature === Nature.CRACK && isCrackableRock(x, y);
 // a cell is a valid spell destination if it's real ground, if it holds a placed object
 // (mirror_surface/sym_plate are positioned via MAP_DATA.objects independent of gridStr's
 // floor code, so a plain floor check would miss them), if it's true void (nothing blocks
-// a spell passing through), or — Crack only — a rock wall.
+// a spell passing through), or — Crack only — a crackable rock wall.
 export const reachableCell = (x, y, nature) =>
-  worldRunes.inBounds(x, y) ||
-  !!worldRunes.objectAt(x, y) ||
-  isVoid(x, y) ||
-  (nature === Nature.CRACK && isRock(x, y));
+  worldRunes.inBounds(x, y) || !!worldRunes.objectAt(x, y) || isVoid(x, y) || canCrack(nature, x, y);

@@ -14,7 +14,6 @@ import {
 } from '../core/ui-panel.js';
 import { canvas, ctx, generateTileVariants, renderPonds } from './render-world.js';
 import {
-  drawCastHighlight,
   drawDecor,
   drawDoors,
   drawHubAltar,
@@ -253,21 +252,24 @@ function draw() {
   const originPxX = Math.round(canvas.width / 2 - camX * TILE - TILE / 2);
   const originPxY = Math.round(canvas.height / 2 - camY * TILE - TILE / 2);
 
-  drawWorldTiles(originPxX, originPxY, camX, camY);
+  const originPx = {x: originPxX, y: originPxY};
+
+  drawWorldTiles(originPx, camX, camY);
   // ground layer, same as the ice inside drawWorldTiles — has to draw before any
   // highlight/preview/object now that it's opaque, not translucent enough to show through
-  renderPonds(originPxX, originPxY);
-  drawCastHighlight(originPxX, originPxY);
-  drawSpellPreview(originPxX, originPxY);
-  drawPlates(originPxX, originPxY);
-  drawInteractiveObjects(originPxX, originPxY);
-  drawDecor(originPxX, originPxY, camX, camY);
-  drawPrimitivePedestals(originPxX, originPxY);
-  drawItems(originPxX, originPxY);
-  drawHubAltar(originPxX, originPxY);
-  drawDoors(originPxX, originPxY);
+  renderPonds(originPx.x, originPx.y);
+  drawSpellPreview(originPx);
+  drawPlates(originPx);
+  drawDecor(originPx, camX, camY);
+  drawPrimitivePedestals(originPx);
+  drawItems(originPx);
+  drawHubAltar(originPx);
+  drawDoors(originPx);
   // (sealed rune obstacles are already present in the precomputed world canvas)
-  drawHubGlyph(originPxX, originPxY);
+  drawHubGlyph(originPx);
+  // objects (crate/vine/mirror/lock) drawn this late so a crate standing in front of a
+  // tree/mushroom's tall canopy reads as in front of it, not swallowed behind the decor
+  drawInteractiveObjects(originPx);
   drawPlayer();
   drawScreenFlash();
   drawVignette();

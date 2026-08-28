@@ -29,6 +29,8 @@ export const RUNE_ACCENT = {
 // shared muted grayish-purple for inactive UI states — caption text and the
 // not-yet-collected rune tint were close enough to just merge into one color
 const fontColor = '#8a7d9c';
+// erase-arrow fill and undo-icon stroke/fill — same muted ink, one shared constant
+const inkColor = '#7d6f92';
 // plain-language name for a Nature/Shape/Modifier enum value, shown under a slot
 // once it's filled — just the key title-cased (HALF_CIRCLE -> Half-circle)
 const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
@@ -257,7 +259,7 @@ export function drawComboOverlay() {
 
     comboCtx.save();
     comboCtx.font = `700 ${30 * scale}px ${FONT}`;
-    comboCtx.fillStyle = '#7d6f92';
+    comboCtx.fillStyle = inkColor;
     comboCtx.textAlign = 'center';
     comboCtx.textBaseline = 'middle';
     comboCtx.fillText('←', eraseX, cy + 1);
@@ -277,8 +279,8 @@ export function drawComboOverlay() {
       ty = Math.cos(a0);
     comboCtx.save();
     comboCtx.translate(undoX, cy);
-    comboCtx.strokeStyle = '#7d6f92';
-    comboCtx.fillStyle = '#7d6f92';
+    comboCtx.strokeStyle = inkColor;
+    comboCtx.fillStyle = inkColor;
     comboCtx.lineWidth = 3 * scale;
     comboCtx.lineCap = 'round';
     comboCtx.beginPath();

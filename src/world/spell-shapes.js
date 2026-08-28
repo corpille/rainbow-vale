@@ -10,8 +10,8 @@ import {
   RANGE_SHORT,
   SYMBOL_TO_ROLE,
   Shape,
+  canCrack,
   isBlockingFor,
-  isRock,
   isVoid,
   isWaterAt,
   key,
@@ -24,7 +24,7 @@ import { MIRROR_REFLECT } from './world-objects.js';
 
 // reverse of DIRS4 (vector -> name), built once instead of duplicating the 4 pairs
 const DIR_NAME_OF_VEC = {};
-Object.entries(DIRS4).forEach(([name, [dx, dy]]) => (DIR_NAME_OF_VEC[dx + ',' + dy] = name));
+Object.entries(DIRS4).forEach(([name, [dx, dy]]) => (DIR_NAME_OF_VEC[key(dx, dy)] = name));
 function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, viaMirror) {
   baseDist = baseDist || 0;
   const cells = [];
@@ -34,9 +34,11 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
     // a placed object (mirror_surface, sym_plate, ...) is reachable even without its own
     // floor tile, since it's positioned via MAP_DATA.objects, independent of gridStr
     if (!worldRunes.inBounds(x, y) && !worldRunes.objectAt(x, y)) {
-      // Crack marks a wall cracked but still fully solid until a crate shatters it, so
-      // the ray keeps going through it by default, chaining across a whole row of rock
-      if (nature === Nature.CRACK && isRock(x, y)) {
+      // Crack marks a crackable wall cracked but still fully solid until a crate shatters
+      // it, so the ray keeps going through it by default, chaining across a whole row of
+      // crackable rock. A permanent (non-crackable) wall falls through to the ordinary
+      // wall-blocking logic below, same as any other nature.
+      if (canCrack(nature, x, y)) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
@@ -54,7 +56,7 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
     if (isBlockingFor(x, y)) {
       const obj = worldRunes.objectAt(x, y);
       if (obj && obj.type === 'mirror_surface') {
-        const inDir = DIR_NAME_OF_VEC[dx + ',' + dy];
+        const inDir = DIR_NAME_OF_VEC[key(dx, dy)];
         const outDir = inDir === undefined ? undefined : MIRROR_REFLECT[obj.orientation][inDir];
         if (outDir !== undefined) {
           const [ndx, ndy] = DIRS4[outDir];
@@ -133,7 +135,7 @@ function isBlocked(from, to, nature) {
     const cell = line[i];
     if (
       !worldRunes.inBounds(cell.x, cell.y) &&
-      !(nature === Nature.CRACK && isRock(cell.x, cell.y)) &&
+      !canCrack(nature, cell.x, cell.y) &&
       !isVoid(cell.x, cell.y)
     )
       return true; // a wall stands before (or at) the target
@@ -215,7 +217,7 @@ export function findSwitchTarget(cells) {
 function spreadTypeAt(x, y, nature) {
   const obj = worldRunes.objectAt(x, y);
   if (obj) return obj.type;
-  if (nature === Nature.CRACK && isRock(x, y)) return 'rock';
+  if (canCrack(nature, x, y)) return 'rock';
   return nature === Nature.FREEZE && isWaterAt(x, y) ? 'water' : null;
 }
 // 'rock' and 'water' are tile types, not objects, so there's no wouldReact to call —
@@ -299,7 +301,7 @@ export function resolvePhrase(runes, px, py, dirName) {
       const obj = worldRunes.objectAt(cell.x, cell.y);
       const dir = effectDirectionForCell(px, py, cell, shape, dirName);
       if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
-      if (nature === Nature.CRACK && isRock(cell.x, cell.y))
+      if (canCrack(nature, cell.x, cell.y))
         return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
       // water is a grid tile, not an object — Mirror never applies here (thaw only ever
       // works on a crate, per invert's definition above), so no `invert` check needed

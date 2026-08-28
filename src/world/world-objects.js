@@ -230,22 +230,18 @@ export function createMirrorSurface(orientation) {
     reactTo() {},
   };
 }
-export function isPairResolved(result, pair) {
-  // a plate counts as "touched" either momentarily (hit by this resolution, e.g. a
-  // wide shape catching several plates at once) or persistently (a crate weighing it down)
-  const touches = new Set();
-  result.forEach(entry => {
-    if (entry.effect === 'activated' && entry.obj && entry.obj.pair === pair)
-      touches.add(entry.obj);
-  });
-  let totalMembers = 0;
+export function isPairResolved(pair) {
+  // a plate is only "touched" persistently — a crate actually weighing it down (via
+  // the push-slide/switch paths above), never merely by a spell passing over its tile
+  let totalMembers = 0,
+    weighedMembers = 0;
   plateByTile.forEach(plate => {
     if (plate.pair === pair) {
       totalMembers++;
-      if (plate.weighed) touches.add(plate);
+      if (plate.weighed) weighedMembers++;
     }
   });
-  return totalMembers > 0 && touches.size >= totalMembers;
+  return totalMembers > 0 && weighedMembers >= totalMembers;
 }
 // a lock never reacts to a nature directly — it opens only when game logic finds
 // its condition (e.g. a pair of plates activated together) met

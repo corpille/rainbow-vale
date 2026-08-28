@@ -23,14 +23,12 @@ import {
   primitiveSpots,
 } from '../world/map-loader.js';
 import { collectedItems, hubActivated, player, totalItems } from '../core/player.js';
-// lastCast (ui-panel.js) is reassigned below too (drawCastHighlight) — same
 // import-is-really-a-global caveat as above.
-import { RUNE_ACCENT, RUNE_SHAPE, lastCast, phraseRunes } from '../core/ui-panel.js';
+import { RUNE_ACCENT, RUNE_SHAPE, phraseRunes } from '../core/ui-panel.js';
 import {
   DECOR_ANCHOR_Y,
   DECOR_BITMAP_HEIGHT,
   DECOR_BITMAP_SIZE,
-  canvas,
   ctx,
   drawWallCrack,
   offscreen,
@@ -53,23 +51,40 @@ function viewBounds(camX, camY) {
     Math.ceil(camY + rowsHalf),
   ];
 }
+
+
+export const getPxPy = (origin, item) => [ 
+  origin.x + item.x * TILE + TILE / 2,
+  origin.y + item.y * TILE + TILE / 2
+];
+
 // draws only viewport tiles: a pre-rendered variant blit (baked in bakeRoomVariants)
 // for plain floor, or a per-tile draw for anything else (ice, and wall borders since
 // those depend on neighbors)
-export function drawWorldTiles(originPxX, originPxY, camX, camY) {
+export function drawWorldTiles(originPx, camX, camY) {
   const [x0, x1, y0, y1] = viewBounds(camX, camY);
 
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
-      const destX = Math.round(originPxX + x * TILE),
-        destY = Math.round(originPxY + y * TILE);
+      const destX = Math.round(originPx.x + x * TILE),
+        destY = Math.round(originPx.y + y * TILE);
       const cell = grid.get(key(x, y));
       const variant = tileVariantIndex(x, y);
 
       if (!cell) {
         const obstacle = obstacleByTile.get(key(x, y));
         if (!obstacle) continue; // true void — the sky-blue background shows through
+        // crackable wall's tell: draw this exact same baked wall bitmap through a hue-rotate
+        // filter — the wall's own texture/shading/AO untouched, just shifted off the zone's
+        // normal wall hue, same filter mechanism grayFilter already uses for the
+        // uncollected-zone grayscale bake (see bakeTile below). Only kicks in once the
+        // zone's rune is collected — before that it stays indistinguishable from every
+        // other wall, same as the rest of the zone, so finding it is part of exploring
+        // the zone rather than a hint visible from the very first glance.
+        const tinted = obstacle.crackable && collected.has(obstacle.roomId);
+        if (tinted) ctx.filter = 'hue-rotate(40deg)';
         ctx.drawImage(variantSetFor(obstacle.roomId, x, y).wall[variant], destX, destY, TILE, TILE);
+        if (tinted) ctx.filter = 'none';
         if (obstacle.cracked) drawWallCrack(destX, destY);
         // only draw edges facing a non-obstacle tile, else adjacent walls double-draw
         // the shared edge. [dx, dy, vertical, offset] per edge
@@ -117,7 +132,7 @@ export function drawWorldTiles(originPxX, originPxY, camX, camY) {
 // decor (trees, mushrooms, ...) gets its own pass after drawWorldTiles, since its
 // bitmap (DECOR_BITMAP_SIZE) is wider than one tile and would get clipped by a
 // neighboring tile drawn later in the same loop otherwise
-export function drawDecor(originPxX, originPxY, camX, camY) {
+export function drawDecor(originPx, camX, camY) {
   const [x0, x1, y0, y1] = viewBounds(camX, camY);
 
   // row-major top-to-bottom so decor in a lower row (closer to camera) draws over
@@ -126,8 +141,7 @@ export function drawDecor(originPxX, originPxY, camX, camY) {
     for (let x = x0; x <= x1; x++) {
       const decor = decorByTile.get(key(x, y));
       if (!decor) continue;
-      const destX = Math.round(originPxX + x * TILE),
-        destY = Math.round(originPxY + y * TILE);
+      const [ destX, destY ] = getPxPy(originPx, {x, y})
       // pre-baked bitmap (bakeDecorBitmap), anchored near its bottom (DECOR_ANCHOR_Y from
       // its own top) since drawFns grow upward from a ground point. Explicit destination
       // width/height keeps this correct if a resize lands mid-wave and decor.oldBitmap is
@@ -137,43 +151,28 @@ export function drawDecor(originPxX, originPxY, camX, camY) {
       const h = DECOR_BITMAP_HEIGHT * scale;
       const anchorY = DECOR_ANCHOR_Y * scale;
       const bmp = waveRevealed(decor.roomId, x, y) ? decor.bitmap : decor.oldBitmap;
-      ctx.drawImage(bmp, destX + TILE / 2 - w / 2, destY + TILE / 2 - anchorY, w, h);
+      ctx.drawImage(bmp, destX - w / 2, destY - anchorY, w, h);
     }
   }
-}
-
-// highlight of the cells touched by the last cast spell (fades over 500ms)
-export function drawCastHighlight(originPxX, originPxY) {
-  if (lastCast && performance.now() < lastCast.until) {
-    const t = 1 - (lastCast.until - performance.now()) / 500;
-    ctx.save();
-    ctx.globalAlpha = 0.32 * (1 - t);
-    ctx.fillStyle = COLORS.PINK_GLOW;
-    lastCast.cellsTouched.forEach(cell => {
-      ctx.fillRect(originPxX + cell.x * TILE, originPxY + cell.y * TILE, TILE, TILE);
-    });
-    ctx.restore();
-    // eslint-disable-next-line no-import-assign -- see the lastCast import comment up top
-  } else if (lastCast) lastCast = null;
 }
 
 // range preview shape only depends on phrase + player position/facing, which don't change
 // while the combo panel is open — cache it instead of recomputing 60x/sec while idle-composing
 let _spellPreviewCache = { key: null, cells: [], cellSet: null };
 function getSpellPreviewCells() {
-  const cacheKey = phraseRunes.join('') + '|' + player.x + ',' + player.y + '|' + player.facing;
+  const cacheKey = phraseRunes.join('') + '|' + key(player.x, player.y) + '|' + player.facing;
   if (_spellPreviewCache.key !== cacheKey) {
     const cells = computeSpellPreview(phraseRunes, player.x, player.y, player.facing);
     _spellPreviewCache = {
       key: cacheKey,
       cells,
-      cellSet: new Set(cells.map(cell => cell.x + ',' + cell.y)),
+      cellSet: new Set(cells.map(cell => key(cell.x, cell.y))),
     };
   }
   return _spellPreviewCache;
 }
 
-export function drawSpellPreview(originPxX, originPxY) {
+export function drawSpellPreview(originPx) {
   if (!phraseRunes.length) return;
   const { cells: previewCells, cellSet } = getSpellPreviewCells();
   const t = performance.now() / 450;
@@ -181,9 +180,8 @@ export function drawSpellPreview(originPxX, originPxY) {
   ctx.save();
   ctx.globalAlpha = 0.4 + pulse * 0.12;
   ctx.fillStyle = COLORS.PINK_GLOW;
-  previewCells.forEach(cell => {
-    ctx.fillRect(originPxX + cell.x * TILE, originPxY + cell.y * TILE, TILE, TILE);
-  });
+  const cellP = previewCells.map(cell => [originPx.x + cell.x * TILE, originPx.y + cell.y * TILE, cell.x, cell.y]);
+  cellP.forEach(([px, py]) => ctx.fillRect(px, py, TILE, TILE));
   ctx.shadowColor = COLORS.PINK_GLOW;
   ctx.shadowBlur = 14 + pulse * 6;
   ctx.strokeStyle = WHITE;
@@ -192,22 +190,20 @@ export function drawSpellPreview(originPxX, originPxY) {
   ctx.setLineDash([6, 4]);
   ctx.lineDashOffset = -performance.now() / 30;
   ctx.beginPath();
-  previewCells.forEach(cell => {
-    const px = originPxX + cell.x * TILE,
-      py = originPxY + cell.y * TILE;
-    if (!cellSet.has(cell.x + ',' + (cell.y - 1))) {
+  cellP.forEach(([px, py, x, y]) => {
+    if (!cellSet.has(key(x, y - 1))) {
       ctx.moveTo(px, py);
       ctx.lineTo(px + TILE, py);
     }
-    if (!cellSet.has(cell.x + ',' + (cell.y + 1))) {
+    if (!cellSet.has(key(x, y + 1))) {
       ctx.moveTo(px, py + TILE);
       ctx.lineTo(px + TILE, py + TILE);
     }
-    if (!cellSet.has(cell.x - 1 + ',' + cell.y)) {
+    if (!cellSet.has(key(x - 1, y))) {
       ctx.moveTo(px, py);
       ctx.lineTo(px, py + TILE);
     }
-    if (!cellSet.has(cell.x + 1 + ',' + cell.y)) {
+    if (!cellSet.has(key(x + 1, y))) {
       ctx.moveTo(px + TILE, py);
       ctx.lineTo(px + TILE, py + TILE);
     }
@@ -218,11 +214,10 @@ export function drawSpellPreview(originPxX, originPxY) {
 
 // symmetric plates: always drawn at their fixed spot whether or not a crate covers
 // them — a weighed plate glows green
-export function drawPlates(originPxX, originPxY) {
+export function drawPlates(originPx) {
   plateByTile.forEach((plate, tileKey) => {
-    const [tileX, tileY] = unkey(tileKey);
-    const px = originPxX + tileX * TILE + TILE / 2,
-      py = originPxY + tileY * TILE + TILE / 2;
+    const [x, y] = unkey(tileKey);
+    const [px, py] = getPxPy(originPx, {x, y});
     if (offscreen(px, py)) return;
     const color = plate.weighed ? COLORS.GREEN : COLORS.PURPLE;
     const scale = TILE / BASE_TILE;
@@ -243,21 +238,21 @@ export function drawPlates(originPxX, originPxY) {
 }
 
 // interactive objects (Vine, Crate, ...) — rendered dynamically, never frozen into the cache.
-export function drawInteractiveObjects(originPxX, originPxY) {
+export function drawInteractiveObjects(originPx) {
   objectsMap.forEach((obj, tileKey) => {
-    const [tileX, tileY] = unkey(tileKey);
-    renderInteractiveObject(obj, tileX, tileY, originPxX, originPxY);
+    const [x, y] = unkey(tileKey);
+    const [px, py] = getPxPy(originPx, { x, y });
+
+    renderInteractiveObject(obj, px, py);
   });
 }
 
 // primitive pedestals (1 per zone)
-export function drawPrimitivePedestals(originPxX, originPxY) {
+export function drawPrimitivePedestals(originPx) {
   ZONES.forEach(zone => {
     const spot = primitiveSpots[zone.id];
-    const px = originPxX + spot.x * TILE + TILE / 2,
-      py = originPxY + spot.y * TILE + TILE / 2;
+    const [px, py] = getPxPy(originPx, spot);
     if (offscreen(px, py)) return;
-    const glow = spot.collected ? RUNE_ACCENT[zone.id] : COLORS.PINK_SOFT;
     ctx.save();
     glowFill(
       ctx,
@@ -273,19 +268,19 @@ export function drawPrimitivePedestals(originPxX, originPxY) {
       py,
       TILE * 0.34,
       spot.collected ? UI_LIGHT : COLORS.CREAM,
-      glow,
+      spot.collected ? RUNE_ACCENT[zone.id] : COLORS.PINK_SOFT,
       RUNE_SHAPE[zone.id]
     );
   });
 }
 
 // item markers (disappear once collected)
-export function drawItems(originPxX, originPxY) {
+export function drawItems(originPx) {
   items.forEach(item => {
-    const spotKey = item.zoneId + ':' + item.x + ',' + item.y;
+    const spotKey = item.zoneId + ':' + key(item.x, item.y);
     if (collectedItems.has(spotKey)) return;
-    const px = originPxX + item.x * TILE + TILE / 2,
-      py = originPxY + item.y * TILE + TILE / 2;
+    const [px, py] = getPxPy(originPx, item);
+
     if (offscreen(px, py)) return;
     const t = performance.now() / 500;
     // shape below is drawn in BASE_TILE-pixel units — scale it to the current TILE
@@ -314,29 +309,29 @@ export function drawItems(originPxX, originPxY) {
 }
 
 // hub altar: lights up progressively as objects are brought back
-export function drawHubAltar(originPxX, originPxY) {
+export function drawHubAltar(originPx) {
   if (totalItems <= 0) return;
-  const apx = originPxX + HUB.cx * TILE + TILE / 2,
-    apy = originPxY + HUB.cy * TILE + TILE / 2;
-  if (offscreen(apx, apy, TILE * 2)) return;
+  const [px, py] = getPxPy(originPx, {x: HUB.cx, y: HUB.cy});
+
+  if (offscreen(px, py, TILE * 2)) return;
   const ratio = collectedItems.size / totalItems;
   const t = performance.now() / 600;
   ctx.save();
   ctx.globalAlpha = 0.25 + ratio * 0.35 + (hubActivated ? Math.sin(t) * 0.15 : 0);
   const ac = hubActivated ? '#fff' : COLORS.PINK_GLOW;
-  glowFill(ctx, apx, apy, TILE * 1.6, ac);
+  glowFill(ctx, px, py, TILE * 1.6, ac);
   ctx.restore();
   ctx.save();
   ctx.strokeStyle = ac;
   ctx.lineWidth = 2 * (TILE / BASE_TILE);
   ctx.globalAlpha = 0.6 + ratio * 0.4;
-  strokeCircle(ctx, apx, apy, TILE * 0.5);
+  strokeCircle(ctx, px, py, TILE * 0.5);
   ctx.restore();
   // stars indicating progress, no text
   for (let i = 0; i < totalItems; i++) {
     const angle = (i / totalItems) * Math.PI * 2 - Math.PI / 2;
-    const starX = apx + Math.cos(angle) * TILE * 0.85,
-      starY = apy + Math.sin(angle) * TILE * 0.85;
+    const starX = px + Math.cos(angle) * TILE * 0.85,
+      starY = py + Math.sin(angle) * TILE * 0.85;
     ctx.save();
     ctx.fillStyle = i < collectedItems.size ? COLORS.PINK_GLOW : `${WHITE}26`;
     ctx.strokeStyle = i < collectedItems.size ? WHITE : `${WHITE}40`;
@@ -352,23 +347,17 @@ export function drawHubAltar(originPxX, originPxY) {
   }
 }
 
-// doors: simple entry marker, cosmetic — entering the zone is no longer blocked
-export function drawDoors(originPxX, originPxY) {
+export function drawDoors(originPx) {
   doors.forEach(door => {
-    const px = originPxX + door.x * TILE + TILE / 2,
-      py = originPxY + door.y * TILE + TILE / 2;
+    const [px, py] = getPxPy(originPx, door);
     if (offscreen(px, py)) return;
-    const done = collected.has(door.roomId);
-    const glyphColor = done ? WHITE : COLORS.PINK_WARM;
-    const glowColor = done ? RUNE_ACCENT[door.roomId] : COLORS.PINK_WARM;
-    iconGlyph(ctx, px, py, TILE * 0.28, glyphColor, glowColor, RUNE_SHAPE[door.roomId]);
+    iconGlyph(ctx, px, py, TILE * 0.2, undefined, `${WHITE}a0`, RUNE_SHAPE[door.roomId]);
   });
 }
 
-export function drawHubGlyph(originPxX, originPxY) {
-  const px = originPxX + HUB.cx * TILE + TILE / 2,
-    py = originPxY + HUB.cy * TILE + TILE / 2;
-  if (Math.hypot(px - canvas.width / 2, py - canvas.height / 2) < canvas.width) {
+export function drawHubGlyph(originPx) {
+  const [px, py] = getPxPy(originPx, {x: HUB.cx, y: HUB.cy});
+  if (!offscreen(px, py)) {
     iconGlyph(ctx, px, py, TILE * 0.34, COLORS.CREAM, COLORS.PINK_SOFT, 4); // 4 = heart, see RUNE_SHAPES
   }
 }
