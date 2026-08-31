@@ -78,10 +78,14 @@ export function drawMushroomClusterBig(ctx, x, y, seed) {
   }
 }
 
-const GEM_PALETTE = [PINKISH, VIOLET, TEAL];
+// icy blues drawn from the cavern/Frost zone's own palette (ZONE_DEFS 'j': base
+// '#d6ecff', dark '#8fc9f0' in world-zones.js) instead of the shared pink/violet/teal
+// gem palette — this cluster should read as part of the zone, not a generic rainbow gem
+// that happens to share its colors with real item pickups
+const GEM_PALETTE = ['#eaf6ff', '#9fd6f5', '#6fa3d6'];
 export function drawCrystalClusterBig(ctx, x, y) {
   const cy = y + 8;
-  softShadow(ctx, x, cy + 4, 18, 6, 0.18, '#e0c8ff');
+  softShadow(ctx, x, cy + 4, 18, 6, 0.18, '#cfe8fb');
   for (let i = 0; i < 3; i++) {
     const h = 24 + (i % 2) * 10,
       w = 11;
@@ -90,24 +94,31 @@ export function drawCrystalClusterBig(ctx, x, y) {
     ctx.save();
     ctx.translate(x + ox, cy);
     ctx.rotate(rot);
-    ctx.beginPath();
-    ctx.moveTo(0, -h);
-    ctx.lineTo(w / 2, -h * 0.3);
-    ctx.lineTo(0, 0);
-    ctx.lineTo(-w / 2, -h * 0.3);
-    ctx.closePath();
+    // built once and reused below for both the fill and the outline stroke, instead of
+    // repeating the same 4 moveTo/lineTo points twice
+    const facet = new Path2D();
+    facet.moveTo(0, -h);
+    facet.lineTo(w / 2, -h * 0.3);
+    facet.lineTo(0, 0);
+    facet.lineTo(-w / 2, -h * 0.3);
+    facet.closePath();
     ctx.fillStyle = GEM_PALETTE[i % GEM_PALETTE.length];
-    ctx.fill();
-    ctx.strokeStyle = '#5a4a7a';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
+    ctx.fill(facet);
+    // inner facet line: another shade of the same icy palette (not this crystal's own
+    // fill, and not a bright white glint) — reads as a facet edge, not a shiny highlight
     ctx.beginPath();
     ctx.moveTo(0, -h);
     ctx.lineTo(0, 0);
-    ctx.strokeStyle = WHITE;
-    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = GEM_PALETTE[(i + 1) % GEM_PALETTE.length];
+    ctx.globalAlpha = 0.5;
     ctx.lineWidth = 1.4;
     ctx.stroke();
+    // white edge instead of a dark outline, like frost/ice-rimed rock — drawn last so it
+    // sits cleanly over the facet line's endpoints instead of the line crossing over it
+    ctx.strokeStyle = WHITE;
+    ctx.globalAlpha = 0.6;
+    ctx.lineWidth = 1.2;
+    ctx.stroke(facet);
     ctx.restore();
   }
 }
