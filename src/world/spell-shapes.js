@@ -77,8 +77,8 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
   }
   return cells;
 }
-// shared by getCellsArc and getConeCells: a wall between caster and cell blocks it
-// unless Pierce, which still requires the cell be reachable at all
+// shared by getCellsArc and getConeCells: a wall (or blocking object) between caster and
+// cell blocks it, unless Pierce, which still requires the cell be reachable at all
 function pushIfReachable(cells, from, x, y, d, nature, withPierce) {
   if (!withPierce && isBlocked(from, { x, y }, nature)) return;
   if (!withPierce || reachableCell(x, y, nature)) cells.push({ x, y, d });
@@ -139,6 +139,9 @@ function isBlocked(from, to, nature) {
       !isVoid(cell.x, cell.y)
     )
       return true; // a wall stands before (or at) the target
+    // a blocking object (mirror, crate, vine, ...) only blocks cells beyond it, not the
+    // object's own cell, same as a LINE cast still hits what it runs into
+    if (i < line.length - 1 && isBlockingFor(cell.x, cell.y)) return true;
   }
   return false;
 }

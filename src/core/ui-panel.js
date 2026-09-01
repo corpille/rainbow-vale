@@ -35,8 +35,8 @@ const inkColor = '#7d6f92';
 // once it's filled — just the key title-cased (HALF_CIRCLE -> Half-circle)
 const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
 // Mirror is the only modifier whose effect depends on the nature it's paired with
-// (Pull for Push, Thaw for Freeze, Mend for Crack). Cut falls through to the plain
-// "Mirror" label below since it's a no-op there.
+// (Pull for Push, Thaw for Freeze, Mend for Crack). Cut has no invert (it's a no-op
+// there), so that case — and the no-nature-yet case — falls through to a plain '-'.
 const DESC_MIRROR_INVERT = {
   [Nature.PUSH]: 'Pull',
   [Nature.FREEZE]: 'Thaw',
@@ -49,9 +49,9 @@ const DESC_BY_SLOT = [
   sym => desc(SYMBOL_TO_ROLE[sym].slot2),
   (sym, natureSym) => {
     const modifier = SYMBOL_TO_ROLE[sym].slot3;
-    if (modifier === Modifier.MIRROR && natureSym) {
-      const invert = DESC_MIRROR_INVERT[SYMBOL_TO_ROLE[natureSym].slot1];
-      if (invert) return invert;
+    if (modifier === Modifier.MIRROR) {
+      const invert = natureSym && DESC_MIRROR_INVERT[SYMBOL_TO_ROLE[natureSym].slot1];
+      return invert || '-';
     }
     return desc(modifier);
   },
