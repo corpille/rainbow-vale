@@ -304,21 +304,23 @@ function addToPhrase(zoneId) {
   phraseRunes.push(zoneId);
 }
 
+// resolvePhrase trusts its input: addToPhrase above is the only way a rune reaches
+// phraseRunes, and it already rejects uncollected zone ids and caps the length at 3 —
+// with the empty case handled on the next line. Keep those three checks together if you
+// ever add another way to compose a phrase.
 function castPhrase() {
   if (!phraseRunes.length) return;
   const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
-  if (result.ok) {
-    beginAction();
-    applyEffectsToWorld(result.result, result.shape, player.x, player.y);
-    // Switch: the crate's side of the trade already happened above (it's on the
-    // caster's old tile now) — snap the player onto the crate's old tile too, no
-    // glide since this is a teleport, not a walk
-    const switchEntry = result.result.find(entry => entry.effect === 'switch');
-    if (switchEntry) {
-      snapPos();
-      player.x = player.dispX = switchEntry.cell.x;
-      player.y = player.dispY = switchEntry.cell.y;
-    }
+  beginAction();
+  applyEffectsToWorld(result.result, result.shape, player.x, player.y);
+  // Switch: the crate's side of the trade already happened above (it's on the
+  // caster's old tile now) — snap the player onto the crate's old tile too, no
+  // glide since this is a teleport, not a walk
+  const switchEntry = result.result.find(entry => entry.effect === 'switch');
+  if (switchEntry) {
+    snapPos();
+    player.x = player.dispX = switchEntry.cell.x;
+    player.y = player.dispY = switchEntry.cell.y;
   }
   phraseRunes = [];
 }

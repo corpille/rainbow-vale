@@ -67,7 +67,6 @@ export const SYMBOL_TO_ROLE = {
   m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.THROUGH },
   b: { slot1: Nature.CRACK, slot2: Shape.CONE, slot3: Modifier.SWITCH },
 };
-const ALL_SYMBOLS = ZONE_DEFS.map(zone => zone.id);
 export const RANGE_LINE = 5;
 export const RANGE_SHORT = 3;
 export const RANGE_DIAGONAL = 5;
@@ -85,9 +84,6 @@ export const CARDINAL_OFFSETS = [
   [0, 1],
   [0, -1],
 ];
-
-export const validatePhrase = runes =>
-  runes.length >= 1 && runes.length <= 3 && runes.every(rune => ALL_SYMBOLS.includes(rune));
 
 export const objectsMap = new Map(); // "x,y" -> interactive object (Vine, Crate, ...)
 

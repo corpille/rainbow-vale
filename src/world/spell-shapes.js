@@ -17,7 +17,6 @@ import {
   key,
   reachableCell,
   track,
-  validatePhrase,
   worldRunes,
 } from './world-zones.js';
 import { MIRROR_REFLECT } from './world-objects.js';
@@ -273,7 +272,6 @@ export function computeSpellCells(nature, shape, modifier, withThrough, px, py, 
   return cells;
 }
 export function resolvePhrase(runes, px, py, dirName) {
-  if (!validatePhrase(runes)) return { ok: false };
   const { nature, shape, modifier, withThrough } = deriveSpell(runes);
   const cells = computeSpellCells(nature, shape, modifier, withThrough, px, py, dirName);
   // Switch swaps the caster with the nearest crate along the cast, regardless of nature,
@@ -311,13 +309,8 @@ export function resolvePhrase(runes, px, py, dirName) {
     };
     result = cells.map(resolveCell);
   }
-  return {
-    ok: true,
-    nature,
-    shape,
-    modifier,
-    result,
-  };
+  // shape feeds world-objects' per-shape slide budget; result is the cell/effect list
+  return { shape, result };
 }
 // registry of locks tied to a condition (currently only "this pair of plates is all
 // weighed down") — checked after every phrase resolution
