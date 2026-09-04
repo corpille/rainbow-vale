@@ -35,7 +35,6 @@ them all, and the Vale blooms back into color.
 | Click a rune, or 1 – 4 | Add that rune to your spell (up to 3) |
 | Space / Enter, or Cast | Release the spell |
 | Backspace | Remove the last rune |
-| Escape | Clear the spell |
 | B, or Undo | Take back your last move |
 
 The spell bar along the bottom is always live — no menu to open, just start typing runes.

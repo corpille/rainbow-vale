@@ -352,11 +352,6 @@ comboOverlay.addEventListener('pointerdown', e => {
 
 window.addEventListener('keydown', e => {
   if (gameState !== 'playing') return;
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    phraseRunes = [];
-    return;
-  }
   if (e.key === 'Backspace') {
     e.preventDefault();
     phraseRunes.pop();
