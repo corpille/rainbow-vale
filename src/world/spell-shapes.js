@@ -25,7 +25,7 @@ import { MIRROR_REFLECT } from './world-objects.js';
 // reverse of DIRS4 (vector -> name), built once instead of duplicating the 4 pairs
 const DIR_NAME_OF_VEC = {};
 Object.entries(DIRS4).forEach(([name, [dx, dy]]) => (DIR_NAME_OF_VEC[key(dx, dy)] = name));
-function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, viaMirror) {
+function getCellsLine(px, py, dx, dy, maxRange, withThrough, nature, baseDist) {
   baseDist = baseDist || 0;
   const cells = [];
   for (let i = 1; i <= maxRange; i++) {
@@ -42,14 +42,14 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
-      // true void never blocks a spell, with or without Pierce — only a real wall needs
-      // Pierce (or a mirror bounce) to cross. Nothing can ever stand in void either, so
-      // this just lets an effect reach past the gap, not occupy it
+      // true void never blocks a spell, with or without Through — only a real wall needs
+      // Through to cross. Nothing can ever stand in void either, so this just lets an
+      // effect reach past the gap, not occupy it
       if (isVoid(x, y)) {
         cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
         continue;
       }
-      if (withPierce || viaMirror) continue;
+      if (withThrough) continue;
       break;
     }
     cells.push({ x, y, dir: [dx, dy], d: baseDist + i });
@@ -61,7 +61,7 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
         if (outDir !== undefined) {
           const [ndx, ndy] = DIRS4[outDir];
           return cells.concat(
-            getCellsLine(x, y, ndx, ndy, maxRange - i, withPierce, nature, baseDist + i, true)
+            getCellsLine(x, y, ndx, ndy, maxRange - i, withThrough, nature, baseDist + i)
           );
         }
       }
@@ -69,21 +69,21 @@ function getCellsLine(px, py, dx, dy, maxRange, withPierce, nature, baseDist, vi
       if (nature === Nature.FREEZE && isWaterAt(x, y)) continue;
       const reacts = obj && typeof obj.wouldReact === 'function' && obj.wouldReact(nature);
       // Push chains through whatever it just pushed, same as Cut through a vine it just
-      // destroyed. Pierce alone goes through obstacles that stay solid (crate under Crack)
+      // destroyed. Through alone goes through obstacles that stay solid (crate under Crack)
       const clearsPath = obj && obj.type === 'vine' && nature === Nature.CUT;
-      if (withPierce || ((nature === Nature.PUSH || clearsPath) && reacts)) continue;
+      if (withThrough || ((nature === Nature.PUSH || clearsPath) && reacts)) continue;
       break;
     }
   }
   return cells;
 }
 // shared by getCellsArc and getConeCells: a wall (or blocking object) between caster and
-// cell blocks it, unless Pierce, which still requires the cell be reachable at all
-function pushIfReachable(cells, from, x, y, d, nature, withPierce) {
-  if (!withPierce && isBlocked(from, { x, y }, nature)) return;
-  if (!withPierce || reachableCell(x, y, nature)) cells.push({ x, y, d });
+// cell blocks it, unless Through, which still requires the cell be reachable at all
+function pushIfReachable(cells, from, x, y, d, nature, withThrough) {
+  if (!withThrough && isBlocked(from, { x, y }, nature)) return;
+  if (!withThrough || reachableCell(x, y, nature)) cells.push({ x, y, d });
 }
-function getCellsArc(px, py, dx, dy, maxRange, angleMaxDeg, nature, withPierce) {
+function getCellsArc(px, py, dx, dy, maxRange, angleMaxDeg, nature, withThrough) {
   const cells = [];
   for (let oy = -maxRange; oy <= maxRange; oy++)
     for (let ox = -maxRange; ox <= maxRange; ox++) {
@@ -93,13 +93,13 @@ function getCellsArc(px, py, dx, dy, maxRange, angleMaxDeg, nature, withPierce) 
       const dot = (ox * dx + oy * dy) / dist;
       const angle = (Math.acos(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI;
       if (angle > angleMaxDeg + 1e-6) continue;
-      pushIfReachable(cells, { x: px, y: py }, px + ox, py + oy, dist, nature, withPierce);
+      pushIfReachable(cells, { x: px, y: py }, px + ox, py + oy, dist, nature, withThrough);
     }
   return cells;
 }
-function getCellsDiagonal(px, py, dirName, maxRange, withPierce, nature) {
+function getCellsDiagonal(px, py, dirName, maxRange, withThrough, nature) {
   const [dx, dy] = DIAG_OF[dirName];
-  return getCellsLine(px, py, dx, dy, maxRange, withPierce, nature);
+  return getCellsLine(px, py, dx, dy, maxRange, withThrough, nature);
 }
 
 export const CONE_PATTERN = [
@@ -109,7 +109,7 @@ export const CONE_PATTERN = [
   { row: 4, offsets: [-3, -2, -1, 0, 1, 2, 3] },
 ];
 
-function getConeCells(playerPos, dir, withPierce, nature) {
+function getConeCells(playerPos, dir, withThrough, nature) {
   const cells = [];
 
   for (const { row, offsets } of CONE_PATTERN) {
@@ -121,7 +121,7 @@ function getConeCells(playerPos, dir, withPierce, nature) {
         playerPos.y + dir.y * row + dir.x * offset,
         row,
         nature,
-        withPierce
+        withThrough
       );
     }
   }
@@ -175,17 +175,17 @@ function bresenhamLine(from, to) {
   return points;
 }
 
-function applyShape(shape, px, py, dirName, nature, withPierce) {
+function applyShape(shape, px, py, dirName, nature, withThrough) {
   const [dx, dy] = DIRS4[dirName];
   switch (shape) {
     case Shape.LINE:
-      return getCellsLine(px, py, dx, dy, RANGE_LINE, withPierce, nature);
+      return getCellsLine(px, py, dx, dy, RANGE_LINE, withThrough, nature);
     case Shape.HALF_CIRCLE:
-      return getCellsArc(px, py, dx, dy, RANGE_SHORT, 90, nature, withPierce);
+      return getCellsArc(px, py, dx, dy, RANGE_SHORT, 90, nature, withThrough);
     case Shape.CONE:
-      return getConeCells({ x: px, y: py }, { x: dx, y: dy }, withPierce, nature);
+      return getConeCells({ x: px, y: py }, { x: dx, y: dy }, withThrough, nature);
     case Shape.DIAGONAL:
-      return getCellsDiagonal(px, py, dirName, RANGE_DIAGONAL, withPierce, nature);
+      return getCellsDiagonal(px, py, dirName, RANGE_DIAGONAL, withThrough, nature);
     default: {
       const x = px + dx,
         y = py + dy;
@@ -265,20 +265,20 @@ export function deriveSpell(runes) {
   const nature = SYMBOL_TO_ROLE[runes[0]].slot1;
   const shape = runes.length >= 2 ? SYMBOL_TO_ROLE[runes[1]].slot2 : Shape.CONTACT;
   const modifier = runes.length === 3 ? SYMBOL_TO_ROLE[runes[2]].slot3 : Modifier.NONE;
-  return { nature, shape, modifier, withPierce: modifier === Modifier.PIERCE };
+  return { nature, shape, modifier, withThrough: modifier === Modifier.THROUGH };
 }
 // full set of cells a spell touches: base shape plus any SPREAD modifier. Switch and
 // Mirror only change what happens at resolution, not which cells are touched. Shared
 // by resolvePhrase and the live range preview
-export function computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName) {
-  const cells = applyShape(shape, px, py, dirName, nature, withPierce);
+export function computeSpellCells(nature, shape, modifier, withThrough, px, py, dirName) {
+  const cells = applyShape(shape, px, py, dirName, nature, withThrough);
   if (modifier === Modifier.SPREAD) return cells.concat(applySpreadModifier(nature, cells));
   return cells;
 }
 export function resolvePhrase(runes, px, py, dirName) {
   if (!validatePhrase(runes)) return { ok: false };
-  const { nature, shape, modifier, withPierce } = deriveSpell(runes);
-  const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
+  const { nature, shape, modifier, withThrough } = deriveSpell(runes);
+  const cells = computeSpellCells(nature, shape, modifier, withThrough, px, py, dirName);
   // Switch swaps the caster with the nearest crate along the cast, regardless of nature,
   // and nothing else — every other cell the ray passes through is ignored entirely
   let result;

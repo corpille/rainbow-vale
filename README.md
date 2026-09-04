@@ -19,7 +19,7 @@ home to the altar at the Vale's heart.
 Explore each of the four realms and collect its rune. Combine up to three runes into
 a spell phrase — the first sets its **nature** (push, freeze, cut, crack), the second
 its **shape** (a line, an arc, a cone...), and an optional third twists the effect
-(pierce further, spread wider, mirror it back).
+(go through further, spread wider, mirror it back).
 
 Use your spells to solve each realm's puzzles: push crates onto pressure plates,
 freeze water into stepping stones, cut through overgrown vines, crack open blocked

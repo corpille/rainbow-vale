@@ -155,8 +155,8 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
 // applied) — recomputed every frame during composition
 export function computeSpellPreview(runes, px, py, dirName) {
   if (!runes.length) return [];
-  const { nature, shape, modifier, withPierce } = deriveSpell(runes);
-  const cells = computeSpellCells(nature, shape, modifier, withPierce, px, py, dirName);
+  const { nature, shape, modifier, withThrough } = deriveSpell(runes);
+  const cells = computeSpellCells(nature, shape, modifier, withThrough, px, py, dirName);
   // Switch only ever acts on the one crate it targets — previewing the whole ray
   // would look like everything on it is about to happen, so show just the target.
   if (modifier === Modifier.SWITCH) {
@@ -174,7 +174,7 @@ export function createVine() {
     get blocksMovement() {
       return !this.destroyed;
     },
-    // pure check reused by Spread propagation (and pierce-through checks) so probing
+    // pure check reused by Spread propagation (and through checks) so probing
     // "would this react" never mutates state like reactTo does
     wouldReact(nature) {
       return !this.destroyed && nature === Nature.CUT;

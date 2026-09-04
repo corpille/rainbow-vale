@@ -1823,6 +1823,14 @@
         }
       });
 
+      const ARROW_DELTA = {
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+      };
+      const PAN_TILES_PER_PRESS = 2;
+
       window.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
           if (chunkCarry) {
@@ -1842,6 +1850,13 @@
         if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
           e.preventDefault();
           undo();
+        }
+        if (ARROW_DELTA[e.key]) {
+          e.preventDefault();
+          const [dx, dy] = ARROW_DELTA[e.key];
+          camera.x += dx * PAN_TILES_PER_PRESS;
+          camera.y += dy * PAN_TILES_PER_PRESS;
+          render();
         }
       });
 

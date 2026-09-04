@@ -53,7 +53,7 @@ export const Shape = {
   CONTACT: 'CONTACT',
 };
 export const Modifier = {
-  PIERCE: 'PIERCE',
+  THROUGH: 'THROUGH',
   SWITCH: 'SWITCH',
   SPREAD: 'SPREAD',
   MIRROR: 'MIRROR',
@@ -62,10 +62,10 @@ export const Modifier = {
 // keyed by zone id itself (m/j/v/b), not an arbitrary rune glyph — a phrase rune IS the
 // zone id it came from, so this also answers "which spell role does this rune play".
 export const SYMBOL_TO_ROLE = {
-  v: { slot1: Nature.CUT, slot2: Shape.CONE, slot3: Modifier.SPREAD },
+  v: { slot1: Nature.CUT, slot2: Shape.DIAGONAL, slot3: Modifier.SPREAD },
   j: { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.MIRROR },
-  m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.PIERCE },
-  b: { slot1: Nature.CRACK, slot2: Shape.DIAGONAL, slot3: Modifier.SWITCH },
+  m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.THROUGH },
+  b: { slot1: Nature.CRACK, slot2: Shape.CONE, slot3: Modifier.SWITCH },
 };
 const ALL_SYMBOLS = ZONE_DEFS.map(zone => zone.id);
 export const RANGE_LINE = 5;
