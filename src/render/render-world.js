@@ -72,7 +72,9 @@ const gemGradient = (x0, y0, x1, y1) =>
     [1, VIOLET],
   ]);
 
-function renderVine(px, py) {
+function renderVine() {
+  const px = 0, // caller already translated to the tile centre; named so the maths reads positionally
+    py = 0;
   ctx.save();
   ctx.strokeStyle = '#4caf6b';
   ctx.lineWidth = 5;
@@ -94,7 +96,9 @@ function renderVine(px, py) {
 // ice look — fully opaque, so the floor tile underneath is skipped rather than drawn
 // then covered (see drawWorldTiles). The liquid "water" state animates separately in
 // renderPonds below, since it needs to shimmer/drift as a shared pond.
-export function renderPuddle(ctx, px, py) {
+export function renderPuddle() {
+  const px = 0, // caller already translated to the tile centre; named so the maths reads positionally
+    py = 0;
   ctx.save();
   ctx.fillStyle = linGrad(
     ctx,
@@ -278,7 +282,9 @@ export function renderPonds(originPxX, originPxY) {
 
 // a pushable gift box, not a plain crate — ribbon + bow sell the theme at a glance,
 // still readable at small scale
-function renderCrate(obj, px, py) {
+function renderCrate(obj) {
+  const px = 0, // caller already translated to the tile centre; named so the maths reads positionally
+    py = 0;
   const half = BASE_TILE * 0.32;
   ctx.save();
   ctx.fillStyle = linGrad(ctx, px - half, py - half, px + half, py + half, [
@@ -310,9 +316,16 @@ function renderCrate(obj, px, py) {
 
 // corner each orientation occupies, matching MIRROR_REFLECT in world-objects.js: NE/SW
 // bounce along a "\" line, ES/WN along a "/" line, clipped to the named corner
-const MIRROR_CORNER = { NE: [1, -1], SW: [-1, 1], ES: [1, 1], WN: [-1, -1] };
-function renderMirror(px, py, orientation) {
-  const [sxs0, sys0] = MIRROR_CORNER[orientation] || MIRROR_CORNER.NE;
+const MIRROR_CORNER = [
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+  [-1, -1],
+];
+function renderMirror(orientation) {
+  const px = 0, // caller already translated to the tile centre; named so the maths reads positionally
+    py = 0;
+  const [sxs0, sys0] = MIRROR_CORNER[orientation] || MIRROR_CORNER[0];
   // solid glass fills the FAR corner (plus its two edge-adjacent corners), leaving the
   // named corner open — inverted from MIRROR_CORNER's own corner
   const sxs = -sxs0,
@@ -364,7 +377,9 @@ export function drawWallCrack(destX, destY) {
   ctx.restore();
 }
 
-function renderLockGate(px, py) {
+function renderLockGate() {
+  const px = 0, // caller already translated to the tile centre; named so the maths reads positionally
+    py = 0;
   const n = 5,
     totalW = BASE_TILE * 0.8,
     halfH = totalW / 2,
@@ -374,8 +389,11 @@ function renderLockGate(px, py) {
   for (let i = 0; i < n; i++) {
     const rx = px - totalW / 2 + i * (rectW + gap);
     ctx.fillStyle = linGrad(ctx, rx, py - halfH, rx + rectW, py + halfH, [
-      [0,COLORS.PINK_GLOW], [0.5, COLORS.PINK], [1, COLORS.PURPLE]]);
-    
+      [0, COLORS.PINK_GLOW],
+      [0.5, COLORS.PINK],
+      [1, COLORS.PURPLE],
+    ]);
+
     ctx.fillRect(rx, py - halfH, rectW, halfH * 2);
   }
   ctx.restore();
@@ -391,17 +409,17 @@ export function renderInteractiveObject(obj, px, py) {
   ctx.translate(px, py);
   ctx.scale(TILE / BASE_TILE, TILE / BASE_TILE);
   if (obj.type === 'vine') {
-    if (!obj.destroyed) renderVine(0, 0);
+    if (!obj.destroyed) renderVine();
   } else if (obj.type === 'crate') {
-    renderCrate(obj, 0, 0);
+    renderCrate(obj);
   } else if (obj.type === 'mirror_surface') {
-    renderMirror(0, 0, obj.orientation);
+    renderMirror(obj.orientation);
     // sym_plate renders separately (plateByTile loop in draw()) so it stays visible
     // under a crate weighing it down in the same tile slot
   } else if (obj.type === 'lock') {
     // world x/y (stable, unlike screen px/py which drifts with the camera) seeds which
     // pattern this particular lock grows, so it doesn't shift/jitter as the player moves
-    if (!obj.open) renderLockGate(0, 0);
+    if (!obj.open) renderLockGate();
   }
   ctx.restore(); // matches the outer translate/scale
 }

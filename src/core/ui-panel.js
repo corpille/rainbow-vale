@@ -361,20 +361,11 @@ window.addEventListener('keydown', e => {
     return;
   }
   // e.code is the key's physical position, not the character produced — avoids needing
-  // Shift on AZERTY while staying valid on QWERTY
-  const DIGIT_CODES = [
-    'Digit1',
-    'Digit2',
-    'Digit3',
-    'Digit4',
-    'Numpad1',
-    'Numpad2',
-    'Numpad3',
-    'Numpad4',
-  ];
-  let idx = DIGIT_CODES.indexOf(e.code);
-  if (idx >= 4) idx -= 4;
-  if (idx < 0) idx = '1234'.indexOf(e.key);
+  // Shift on AZERTY while staying valid on QWERTY. Anything else (incl. Digit5+) falls
+  // through to e.key, which only matches for the literal characters 1-4.
+  const idx = /^(Digit|Numpad)[1-4]$/.test(e.code)
+    ? e.code.slice(-1) - 1
+    : '1234'.indexOf(e.key);
   if (idx >= 0 && idx < RUNE_KEYS.length) {
     e.preventDefault();
     addToPhrase(RUNE_KEYS[idx]);

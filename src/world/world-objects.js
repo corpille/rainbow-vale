@@ -15,7 +15,7 @@ import {
   worldRunes,
 } from './world-zones.js';
 import {
-  CONE_PATTERN,
+  CONE_ROWS,
   checkLocks,
   computeSpellCells,
   deriveSpell,
@@ -49,7 +49,7 @@ const RAY_RANGE_FOR_SHAPE = {
   LINE: RANGE_LINE,
   DIAGONAL: RANGE_DIAGONAL,
   HALF_CIRCLE: RANGE_SHORT,
-  CONE: CONE_PATTERN.length,
+  CONE: CONE_ROWS,
 };
 // textures a newly-shattered tile with whichever neighbor's room it can find, falling
 // back to the caster's own room (or the wall's own former room) if fully isolated
@@ -216,16 +216,17 @@ export function createCrate() {
 // reflector connecting 2 of the 4 cardinal directions: a ray entering one open face
 // exits the other with its remaining range; a closed face just blocks.
 // direction codes: 0=up, 1=down, 2=left, 3=right (see DIRS4 in world-zones.js)
-export const MIRROR_REFLECT = {
-  NE: { 1: 3, 2: 0 },
-  ES: { 2: 1, 0: 3 },
-  SW: { 0: 2, 3: 1 },
-  WN: { 3: 0, 1: 2 },
-};
+// indexed by the orientation code the map already stores (0=NE, 1=ES, 2=SW, 3=WN)
+export const MIRROR_REFLECT = [
+  { 1: 3, 2: 0 },
+  { 2: 1, 0: 3 },
+  { 0: 2, 3: 1 },
+  { 3: 0, 1: 2 },
+];
 export function createMirrorSurface(orientation) {
   return {
     type: 'mirror_surface',
-    orientation: orientation || 'NE',
+    orientation: orientation ?? 0,
     blocksMovement: true,
     reactTo() {},
   };

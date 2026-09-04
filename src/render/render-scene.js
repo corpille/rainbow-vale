@@ -122,7 +122,7 @@ export function drawWorldTiles(originPx, camX, camY) {
         ctx.save();
         ctx.translate(destX + TILE / 2, destY + TILE / 2);
         ctx.scale(ps, ps);
-        renderPuddle(ctx, 0, 0);
+        renderPuddle();
         ctx.restore();
       }
     }
@@ -219,7 +219,7 @@ export function drawPlates(originPx) {
     const [x, y] = unkey(tileKey);
     const [px, py] = getPxPy(originPx, {x, y});
     if (offscreen(px, py)) return;
-    const color = plate.weighed ? COLORS.GREEN : COLORS.PURPLE;
+    const color = plate.weighed ? '#5aff9a' : COLORS.PURPLE;
     const scale = TILE / BASE_TILE;
     ctx.save();
     if (plate.weighed) {
@@ -298,7 +298,7 @@ export function drawItems(originPx) {
     // the star itself: a 4-point sparkle, same alternating-radius shape as starPath just
     // traced from a different vertex — identical fill either way
     ctx.fillStyle = COLORS.STAR_CREAM;
-    ctx.strokeStyle = COLORS.PINK_DARK;
+    ctx.strokeStyle = '#8a2a6a';
     ctx.lineWidth = 1.2;
     starPath(ctx, 0, 0, 7, 4, 2.4 / 7);
     ctx.fill();

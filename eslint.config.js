@@ -77,6 +77,10 @@ module.exports = [
       globals: {
         ...globals.browser,
         ...collectSharedGlobals(),
+        // spliced in by build.js as `const MAP_DATA={...}` where map-loader.js's
+        // /*BUILD:MAP_DATA*/ marker sits, so it never appears as a declaration in src/
+        // for the scanner above to pick up — declared here instead.
+        MAP_DATA: 'readonly',
       },
     },
     rules: {

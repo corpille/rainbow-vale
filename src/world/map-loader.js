@@ -11,7 +11,6 @@ import {
   drawMushroomClusterBig,
 } from '../core/decor.js';
 import {
-  MIRROR_REFLECT,
   createCrate,
   createLock,
   createMirrorSurface,
@@ -124,9 +123,6 @@ export const collected = new Set(); // ids of zones whose rune has already been 
   // rebuilds interactive objects that carry extra data beyond position (mirror_surface's
   // orientation, sym_plate's pair id). vine/crate/lock/water are purely positional and
   // already decoded from gridStr above.
-  // same 4 orientation codes as MIRROR_REFLECT's own keys, reused via Object.keys instead
-  // of re-typed — relies on that object's key insertion order
-  const MIRROR_ORIENTATIONS = Object.keys(MIRROR_REFLECT);
   const pairsById = {}; // pairId -> { pair } — shared marker every plate of that group points to
   // MAP_DATA.objects stores x/y as deltas from the previous entry (placements cluster
   // tightly, so build.js encodes it this way); running sum recovers the real position
@@ -157,7 +153,7 @@ export const collected = new Set(); // ids of zones whose rune has already been 
       plateByTile.set(tileKey, plate);
     } else if (typeCode === 0) {
       // mirror_surface, extra = orientation code 0-3
-      objectsMap.set(tileKey, createMirrorSurface(MIRROR_ORIENTATIONS[extra] || 'NE'));
+      objectsMap.set(tileKey, createMirrorSurface(extra));
     } else if (typeCode === 2) {
       // marks a crate already placed via gridStr as starting the level frozen — just a
       // flag on the existing object, not a new one

@@ -178,11 +178,6 @@ const TERSER_OPTIONS = {
         // rune shapes (engine-core RUNE_SHAPES / ui-panel RUNE_SHAPE) and direction names
         // (DIRS4, DIAG_OF, KEY_MAP, MIRROR_REFLECT, player.facing, ...) are both keyed by
         // plain numbers, not words, so nothing to reserve for either of them.
-        // mirror orientation codes are still words though (MIRROR_REFLECT, MIRROR_CORNER)
-        'NE',
-        'ES',
-        'SW',
-        'WN',
         // Shape enum values only — world-zones.js's Nature/Shape/Modifier objects
         // themselves get fully inlined away by Terser's compress step (verified: their
         // own keys never survive as properties, so none of their values need reserving

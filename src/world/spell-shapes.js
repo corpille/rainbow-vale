@@ -102,18 +102,15 @@ function getCellsDiagonal(px, py, dirName, maxRange, withThrough, nature) {
   return getCellsLine(px, py, dx, dy, maxRange, withThrough, nature);
 }
 
-export const CONE_PATTERN = [
-  { row: 1, offsets: [0] },
-  { row: 2, offsets: [-1, 0, 1] },
-  { row: 3, offsets: [-2, -1, 0, 1, 2] },
-  { row: 4, offsets: [-3, -2, -1, 0, 1, 2, 3] },
-];
+// the cone widens by one cell each side per row, so row r spans offsets -(r-1)..(r-1) —
+// cheaper to walk than to spell out as a table
+export const CONE_ROWS = 4;
 
 function getConeCells(playerPos, dir, withThrough, nature) {
   const cells = [];
 
-  for (const { row, offsets } of CONE_PATTERN) {
-    for (const offset of offsets) {
+  for (let row = 1; row <= CONE_ROWS; row++) {
+    for (let offset = 1 - row; offset < row; offset++) {
       pushIfReachable(
         cells,
         playerPos,

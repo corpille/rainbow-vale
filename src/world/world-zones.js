@@ -77,7 +77,8 @@ export const DIRS4 = { 0: [0, -1], 1: [0, 1], 2: [-1, 0], 3: [1, 0] };
 export const DIAG_OF = { 0: [1, -1], 3: [1, 1], 1: [-1, 1], 2: [-1, -1] };
 // same 4 vectors as DIRS4, as a plain array for "check every neighbor" scans (inferRoomId
 // in world-objects.js, applySpreadModifier in spell-shapes.js). Kept as a fixed literal
-// rather than Object.values(DIRS4) since inferRoomId's tie-break depends on this order.
+// rather than Object.values(DIRS4) since inferRoomId's tie-break depends on this order —
+// and measured: deriving it keeps DIRS4 alive as a runtime object, costing ~25B more.
 export const CARDINAL_OFFSETS = [
   [1, 0],
   [-1, 0],
