@@ -319,19 +319,17 @@ export function resolvePhrase(runes, px, py, dirName) {
     nature,
     shape,
     modifier,
-    cellsTouched: result.map(entry => entry.cell),
     result,
-    runeCount: runes.length,
   };
 }
-// registry of locks tied to a condition (e.g. a pair of plates activated together, or a
-// phrase of at least 2 runes touching a point) — checked after every phrase resolution
-export const verrouLinks = []; // { lock, check(result, runeCount) -> bool }
-export function checkLocks(result, runeCount) {
+// registry of locks tied to a condition (currently only "this pair of plates is all
+// weighed down") — checked after every phrase resolution
+export const verrouLinks = []; // { lock, check() -> bool }
+export function checkLocks() {
   verrouLinks.forEach(link => {
     const lock = link.lock,
       wasOpen = lock.open;
     track(() => (lock.open = wasOpen));
-    lock.open = link.check(result, runeCount);
+    lock.open = link.check();
   });
 }

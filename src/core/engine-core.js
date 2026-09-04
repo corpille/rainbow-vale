@@ -69,12 +69,6 @@ export function strokeCircle(ctx, x, y, r) {
   ctx.arc(x, y, r, 0, 7);
   ctx.stroke();
 }
-export function radialFade(ctx, x, y, r, color) {
-  const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
-  gradient.addColorStop(0, color);
-  gradient.addColorStop(1, TRANSPARENT);
-  return gradient;
-}
 // every other linear gradient in the game is just createLinearGradient + a couple
 // addColorStop calls with the offsets/colors changing — shared here so each call site
 // is just its own stops list instead of repeating the 2-4 lines of boilerplate
@@ -83,10 +77,14 @@ export function linGrad(ctx, x0, y0, x1, y1, stops) {
   stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
   return gradient;
 }
-// radialFade+fillCircle recurs for glowing halos (pedestals, hub altar, mirror surfaces,
-// sparkle motes) with only x/y/r/color changing — same idea as the triplet above.
+// a color->transparent radial gradient + fillCircle recurs for glowing halos (pedestals,
+// hub altar, mirror surfaces, sparkle motes) with only x/y/r/color changing — same idea
+// as the triplet above.
 export function glowFill(ctx, x, y, r, color) {
-  ctx.fillStyle = radialFade(ctx, x, y, r, color);
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, TRANSPARENT);
+  ctx.fillStyle = gradient;
   fillCircle(ctx, x, y, r);
 }
 // Much lighter than the original dark-palette version — the same alpha reads as a subtle

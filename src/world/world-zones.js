@@ -132,7 +132,11 @@ export function track(fn) {
 // same idea, specialized for a Map entry: snapshots whatever was at key k so undo
 // can restore or remove it as needed.
 export function trackMap(m, k) {
-  uLog.push(() => (m.has(k) ? m.set(k,  m.get(k)) : m.delete(k)));
+  // snapshot NOW, not inside the closure: reading m at undo time would just write back
+  // whatever is already there (a no-op), which silently broke undo for crate pushes
+  const had = m.has(k),
+    v = m.get(k);
+  uLog.push(() => (had ? m.set(k, v) : m.delete(k)));
 }
 export function doUndo() {
   if (!uMarks.length) return;

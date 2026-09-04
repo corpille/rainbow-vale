@@ -60,7 +60,6 @@ export let phraseRunes = []; // up to 3 zone ids (m/j/v/b), in the chosen order,
 // tap targets for the bar, recomputed every frame — lets one pointerdown handler
 // cover "press a rune" / "cast" / "erase" on touch
 const comboHit = { runes: [], cast: null, erase: null, undo: null };
-export let lastCast = null; // { cellsTouched, until } — highlight of the last spell cast
 export const comboOverlay = document.getElementById('o');
 const comboCtx = comboOverlay.getContext('2d');
 const PANEL_INK = '#453a5c'; // dark ink for icons/text on the bar's light cloud background
@@ -310,7 +309,7 @@ function castPhrase() {
   const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
   if (result.ok) {
     beginAction();
-    applyEffectsToWorld(result.result, result.runeCount, result.shape, player.x, player.y);
+    applyEffectsToWorld(result.result, result.shape, player.x, player.y);
     // Switch: the crate's side of the trade already happened above (it's on the
     // caster's old tile now) — snap the player onto the crate's old tile too, no
     // glide since this is a teleport, not a walk
@@ -320,7 +319,6 @@ function castPhrase() {
       player.x = player.dispX = switchEntry.cell.x;
       player.y = player.dispY = switchEntry.cell.y;
     }
-    lastCast = { cellsTouched: result.cellsTouched, until: performance.now() + 500 };
   }
   phraseRunes = [];
 }

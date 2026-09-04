@@ -1,5 +1,4 @@
 /* ============ Player & camera ============ */
-import { COLORS, WHITE } from './colors.js';
 import { gameState } from './engine-core.js';
 import {
   DIRS4,
@@ -14,7 +13,7 @@ import {
 } from '../world/world-zones.js';
 import { collected, items, primitiveSpots } from '../world/map-loader.js';
 import { startColorWave } from '../render/render-world.js';
-import { playPickup } from './music.js';
+import { playPickup, setZone } from './music.js';
 
 export const player = {
   x: HUB.cx,
@@ -25,10 +24,6 @@ export const player = {
   visualFacing: 3, // sprite-only facing, see dirStack below — stabler than `facing` when moving diagonally
   flip: 1, // -1 when last facing left, 1 otherwise — see drawPlayer
 };
-export let screenFlash = null;
-function flashScreen(color, dur) {
-  screenFlash = { color, until: performance.now() + dur };
-}
 export const collectedItems = new Set(); // "zoneId:x,y" of already-collected spots
 export const totalItems = items.length;
 export let hubActivated = false;
@@ -97,6 +92,13 @@ window.addEventListener('keydown', e => {
     ZONES.forEach(zone => collected.add(zone.id));
     return;
   }
+  // DEBUG: jumps straight to the ending (same state the real trigger below produces),
+  // so the celebration screen can be eyeballed without a full playthrough
+  if (e.key === '9') {
+    items.forEach(item => collectedItems.add(item.zoneId + ':' + key(item.x, item.y)));
+    hubActivated = true;
+    return;
+  }
   /*BUILD:DEV_ONLY_END*/
   if (e.code === 'KeyB') {
     if (gameState === 'playing') doUndo();
@@ -127,6 +129,7 @@ function doMove(dir) {
   snapPos();
   player.x = targetX;
   player.y = targetY;
+  setZone(targetCell.roomId);
   // item/rune pickups and hub activation are one-way progress, not puzzle state, so
   // they're left out of the undo log (walking back onto a collected spot is a no-op)
   ZONES.forEach(zone => {
@@ -135,7 +138,6 @@ function doMove(dir) {
       spot.collected = true;
       collected.add(zone.id);
       startColorWave(zone.id, spot.x, spot.y);
-      flashScreen(COLORS.PINK_GLOW, 500);
     }
   });
 
@@ -144,7 +146,6 @@ function doMove(dir) {
     if (!collectedItems.has(spotKey) && targetX === item.x && targetY === item.y) {
       collectedItems.add(spotKey);
       startColorWave('h', HUB.cx, HUB.cy);
-      flashScreen(COLORS.PINK_GLOW, 500);
       playPickup();
     }
   });
@@ -157,6 +158,5 @@ function doMove(dir) {
     targetY === HUB.cy
   ) {
     hubActivated = true;
-    flashScreen(WHITE, 900);
   }
 }

@@ -1,42 +1,59 @@
-/* ============ Background music: a tiny looping melody, raw Web Audio, no library ============ */
-// Started on Play — browsers block audio before a user gesture (see render-hud.js's
-// pointerdown handler). Every 4th note also gets a major triad (root/third/fifth) held
-// under the group instead of a short pluck.
+/* ============ Background music: soft pad bed + occasional short phrase ============ */
+// Started on Play (browsers require a user gesture, see render-hud.js's pointerdown).
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-const NOTES = [
-  261.63, 329.63, 392.0, 523.25, 587.33, 523.25, 392.0, 329.63, 349.23, 440.0, 523.25, 659.25,
-  587.33, 523.25, 440.0, 261.63,
+const freq = n => 440 * 2 ** (n / 12); // n = semitones from A4
+const IDS = 'mvjb'; // zone id -> MELODIES index; 'h' (hub) matches none, see setZone
+const MELODIES = [
+  [-9, -5, -2, 0, 3, 0], // swamp
+  [-4, 0, 3, 5, 8, 5], // orchard: swamp shape, a fourth up
+  [-12, -9, -7, -5, -7, -9], // cavern
+  [-9, -6, -4, -2, -4, -6], // marsh: cavern shape, shifted
 ];
-const NOTE_GAP = 0.38;
-let noteIndex = 0;
-function playNote(freq, t, dur = 0.4) {
+const PHRASE_GAP = 1.1;
+let zone = 'h';
+export function setZone(zoneId) {
+  zone = zoneId;
+}
+// attack scales with dur so the short pickup ding stays snappy while long phrase/pad notes swell in
+function playNote(f, t, dur = 0.65, vol = 0.09) {
   const osc = audioCtx.createOscillator(),
     gain = audioCtx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.value = freq;
+  osc.type = 'sine';
+  osc.frequency.value = f;
   gain.gain.setValueAtTime(0.001, t);
-  gain.gain.exponentialRampToValueAtTime(0.09, t + 0.05);
+  gain.gain.exponentialRampToValueAtTime(vol, t + dur * 0.2);
   gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
   osc.connect(gain).connect(audioCtx.destination);
   osc.start(t);
   osc.stop(t + dur + 0.02);
 }
+function playPhrase() {
+  if (zone === 'h') return setTimeout(playPhrase, 5000);
+  const zoneNotes = MELODIES[Math.floor(Math.random() * MELODIES.length)],
+    hold = PHRASE_GAP * 1.8;
+  zoneNotes.forEach((n, i) => {
+    const f = freq(n),
+      t = audioCtx.currentTime + i * PHRASE_GAP;
+    playNote(f, t, hold, 0.07);
+    playNote(f * 1.26, t, hold, 0.04);
+    playNote(f * 1.5, t, hold, 0.04);
+  });
+  setTimeout(playPhrase, zoneNotes.length * PHRASE_GAP * 1000 + 15000 + Math.random() * 20000);
+}
+let padIdx = 0;
+function playPad() {
+  const notes = MELODIES[IDS.indexOf(zone)] || MELODIES[0],
+    f = freq(notes[padIdx++ % notes.length]),
+    t = audioCtx.currentTime;
+  playNote(f, t, 9, 0.035);
+  playNote(f * 1.5, t, 9, 0.025);
+}
 export function startMusic() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
-  setInterval(() => {
-    const freq = NOTES[noteIndex % NOTES.length];
-    const t = audioCtx.currentTime + 0.05;
-    playNote(freq, t);
-    if (noteIndex % 4 === 0) {
-      const hold = NOTE_GAP * 4;
-      playNote(freq * 1.26, t, hold);
-      playNote(freq * 1.5, t, hold);
-    }
-    noteIndex++;
-  }, NOTE_GAP * 1000);
+  playPad();
+  setInterval(playPad, 5000);
+  setTimeout(playPhrase, 3000 + Math.random() * 4000);
 }
-// quick bright ascending "ding" — same oscillator/envelope as the melody, just two short
-// notes a sixth apart
 export function playPickup() {
   const t = audioCtx.currentTime;
   playNote(880, t, 0.12);

@@ -60,8 +60,8 @@ function inferRoomId(x, y, fallback) {
   }
   return fallback;
 }
-export function applyEffectsToWorld(result, runeCount, shape, px, py) {
-  checkLocks(result, runeCount);
+export function applyEffectsToWorld(result, shape, px, py) {
+  checkLocks();
   result.forEach(entry => {
     if (entry.effect === 'crack' || entry.effect === 'mend') {
       // still fully solid — only a crate ramming into it (push-slide loop below) actually
@@ -148,7 +148,7 @@ export function applyEffectsToWorld(result, runeCount, shape, px, py) {
   }
   // a crate may have just weighed/unweighed a plate — let a satisfied lock open
   // this same cast, not the next one
-  checkLocks(result, runeCount);
+  checkLocks();
 }
 
 // range preview: same geometry as real resolution, purely for display (no effect

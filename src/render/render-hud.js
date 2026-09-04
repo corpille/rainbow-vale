@@ -2,7 +2,7 @@
 import { COLORS, FONT, TRANSPARENT, UI_LIGHT } from '../core/colors.js';
 import { BASE_TILE, TILE, gameState, iconGlyph, linGrad, starPath } from '../core/engine-core.js';
 import { ZONES, isBlockingFor, worldRunes } from '../world/world-zones.js';
-import { hubActivated, player, screenFlash } from '../core/player.js';
+import { hubActivated, player } from '../core/player.js';
 import { startMusic } from '../core/music.js';
 import {
   RUNE_ACCENT,
@@ -26,19 +26,6 @@ import {
   drawWorldTiles,
 } from './render-scene.js';
 import { drawPlayer } from './render-player.js';
-
-// visual flash with no text, at the moment an exit seals
-function drawScreenFlash() {
-  if (screenFlash && performance.now() < screenFlash.until) {
-    const t = 1 - (screenFlash.until - performance.now()) / 500;
-    ctx.save();
-    ctx.globalAlpha = 0.35 * (1 - t);
-    ctx.strokeStyle = screenFlash.color;
-    ctx.lineWidth = 18;
-    ctx.strokeRect(9, 9, canvas.width - 18, canvas.height - 18);
-    ctx.restore();
-  }
-}
 
 function drawVignette() {
   ctx.save();
@@ -271,7 +258,6 @@ function draw() {
   // tree/mushroom's tall canopy reads as in front of it, not swallowed behind the decor
   drawInteractiveObjects(originPx);
   drawPlayer();
-  drawScreenFlash();
   drawVignette();
 
   if (hubActivated) {

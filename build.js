@@ -44,12 +44,33 @@ function crc32(buf) {
   return gz.readUInt32LE(gz.length - 8);
 }
 
+// Zopfli emits a plain DEFLATE stream (so the zip stays a bog-standard method-8 zip any
+// unzipper reads) but searches much harder than zlib for the smallest encoding — worth
+// ~190B here for zero change to the shipped bytes. Dev-only dependency, never in the
+// game itself; falls back to zlib so a fresh clone builds before npm install.
+async function deflateBest(content) {
+  const best = zlib.deflateRawSync(content, { level: 9 });
+  let zopfli;
+  try {
+    zopfli = require('@gfx/zopfli');
+  } catch {
+    return best;
+  }
+  // gains flatten out well before 100 iterations; past that it's only slower
+  const packed = await new Promise((resolve, reject) =>
+    zopfli.deflate(content, { numiterations: 100, blocksplitting: true }, (err, out) =>
+      err ? reject(err) : resolve(out)
+    )
+  );
+  return packed.length < best.length ? packed : best;
+}
+
 // builds a minimal single-entry DEFLATE zip — the actual js13k submission format — so
 // the reported size matches what the judge sees, not a gzip approximation of it
-function makeZip(filename, content) {
+async function makeZip(filename, content) {
   const nameBuf = Buffer.from(filename, 'utf8');
   const crc = crc32(content);
-  const compressed = zlib.deflateRawSync(content, { level: 9 });
+  const compressed = await deflateBest(content);
   const size = content.length,
     csize = compressed.length;
 
@@ -320,7 +341,7 @@ async function build(opts = {}) {
   fs.writeFileSync(outPath, html);
 
   const htmlBuf = Buffer.from(html, 'utf8');
-  const zipBuf = makeZip('index.html', htmlBuf);
+  const zipBuf = await makeZip('index.html', htmlBuf);
   const zipPath = path.join(DIST, 'game.zip');
   fs.writeFileSync(zipPath, zipBuf);
 
