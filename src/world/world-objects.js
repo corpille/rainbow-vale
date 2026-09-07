@@ -68,11 +68,13 @@ export function applyEffectsToWorld(result, shape, px, py) {
       // shatters it. Reversible in-game (Mend un-cracks it), so no undo tracking needed.
       const obstacle = obstacleByTile.get(key(entry.cell.x, entry.cell.y));
       if (obstacle) obstacle.cracked = entry.effect === 'crack';
-    } else if (entry.effect === 'freeze') {
+    } else if (entry.effect === 'freeze' || entry.effect === 'thaw') {
       // every water tile shares the same fixed roomId placeholder (see WATER_CHAR in
-      // map-loader.js), so no need to read it back. One-way effect, no spell un-freezes
-      // water, so it's left out of the undo log on purpose, same as below.
-      grid.set(key(entry.cell.x, entry.cell.y), { type: 'ice', roomId: 'h' });
+      // map-loader.js), so no need to read it back. Reversible in-game now that
+      // Reverse+Freeze melts ice back, so it stays out of the undo log — same reasoning
+      // as crack/mend above, rather than the "one-way effect" it used to be.
+      const type = entry.effect === 'thaw' ? 'water' : 'ice';
+      grid.set(key(entry.cell.x, entry.cell.y), { type, roomId: 'h' });
       bumpPuddleEpoch();
     } else if (entry.effect === 'switch') {
       // a pure position trade: the crate lands exactly on the caster's tile, and

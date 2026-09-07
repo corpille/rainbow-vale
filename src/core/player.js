@@ -177,3 +177,10 @@ function doMove(dir) {
     hubActivated = true;
   }
 }
+
+/*BUILD:DEV_ONLY_START*/
+// DEBUG: lets the console (and automated checks) read world state directly, instead of
+// inferring it from pixels. Stripped from the real build, so it costs nothing shipped.
+window.T = (x, y) => grid.get(key(x, y))?.type;
+window.P = () => [player.x, player.y, player.facing];
+/*BUILD:DEV_ONLY_END*/

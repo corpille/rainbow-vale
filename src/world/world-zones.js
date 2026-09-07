@@ -87,7 +87,7 @@ export const CARDINAL_OFFSETS = [
 
 export const objectsMap = new Map(); // "x,y" -> interactive object (Vine, Crate, ...)
 
-// bumped when a water tile freezes (see world-objects.js's 'freeze' handling), so
+// bumped when a water tile freezes or thaws (see world-objects.js's 'freeze'/'thaw'), so
 // renderPonds (render-world.js) knows to rebuild its cached pond groups instead of
 // redoing that every frame.
 export let puddleEpoch = 0;
@@ -144,6 +144,8 @@ export function doUndo() {
 
 // true if this cell is a water tile, whether or not anything's parked on top of it
 export const isWaterAt = (x, y) => grid.get(key(x, y))?.type === 'water';
+// the frozen counterpart — what Reverse+Freeze melts back into water
+export const isIceAt = (x, y) => grid.get(key(x, y))?.type === 'ice';
 export const isBlockingFor = (x, y) =>
   !!worldRunes.objectAt(x, y)?.blocksMovement || isWaterAt(x, y);
 // true void: no floor tile, no obstacle rock — nobody can stand here, but every
