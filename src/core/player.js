@@ -100,8 +100,7 @@ window.addEventListener('keydown', e => {
     hubActivated = true;
     return;
   }
-  // DEBUG: pops the pickup teaching card for each rune in turn (5/6/7/8 = m/j/v/b),
-  // so the card's layout can be checked without walking to all four pedestals
+  // DEBUG: pops each rune's pickup card (5/6/7/8 = m/j/v/b) without the walk to its pedestal
   if ('5678'.includes(e.key)) {
     /* eslint-disable no-import-assign */
     runeCard = ZONES['5678'.indexOf(e.key)].id;
@@ -148,9 +147,8 @@ function doMove(dir) {
       spot.collected = true;
       collected.add(zone.id);
       startColorWave(zone.id, spot.x, spot.y);
-      // freeze play on the teaching card (see drawRuneCard in render-hud.js). 'card'
-      // isn't 'playing', so every existing gameState guard already blocks movement and
-      // the spell keys for free while it's up.
+      // 'card' isn't 'playing', so every gameState guard already in place freezes
+      // movement and the spell keys while the card is up (drawRuneCard in render-hud.js)
       /* eslint-disable no-import-assign */
       runeCard = zone.id;
       gameState = 'card';
@@ -179,8 +177,8 @@ function doMove(dir) {
 }
 
 /*BUILD:DEV_ONLY_START*/
-// DEBUG: lets the console (and automated checks) read world state directly, instead of
-// inferring it from pixels. Stripped from the real build, so it costs nothing shipped.
+// DEBUG: reads tile and player state from the console — dev-server only, stripped from
+// the real build
 window.T = (x, y) => grid.get(key(x, y))?.type;
 window.P = () => [player.x, player.y, player.facing];
 /*BUILD:DEV_ONLY_END*/

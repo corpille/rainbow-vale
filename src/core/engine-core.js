@@ -7,8 +7,7 @@ export let TILE = BASE_TILE; // recomputed per-viewport so the amount of world v
 export let VIEW_COLS, VIEW_ROWS;
 // eslint-disable-next-line prefer-const -- reassigned by the pointerdown handler in render-hud.js
 export let gameState = 'menu'; // 'menu' | 'playing' | 'card' — see the start prompt in render-hud.js
-// zone id of the rune whose teaching card is on screen, or null. Set on pickup in
-// player.js, cleared by the dismiss handlers in render-hud.js.
+// zone id of the rune whose card is on screen, or null
 // eslint-disable-next-line prefer-const -- reassigned in player.js / render-hud.js
 export let runeCard = null;
 

@@ -196,13 +196,12 @@ function drawEndingOverlay() {
 }
 
 // ---- Rune teaching card ----
-// Playtesters read each rune as one fixed spell, because the bar only names a role after
-// the rune is already in a slot. This card fires the moment a rune is picked up and shows
-// the same rune filling all three slots at once, which is the bit that wasn't landing.
+// The bar only names a role once the rune is already sitting in a slot, which makes each
+// rune read as one fixed spell. This fires on pickup and shows it filling all three.
 const SLOT_TITLES = ['POWER', 'SHAPE', 'EFFECT'];
 // plain-language gloss per rune, per slot. Keyed by zone id and indexed by slot rather
-// than keyed by the enum values, so nothing here needs adding to build.js's property
-// mangling reserve list (m/j/v/b are already reserved; PUSH/THROUGH/... are not).
+// than keyed by the enum values — m/j/v/b are already in build.js's property-mangling
+// reserve list, PUSH/THROUGH/... are not.
 const RUNE_HINTS = {
   m: ['Shoves things', 'Straight ahead', 'Through walls'],
   j: ['Water to ice', 'All around', 'Reverses the power'],
@@ -215,9 +214,8 @@ function drawRuneCard() {
     scale = TILE / BASE_TILE,
     accent = RUNE_ACCENT[runeCard],
     role = SYMBOL_TO_ROLE[runeCard],
-    // read straight off SYMBOL_TO_ROLE as three static property accesses — the bar's own
-    // DESC_BY_SLOT would fold Freeze+Reverse into "Thaw", which is only true for that one
-    // pairing and reads here as if slot 3 of this rune always thaws
+    // read straight off SYMBOL_TO_ROLE: the bar's DESC_BY_SLOT folds Freeze+Reverse into
+    // "Thaw", true only for that pairing and misleading on a card about the rune alone
     labels = [desc(role.slot1), desc(role.slot2), desc(role.slot3)];
 
   ctx.save();
@@ -354,20 +352,17 @@ window.addEventListener('pointerdown', e => {
     startMusic();
   } else dismissCard();
 });
-// Any key or click dismisses the card — but not the very keypress that opened it. The
-// pickup runs inside player.js's keydown, which is registered earlier in the concat order
-// (see build.js's file list), so without the arming flag this listener would fire on that
-// same event and close the card on the frame it appeared. draw() sets cardArmed once the
-// card has actually been painted, which can't happen before the next rAF.
+// Any key or click dismisses the card, except the keypress that opened it: the pickup
+// runs in player.js's keydown, registered earlier in the concat order, so this listener
+// fires on that same event. cardArmed only goes up once draw() has painted the card.
 let cardArmed = 0;
 function dismissCard() {
   if (gameState !== 'card' || !cardArmed) return;
   cardArmed = 0;
   gameState = 'playing'; // eslint-disable-line no-import-assign
 }
-// e.repeat filters out the browser's auto-repeat: walking onto a pedestal usually means
-// the movement key is still held, and those synthetic repeats would otherwise dismiss
-// the card about half a second after it appeared.
+// e.repeat skips the browser's auto-repeat — you walk onto a pedestal with the movement
+// key still held, and the repeats would close the card half a second after it appeared
 window.addEventListener('keydown', e => {
   if (!e.repeat) dismissCard();
 });

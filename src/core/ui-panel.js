@@ -51,8 +51,8 @@ const DESC_BY_SLOT = [
     const modifier = SYMBOL_TO_ROLE[sym].slot3;
     if (modifier === Modifier.REVERSE) {
       const invert = natureSym && DESC_REVERSE_INVERT[SYMBOL_TO_ROLE[natureSym].slot1];
-      // the generic role plus what it actually does in this pairing — "Reverse (Pull)".
-      // Cut has no invert, so that stays a bare '-' rather than promising an effect.
+      // the role plus what it does in this pairing — "Reverse (Pull)". Cut has no invert,
+      // so it stays a bare '-' rather than promising an effect
       return invert ? `${desc(modifier)} (${invert})` : '-';
     }
     return desc(modifier);
@@ -132,8 +132,8 @@ export function drawComboOverlay() {
   const slotX = [];
   for (let i = 0; i < 3; i++) {
     slotX.push(dx + slotRadius);
-    // wider pitch than the rune row: these slots carry captions, and the widest adjacent
-    // pair ("Half-circle" beside "Reverse (Mend)") needs ~90px at scale 1 to clear
+    // wider pitch than the rune row: these slots carry captions, and the widest pair that
+    // can land side by side ("Half-circle" next to "Reverse (Mend)") needs ~90px at scale 1
     dx += slotRadius * 2 + itemGap * 2.5;
   }
   const dividerX2 = dx;
@@ -152,9 +152,9 @@ export function drawComboOverlay() {
   // centered against the actual canvas width, not CSS `left: 50%` — 100vw can differ
   // by a scrollbar's width
   comboOverlay.style.left = Math.round((canvas.width - barW) / 2) + 'px';
-  // The bar is its own DOM canvas stacked above the game canvas, so the rune card's dim
-  // can't reach it — without this it floats brightly on top of the overlay. 0.09 is what
-  // the world shows through that same 91% dim, so the bar recedes by exactly as much.
+  // the bar is its own canvas stacked above the game one, so the rune card's dim can't
+  // reach it and it would otherwise float over the overlay. 0.09 is what the world shows
+  // through that same dim, so the bar recedes by the same amount.
   comboOverlay.style.opacity = gameState === 'card' ? 0.09 : 1;
 
   cloudPill(comboCtx, 0, 0, barW, barH, 22 * scale);

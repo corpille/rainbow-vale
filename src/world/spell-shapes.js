@@ -302,11 +302,10 @@ export function resolvePhrase(runes, px, py, dirName) {
       if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
       if (canCrack(nature, cell.x, cell.y))
         return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
-      // water/ice are grid tiles, not objects. A crate parked on the ice is caught by the
-      // `obj` branch above and thaws the crate instead, so this only ever sees bare tiles.
-      // Reverse swaps which direction the tile moves: without it Freeze only ever freezes
-      // water, with it only ever melts ice. Letting it do both in one cast would make
-      // Reverse+Freeze a strictly better Freeze, which is not what "reverses it" promises.
+      // water/ice are grid tiles, not objects — a crate parked on ice is caught by the
+      // `obj` branch above and thaws the crate instead, so this only sees bare tiles.
+      // Reverse picks which way the tile goes, never both in one cast: plain Freeze only
+      // freezes water, Reverse only melts ice.
       if (nature === Nature.FREEZE) {
         const match = invert ? isIceAt : isWaterAt;
         if (match(cell.x, cell.y))

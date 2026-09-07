@@ -247,7 +247,7 @@ const TERSER_OPTIONS = {
 
 async function build(opts = {}) {
   // packRuns: how many randomized Roadroller packs to race against each other (see the
-  // pack block below). 1 is the old behaviour; the dev server passes 1 to stay fast.
+  // pack block below). The dev server passes 1 to keep saves fast.
   const { minifyJs = true, pack = true, dev = false, packRuns = 4 } = opts;
   if (pack && !minifyJs)
     console.warn(
@@ -316,31 +316,28 @@ async function build(opts = {}) {
     .replace(/\n+/g, '\n') // blank lines left behind by the above
     .replace(/\s*\/>/g, '>') // HTML5 doesn't need the self-closing slash on void elements
     .trim();
-  // Candidates are compared on their FINAL zip size, so the shell has to exist first —
-  // the packed blob is high-entropy, so the shortest blob is not reliably the one that
-  // deflates smallest, and comparing blob lengths alone left most of the gain on the table.
+  // Candidates are compared on their final zip size, so the shell has to be built first:
+  // the packed blob is high-entropy, and the shortest one doesn't reliably deflate smallest.
   let scriptContent = js;
   if (pack) {
     const Packer = await loadPacker();
-    // Roadroller's optimize() is a randomized parameter search: the SAME input packs to a
-    // different size on every run (25-40B spread measured), which is too big a slice of a
-    // 13KB budget to leave to chance. Race packRuns packs and keep the genuinely smallest.
+    // optimize() is a randomized parameter search, so the same input packs to a different
+    // size every run — usually a ~10B spread, occasionally 20. Race a few and keep the
+    // smallest rather than shipping whichever draw this build happened to get.
     let best = null;
     for (let i = 0; i < packRuns; i++) {
       const packer = new Packer([{ data: js, type: 'js', action: 'eval' }], {
         allowFreeVars: true,
-        // Roadroller's default is 150MB, which caps how large a context model it may use.
-        // 512 buys ~12B and is where the gain plateaus (768/896 measured no better, and
-        // 1024 overflows Roadroller's own WASM buffer). This is decode-side memory the
-        // player's browser allocates on load, so it is a real cost, just a cheap one.
+        // caps how large a context model Roadroller may build; the default is 150. 512 is
+        // worth ~12B and is where it plateaus — 768/896 measure no better, 1024 overflows
+        // Roadroller's own WASM buffer. Costs the player nothing measurable at load.
         maxMemoryMB: 512,
       });
       await packer.optimize(2);
       const { firstLine, secondLine } = packer.makeDecoder();
       const candidate = firstLine + secondLine;
-      // Packed output could contain "</script", truncating the <script> block. With
-      // several candidates in hand a bad one is just skipped rather than failing the
-      // whole build, as it used to.
+      // packed output could contain "</script", which would truncate the <script> block —
+      // with several candidates in hand, just drop that one instead of failing the build
       if (/<\/script/i.test(candidate)) continue;
       const candidateHtml = shell.replace(MARKER_PLACEHOLDER, () => candidate);
       const buf = Buffer.from(candidateHtml, 'utf8');

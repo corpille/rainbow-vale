@@ -144,7 +144,7 @@ export function doUndo() {
 
 // true if this cell is a water tile, whether or not anything's parked on top of it
 export const isWaterAt = (x, y) => grid.get(key(x, y))?.type === 'water';
-// the frozen counterpart — what Reverse+Freeze melts back into water
+// the frozen counterpart — what Reverse+Freeze melts back to water
 export const isIceAt = (x, y) => grid.get(key(x, y))?.type === 'ice';
 export const isBlockingFor = (x, y) =>
   !!worldRunes.objectAt(x, y)?.blocksMovement || isWaterAt(x, y);

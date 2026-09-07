@@ -70,9 +70,8 @@ export function applyEffectsToWorld(result, shape, px, py) {
       if (obstacle) obstacle.cracked = entry.effect === 'crack';
     } else if (entry.effect === 'freeze' || entry.effect === 'thaw') {
       // every water tile shares the same fixed roomId placeholder (see WATER_CHAR in
-      // map-loader.js), so no need to read it back. Reversible in-game now that
-      // Reverse+Freeze melts ice back, so it stays out of the undo log — same reasoning
-      // as crack/mend above, rather than the "one-way effect" it used to be.
+      // map-loader.js), so no need to read it back. Reverse+Freeze melts it straight back,
+      // so like crack/mend above it's reversible in-game and stays out of the undo log.
       const type = entry.effect === 'thaw' ? 'water' : 'ice';
       grid.set(key(entry.cell.x, entry.cell.y), { type, roomId: 'h' });
       bumpPuddleEpoch();

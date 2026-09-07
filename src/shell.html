@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rainbow Vale</title>
     <style>
-      /* Everything visible is drawn on a canvas — there is not a single text node or
-         padded/bordered box in the document, so box-sizing, color and font-family have
-         nothing to apply to. Absolutely positioned elements are display:block by spec,
-         so the canvas rule was redundant too, as was `background: transparent` on #o
-         (the default) and `padding: 0` on html/body (never had any). */
+      /* Everything visible is drawn on a canvas: no text node or padded box exists in the
+         document, so there is nothing here for box-sizing/color/font-family to apply to.
+         Absolutely positioned elements are display:block by spec, so the canvases need no
+         rule of their own either. */
       html,
       body {
         margin: 0;
