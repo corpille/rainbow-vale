@@ -38,7 +38,7 @@ async function rebuild() {
   }
   building = true;
   try {
-    await build({ minifyJs: true, pack, dev: true });
+    await build({ minifyJs: true, pack, dev: true, packRuns: 1 });
     sseClients.forEach(res => res.write('data: reload\n\n'));
   } catch (e) {
     console.error('Build error:', e.message);

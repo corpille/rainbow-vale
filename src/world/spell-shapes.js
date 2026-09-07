@@ -264,7 +264,7 @@ export function deriveSpell(runes) {
   return { nature, shape, modifier, withThrough: modifier === Modifier.THROUGH };
 }
 // full set of cells a spell touches: base shape plus any SPREAD modifier. Switch and
-// Mirror only change what happens at resolution, not which cells are touched. Shared
+// Reverse only change what happens at resolution, not which cells are touched. Shared
 // by resolvePhrase and the live range preview
 export function computeSpellCells(nature, shape, modifier, withThrough, px, py, dirName) {
   const cells = applyShape(shape, px, py, dirName, nature, withThrough);
@@ -290,10 +290,10 @@ export function resolvePhrase(runes, px, py, dirName) {
         ]
       : [];
   } else {
-    // Mirror only means something for Push (→ Pull), Freeze (→ Thaw a crate), and Crack
+    // Reverse only means something for Push (→ Pull), Freeze (→ Thaw a crate), and Crack
     // (→ mend a wall back to solid). On Cut it's still a no-op, same as no modifier
     const invert =
-      modifier === Modifier.MIRROR &&
+      modifier === Modifier.REVERSE &&
       (nature === Nature.PUSH || nature === Nature.FREEZE || nature === Nature.CRACK);
     const resolveCell = cell => {
       const obj = worldRunes.objectAt(cell.x, cell.y);
@@ -301,7 +301,7 @@ export function resolvePhrase(runes, px, py, dirName) {
       if (obj) return { cell, obj: obj, dir, ...obj.reactTo(nature, dir, invert) };
       if (canCrack(nature, cell.x, cell.y))
         return { cell, obj: null, dir, effect: invert ? 'mend' : 'crack' };
-      // water is a grid tile, not an object — Mirror never applies here (thaw only ever
+      // water is a grid tile, not an object — Reverse never applies here (thaw only ever
       // works on a crate, per invert's definition above), so no `invert` check needed
       if (nature === Nature.FREEZE && isWaterAt(cell.x, cell.y))
         return { cell, obj: null, dir, effect: 'freeze' };

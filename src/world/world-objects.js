@@ -190,14 +190,14 @@ export function createCrate() {
     type: 'crate',
     frozen: false,
     blocksMovement: true,
-    // Mirror inverts both natures that touch a crate: FREEZE normally immobilizes, mirrored
+    // Reverse inverts both natures that touch a crate: FREEZE normally immobilizes, mirrored
     // it thaws instead; PUSH normally shoves away, mirrored it pulls toward the caster
     wouldReact(nature, invert) {
       if (nature === Nature.FREEZE) return invert ? this.frozen : !this.frozen;
       return nature === Nature.PUSH && !this.frozen;
     },
     reactTo(nature, dir, invert) {
-      // frozen/thawed is reversible in-game (Mirror+Freeze again flips it back),
+      // frozen/thawed is reversible in-game (Reverse+Freeze again flips it back),
       // so not tracked for undo, same as the one-way effects above.
       // routed through wouldReact's own truthy check rather than `this.frozen === invert`
       // on purpose: Terser's booleans_as_integers pass (build.js) turns the `frozen: false`

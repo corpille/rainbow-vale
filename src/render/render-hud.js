@@ -1,13 +1,22 @@
 /* ============ Screen effects, start menu, main draw() loop, page-level DOM wiring ============ */
 import { COLORS, FONT, TRANSPARENT, UI_LIGHT } from '../core/colors.js';
-import { BASE_TILE, TILE, gameState, iconGlyph, linGrad, starPath } from '../core/engine-core.js';
-import { ZONES, isBlockingFor, worldRunes } from '../world/world-zones.js';
+import {
+  BASE_TILE,
+  TILE,
+  gameState,
+  iconGlyph,
+  linGrad,
+  runeCard,
+  starPath,
+} from '../core/engine-core.js';
+import { SYMBOL_TO_ROLE, ZONES, isBlockingFor, worldRunes } from '../world/world-zones.js';
 import { hubActivated, player } from '../core/player.js';
 import { startMusic } from '../core/music.js';
 import {
   RUNE_ACCENT,
   RUNE_SHAPE,
   comboOverlay,
+  desc,
   drawComboOverlay,
   inRect,
   panelRect,
@@ -186,6 +195,64 @@ function drawEndingOverlay() {
   ctx.restore();
 }
 
+// ---- Rune teaching card ----
+// Playtesters read each rune as one fixed spell, because the bar only names a role after
+// the rune is already in a slot. This card fires the moment a rune is picked up and shows
+// the same rune filling all three slots at once, which is the bit that wasn't landing.
+const SLOT_TITLES = ['POWER', 'SHAPE', 'EFFECT'];
+// plain-language gloss per rune, per slot. Keyed by zone id and indexed by slot rather
+// than keyed by the enum values, so nothing here needs adding to build.js's property
+// mangling reserve list (m/j/v/b are already reserved; PUSH/THROUGH/... are not).
+const RUNE_HINTS = {
+  m: ['Shoves things', 'Straight ahead', 'Through walls'],
+  j: ['Water to ice', 'All around', 'Reverses the power'],
+  v: ['Cuts vines', 'Diagonally', 'Spreads out'],
+  b: ['Splits rock', 'Widening fan', 'Trade places'],
+};
+function drawRuneCard() {
+  const w = canvas.width,
+    h = canvas.height,
+    scale = TILE / BASE_TILE,
+    accent = RUNE_ACCENT[runeCard],
+    role = SYMBOL_TO_ROLE[runeCard],
+    // read straight off SYMBOL_TO_ROLE as three static property accesses — the bar's own
+    // DESC_BY_SLOT would fold Freeze+Reverse into "Thaw", which is only true for that one
+    // pairing and reads here as if slot 3 of this rune always thaws
+    labels = [desc(role.slot1), desc(role.slot2), desc(role.slot3)];
+
+  ctx.save();
+  ctx.fillStyle = `${COLORS.NEAR_BLACK}e8`;
+  ctx.fillRect(0, 0, w, h);
+  ctx.textAlign = 'center';
+
+  const cy = h / 2;
+  iconGlyph(ctx, w / 2, cy - 86 * scale, 30 * scale, UI_LIGHT, accent, RUNE_SHAPE[runeCard]);
+  ctx.fillStyle = UI_LIGHT;
+  ctx.font = `700 ${17 * scale}px ${FONT}`;
+  ctx.fillText('New rune unlocked', w / 2, cy - 30 * scale);
+
+  const colW = 150 * scale; // three columns; scale already tracks the viewport
+  for (let i = 0; i < 3; i++) {
+    const cx = w / 2 + (i - 1) * colW;
+    ctx.fillStyle = accent;
+    ctx.font = `700 ${11 * scale}px ${FONT}`;
+    ctx.fillText(SLOT_TITLES[i], cx, cy + 6 * scale);
+    ctx.fillStyle = UI_LIGHT;
+    ctx.font = `700 ${16 * scale}px ${FONT}`;
+    ctx.fillText(labels[i], cx, cy + 30 * scale);
+    ctx.fillStyle = COLORS.CREAM;
+    ctx.font = `${12 * scale}px ${FONT}`;
+    ctx.fillText(RUNE_HINTS[runeCard][i], cx, cy + 50 * scale);
+  }
+
+  ctx.fillStyle = COLORS.CREAM;
+  ctx.font = `${13 * scale}px ${FONT}`;
+  ctx.fillText('Its slot in the phrase picks which one', w / 2, cy + 86 * scale);
+  ctx.fillStyle = accent;
+  ctx.fillText('Press any key to continue', w / 2, cy + 112 * scale);
+  ctx.restore();
+}
+
 function draw() {
   // menu screen never has the world drawn underneath — see drawDuskBg's comment above
   if (gameState === 'menu') {
@@ -263,7 +330,14 @@ function draw() {
   if (hubActivated) {
     comboOverlay.width = 0;
     drawEndingOverlay();
-  } else drawComboOverlay();
+  } else {
+    drawComboOverlay();
+    // after the bar's own redraw, which fades itself out to match (see drawComboOverlay)
+    if (gameState === 'card') {
+      drawRuneCard();
+      cardArmed = 1;
+    }
+  }
 
   requestAnimationFrame(draw);
 }
@@ -278,7 +352,24 @@ window.addEventListener('pointerdown', e => {
   if (gameState === 'menu' && inRect(x, y, menuBtn)) {
     gameState = 'playing'; // eslint-disable-line no-import-assign
     startMusic();
-  }
+  } else dismissCard();
+});
+// Any key or click dismisses the card — but not the very keypress that opened it. The
+// pickup runs inside player.js's keydown, which is registered earlier in the concat order
+// (see build.js's file list), so without the arming flag this listener would fire on that
+// same event and close the card on the frame it appeared. draw() sets cardArmed once the
+// card has actually been painted, which can't happen before the next rAF.
+let cardArmed = 0;
+function dismissCard() {
+  if (gameState !== 'card' || !cardArmed) return;
+  cardArmed = 0;
+  gameState = 'playing'; // eslint-disable-line no-import-assign
+}
+// e.repeat filters out the browser's auto-repeat: walking onto a pedestal usually means
+// the movement key is still held, and those synthetic repeats would otherwise dismiss
+// the card about half a second after it appeared.
+window.addEventListener('keydown', e => {
+  if (!e.repeat) dismissCard();
 });
 
 draw();

@@ -56,14 +56,14 @@ export const Modifier = {
   THROUGH: 'THROUGH',
   SWITCH: 'SWITCH',
   SPREAD: 'SPREAD',
-  MIRROR: 'MIRROR',
+  REVERSE: 'REVERSE',
   NONE: 'NONE',
 };
 // keyed by zone id itself (m/j/v/b), not an arbitrary rune glyph — a phrase rune IS the
 // zone id it came from, so this also answers "which spell role does this rune play".
 export const SYMBOL_TO_ROLE = {
   v: { slot1: Nature.CUT, slot2: Shape.DIAGONAL, slot3: Modifier.SPREAD },
-  j: { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.MIRROR },
+  j: { slot1: Nature.FREEZE, slot2: Shape.HALF_CIRCLE, slot3: Modifier.REVERSE },
   m: { slot1: Nature.PUSH, slot2: Shape.LINE, slot3: Modifier.THROUGH },
   b: { slot1: Nature.CRACK, slot2: Shape.CONE, slot3: Modifier.SWITCH },
 };

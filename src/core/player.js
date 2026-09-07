@@ -1,5 +1,6 @@
 /* ============ Player & camera ============ */
-import { gameState } from './engine-core.js';
+// eslint-disable-next-line no-unused-vars -- runeCard is assigned, never read, here
+import { gameState, runeCard } from './engine-core.js';
 import {
   DIRS4,
   HUB,
@@ -59,7 +60,7 @@ function startRepeat(dir) {
   clearRepeat(dir);
   // longer than a tap so a brief press can't trigger a second step
   repeatTimers[dir] = setTimeout(function tick() {
-    if (keysDown[dir]) {
+    if (keysDown[dir] && gameState === 'playing') {
       doMove(dir);
       repeatTimers[dir] = setTimeout(tick, 95);
     }
@@ -97,6 +98,15 @@ window.addEventListener('keydown', e => {
   if (e.key === '9') {
     items.forEach(item => collectedItems.add(item.zoneId + ':' + key(item.x, item.y)));
     hubActivated = true;
+    return;
+  }
+  // DEBUG: pops the pickup teaching card for each rune in turn (5/6/7/8 = m/j/v/b),
+  // so the card's layout can be checked without walking to all four pedestals
+  if ('5678'.includes(e.key)) {
+    /* eslint-disable no-import-assign */
+    runeCard = ZONES['5678'.indexOf(e.key)].id;
+    gameState = 'card';
+    /* eslint-enable no-import-assign */
     return;
   }
   /*BUILD:DEV_ONLY_END*/
@@ -138,6 +148,13 @@ function doMove(dir) {
       spot.collected = true;
       collected.add(zone.id);
       startColorWave(zone.id, spot.x, spot.y);
+      // freeze play on the teaching card (see drawRuneCard in render-hud.js). 'card'
+      // isn't 'playing', so every existing gameState guard already blocks movement and
+      // the spell keys for free while it's up.
+      /* eslint-disable no-import-assign */
+      runeCard = zone.id;
+      gameState = 'card';
+      /* eslint-enable no-import-assign */
     }
   });
 

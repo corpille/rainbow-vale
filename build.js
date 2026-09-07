@@ -246,7 +246,9 @@ const TERSER_OPTIONS = {
 };
 
 async function build(opts = {}) {
-  const { minifyJs = true, pack = true, dev = false } = opts;
+  // packRuns: how many randomized Roadroller packs to race against each other (see the
+  // pack block below). 1 is the old behaviour; the dev server passes 1 to stay fast.
+  const { minifyJs = true, pack = true, dev = false, packRuns = 4 } = opts;
   if (pack && !minifyJs)
     console.warn(
       'Roadroller works best on already-minified input — consider dropping --no-minify.'
@@ -285,22 +287,7 @@ async function build(opts = {}) {
     js = result.code;
   }
 
-  let scriptContent = js;
-  if (pack) {
-    const Packer = await loadPacker();
-    const packer = new Packer([{ data: js, type: 'js', action: 'eval' }], { allowFreeVars: true });
-    await packer.optimize(2);
-    const { firstLine, secondLine } = packer.makeDecoder();
-    scriptContent = firstLine + secondLine;
-    // Packed output is high-entropy and could contain "</script", truncating the
-    // <script> block — fail loudly instead of shipping a broken build.
-    if (/<\/script/i.test(scriptContent)) {
-      throw new Error(
-        'Roadroller output contains a "</script" sequence — rebuild (parameter search is randomized) to get a different pack.'
-      );
-    }
-  }
-
+  let packed = null;
   // minify the STATIC shell only, never the injected script: swap the marker for a plain
   // placeholder first, so comment-stripping below can't eat into the packed JS blob. Bit us
   // once already — stripping comments before injecting ate the marker itself (it's a block
@@ -329,17 +316,55 @@ async function build(opts = {}) {
     .replace(/\n+/g, '\n') // blank lines left behind by the above
     .replace(/\s*\/>/g, '>') // HTML5 doesn't need the self-closing slash on void elements
     .trim();
-  const html = shell.replace(MARKER_PLACEHOLDER, () => scriptContent);
+  // Candidates are compared on their FINAL zip size, so the shell has to exist first —
+  // the packed blob is high-entropy, so the shortest blob is not reliably the one that
+  // deflates smallest, and comparing blob lengths alone left most of the gain on the table.
+  let scriptContent = js;
+  if (pack) {
+    const Packer = await loadPacker();
+    // Roadroller's optimize() is a randomized parameter search: the SAME input packs to a
+    // different size on every run (25-40B spread measured), which is too big a slice of a
+    // 13KB budget to leave to chance. Race packRuns packs and keep the genuinely smallest.
+    let best = null;
+    for (let i = 0; i < packRuns; i++) {
+      const packer = new Packer([{ data: js, type: 'js', action: 'eval' }], {
+        allowFreeVars: true,
+        // Roadroller's default is 150MB, which caps how large a context model it may use.
+        // 512 buys ~12B and is where the gain plateaus (768/896 measured no better, and
+        // 1024 overflows Roadroller's own WASM buffer). This is decode-side memory the
+        // player's browser allocates on load, so it is a real cost, just a cheap one.
+        maxMemoryMB: 512,
+      });
+      await packer.optimize(2);
+      const { firstLine, secondLine } = packer.makeDecoder();
+      const candidate = firstLine + secondLine;
+      // Packed output could contain "</script", truncating the <script> block. With
+      // several candidates in hand a bad one is just skipped rather than failing the
+      // whole build, as it used to.
+      if (/<\/script/i.test(candidate)) continue;
+      const candidateHtml = shell.replace(MARKER_PLACEHOLDER, () => candidate);
+      const buf = Buffer.from(candidateHtml, 'utf8');
+      const zip = await makeZip('index.html', buf);
+      if (!best || zip.length < best.zip.length) best = { html: candidateHtml, buf, zip };
+    }
+    if (!best)
+      throw new Error(
+        `all ${packRuns} Roadroller packs contained a "</script" sequence — rebuild to retry`
+      );
+    packed = best;
+    scriptContent = null; // the winning html is already built; see below
+  }
+
+  const html = packed ? packed.html : shell.replace(MARKER_PLACEHOLDER, () => scriptContent);
 
   if (!fs.existsSync(DIST)) fs.mkdirSync(DIST, { recursive: true });
   const outPath = path.join(DIST, 'index.html');
   fs.writeFileSync(outPath, html);
 
-  const htmlBuf = Buffer.from(html, 'utf8');
-  const zipBuf = await makeZip('index.html', htmlBuf);
+  const htmlBuf = packed ? packed.buf : Buffer.from(html, 'utf8');
+  const zipBuf = packed ? packed.zip : await makeZip('index.html', htmlBuf);
   const zipPath = path.join(DIST, 'game.zip');
   fs.writeFileSync(zipPath, zipBuf);
-
   const raw = htmlBuf.length;
   const zipSize = zipBuf.length; // the actual submission artifact's size, not a gzip approximation of it
   const pct = ((zipSize / LIMIT_BYTES) * 100).toFixed(1);
@@ -382,9 +407,12 @@ if (require.main === module) {
   const minifyJs = !has('--no-minify');
   // watch mode skips the slow Roadroller pass by default unless asked for explicitly
   const pack = has('--pack') ? true : has('--no-pack') ? false : !watch;
+  // --pack-runs=N races N randomized packs and keeps the smallest (default 4, 1 in watch)
+  const runsArg = argv.find(a => a.startsWith('--pack-runs='));
+  const packRuns = runsArg ? Math.max(1, +runsArg.split('=')[1] || 1) : watch ? 1 : 4;
 
   const run = () =>
-    build({ minifyJs, pack }).catch(e => {
+    build({ minifyJs, pack, packRuns }).catch(e => {
       console.error('Build error:', e);
       if (!watch) process.exitCode = 1;
     });

@@ -33,11 +33,11 @@ const fontColor = '#8a7d9c';
 const inkColor = '#7d6f92';
 // plain-language name for a Nature/Shape/Modifier enum value, shown under a slot
 // once it's filled — just the key title-cased (HALF_CIRCLE -> Half-circle)
-const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
-// Mirror is the only modifier whose effect depends on the nature it's paired with
+export const desc = value => value[0] + value.slice(1).toLowerCase().replace('_', '-');
+// Reverse is the only modifier whose effect depends on the nature it's paired with
 // (Pull for Push, Thaw for Freeze, Mend for Crack). Cut has no invert (it's a no-op
 // there), so that case — and the no-nature-yet case — falls through to a plain '-'.
-const DESC_MIRROR_INVERT = {
+const DESC_REVERSE_INVERT = {
   [Nature.PUSH]: 'Pull',
   [Nature.FREEZE]: 'Thaw',
   [Nature.CRACK]: 'Mend',
@@ -49,9 +49,11 @@ const DESC_BY_SLOT = [
   sym => desc(SYMBOL_TO_ROLE[sym].slot2),
   (sym, natureSym) => {
     const modifier = SYMBOL_TO_ROLE[sym].slot3;
-    if (modifier === Modifier.MIRROR) {
-      const invert = natureSym && DESC_MIRROR_INVERT[SYMBOL_TO_ROLE[natureSym].slot1];
-      return invert || '-';
+    if (modifier === Modifier.REVERSE) {
+      const invert = natureSym && DESC_REVERSE_INVERT[SYMBOL_TO_ROLE[natureSym].slot1];
+      // the generic role plus what it actually does in this pairing — "Reverse (Pull)".
+      // Cut has no invert, so that stays a bare '-' rather than promising an effect.
+      return invert ? `${desc(modifier)} (${invert})` : '-';
     }
     return desc(modifier);
   },
@@ -97,7 +99,9 @@ export function drawComboOverlay() {
     '|' +
     collected.size +
     '|' +
-    uMarks.length;
+    uMarks.length +
+    '|' +
+    gameState;
   if (sig === _comboSig) return;
   _comboSig = sig;
 
@@ -128,7 +132,9 @@ export function drawComboOverlay() {
   const slotX = [];
   for (let i = 0; i < 3; i++) {
     slotX.push(dx + slotRadius);
-    dx += slotRadius * 2 + itemGap;
+    // wider pitch than the rune row: these slots carry captions, and the widest adjacent
+    // pair ("Half-circle" beside "Reverse (Mend)") needs ~90px at scale 1 to clear
+    dx += slotRadius * 2 + itemGap * 2.5;
   }
   const dividerX2 = dx;
   dx += itemGap;
@@ -146,6 +152,10 @@ export function drawComboOverlay() {
   // centered against the actual canvas width, not CSS `left: 50%` — 100vw can differ
   // by a scrollbar's width
   comboOverlay.style.left = Math.round((canvas.width - barW) / 2) + 'px';
+  // The bar is its own DOM canvas stacked above the game canvas, so the rune card's dim
+  // can't reach it — without this it floats brightly on top of the overlay. 0.09 is what
+  // the world shows through that same 91% dim, so the bar recedes by exactly as much.
+  comboOverlay.style.opacity = gameState === 'card' ? 0.09 : 1;
 
   cloudPill(comboCtx, 0, 0, barW, barH, 22 * scale);
 
@@ -330,6 +340,7 @@ function castPhrase() {
 export const inRect = (x, y, rect) =>
   rect && x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 comboOverlay.addEventListener('pointerdown', e => {
+  if (gameState !== 'playing') return; // no queueing runes through the rune card's dim
   const x = e.offsetX,
     y = e.offsetY;
   const rune = comboHit.runes.find(hit => Math.hypot(x - hit.x, y - hit.y) < hit.r);

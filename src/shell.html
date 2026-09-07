@@ -5,28 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rainbow Vale</title>
     <style>
-      * {
-        box-sizing: border-box;
-      }
+      /* Everything visible is drawn on a canvas — there is not a single text node or
+         padded/bordered box in the document, so box-sizing, color and font-family have
+         nothing to apply to. Absolutely positioned elements are display:block by spec,
+         so the canvas rule was redundant too, as was `background: transparent` on #o
+         (the default) and `padding: 0` on html/body (never had any). */
       html,
       body {
         margin: 0;
-        padding: 0;
         width: 100%;
         height: 100vh;
         overflow: hidden;
         background: #dff0ff;
-        color: #4a3f66;
-        font-family: 'Trebuchet MS', sans-serif;
       }
       .frame {
         position: relative;
         width: 100vw;
         height: 100vh;
-      }
-      canvas {
-        display: block;
-        background: #dff0ff;
       }
       #game {
         position: absolute;
@@ -41,7 +36,6 @@
         position: absolute;
         left: 0;
         bottom: 2%;
-        background: transparent;
       }
     </style>
   </head>

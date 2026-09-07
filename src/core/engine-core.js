@@ -6,7 +6,11 @@ export const BASE_TILE = 42; // tuned against a REF_MIN_DIM-tall/wide viewport �
 export let TILE = BASE_TILE; // recomputed per-viewport so the amount of world visible stays consistent
 export let VIEW_COLS, VIEW_ROWS;
 // eslint-disable-next-line prefer-const -- reassigned by the pointerdown handler in render-hud.js
-export let gameState = 'menu'; // 'menu' | 'playing' — see the start prompt in render-hud.js
+export let gameState = 'menu'; // 'menu' | 'playing' | 'card' — see the start prompt in render-hud.js
+// zone id of the rune whose teaching card is on screen, or null. Set on pickup in
+// player.js, cleared by the dismiss handlers in render-hud.js.
+// eslint-disable-next-line prefer-const -- reassigned in player.js / render-hud.js
+export let runeCard = null;
 
 // Fixed blob layouts for the mottled/bokeh floor & wall look: [x, y, r, alpha, rotation]
 // as fractions of tile size. 3 layouts, one per pre-rendered tile variant (see
