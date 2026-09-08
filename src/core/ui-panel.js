@@ -320,8 +320,11 @@ function addToPhrase(zoneId) {
 // ever add another way to compose a phrase.
 function castPhrase() {
   if (!phraseRunes.length) return;
-  const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
+  // before resolvePhrase, not after: resolving calls each object's reactTo, which is where
+  // a crate actually flips frozen. Marking the action afterwards left that change sitting
+  // below the mark, so undo skipped straight past it and the crate stayed frozen.
   beginAction();
+  const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
   applyEffectsToWorld(result.result, result.shape, player.x, player.y);
   // Switch: the crate's side of the trade already happened above (it's on the
   // caster's old tile now) — snap the player onto the crate's old tile too, no

@@ -60,10 +60,12 @@ function startRepeat(dir) {
   clearRepeat(dir);
   // longer than a tap so a brief press can't trigger a second step
   repeatTimers[dir] = setTimeout(function tick() {
-    if (keysDown[dir] && gameState === 'playing') {
-      doMove(dir);
-      repeatTimers[dir] = setTimeout(tick, 95);
-    }
+    if (!keysDown[dir]) return;
+    // keep the chain alive while the key is held but skip the step unless we're playing,
+    // so a rune card that opens mid-walk pauses movement instead of killing it until the
+    // key is released and pressed again
+    if (gameState === 'playing') doMove(dir);
+    repeatTimers[dir] = setTimeout(tick, 95);
   }, 240);
 }
 

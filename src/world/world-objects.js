@@ -12,6 +12,7 @@ import {
   key,
   objectsMap,
   track,
+  trackMap,
   worldRunes,
 } from './world-zones.js';
 import {
@@ -70,10 +71,13 @@ export function applyEffectsToWorld(result, shape, px, py) {
       if (obstacle) obstacle.cracked = entry.effect === 'crack';
     } else if (entry.effect === 'freeze' || entry.effect === 'thaw') {
       // every water tile shares the same fixed roomId placeholder (see WATER_CHAR in
-      // map-loader.js), so no need to read it back. Reverse+Freeze melts it straight back,
-      // so like crack/mend above it's reversible in-game and stays out of the undo log.
-      const type = entry.effect === 'thaw' ? 'water' : 'ice';
-      grid.set(key(entry.cell.x, entry.cell.y), { type, roomId: 'h' });
+      // map-loader.js), so no need to read it back. Tracked, unlike the one-way effects:
+      // thawing turns walkable ice back into blocking water, so an undo that rewinds the
+      // player onto that tile would otherwise leave them standing in a pond. doUndo()
+      // bumps the puddle epoch itself once it's done, so the snapshot needn't.
+      const tileKey = key(entry.cell.x, entry.cell.y);
+      trackMap(grid, tileKey);
+      grid.set(tileKey, { type: entry.effect === 'thaw' ? 'water' : 'ice', roomId: 'h' });
       bumpPuddleEpoch();
     } else if (entry.effect === 'switch') {
       // a pure position trade: the crate lands exactly on the caster's tile, and
@@ -198,14 +202,17 @@ export function createCrate() {
       return nature === Nature.PUSH && !this.frozen;
     },
     reactTo(nature, dir, invert) {
-      // frozen/thawed is reversible in-game (Reverse+Freeze again flips it back),
-      // so not tracked for undo, same as the one-way effects above.
       // routed through wouldReact's own truthy check rather than `this.frozen === invert`
       // on purpose: Terser's booleans_as_integers pass (build.js) turns the `frozen: false`
       // literal (and map-loader.js's `existingCrate.frozen = true`) into a plain *number*
       // (0/1), while `invert` stays a real boolean from spell-shapes.js's comparison chain —
       // `1 === true` is strictly false, so a map-authored frozen crate could never thaw.
-      if (nature === Nature.FREEZE && this.wouldReact(nature, invert)) this.frozen = !invert;
+      if (nature === Nature.FREEZE && this.wouldReact(nature, invert)) {
+        // wouldReact only passes when the flag actually flips, so the value being replaced
+        // was always `invert` itself — no need to snapshot it first
+        track(() => (this.frozen = invert));
+        this.frozen = !invert;
+      }
       if (nature === Nature.PUSH && !this.frozen) {
         return { effect: 'push', dir: invert ? [-dir[0], -dir[1]] : dir, invert };
       }
