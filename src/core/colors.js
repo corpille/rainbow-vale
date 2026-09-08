@@ -3,7 +3,7 @@
    in world-zones.js) stay inline — that's one-off, colocated data, not duplication. */
 export const COLORS = {
   PINK_GLOW: '#ffb3e6', // signature warm-pink glow: pickup flash, cast/spell highlights, hub & door halos, pony sprite outline
-  PINK_UI: '#e0609c', // filled-slot/active-rune accent, touch-stick indicator, buttons, ending-screen background
+  PINK_UI: '#e0609c', // filled-slot/active-rune accent, buttons, ending-screen background
   PINK_WARM: '#ff7ac2', // menu/title text glow, item sparkle, crate/door "active" stroke+glow
   PINK_SOFT: '#ffa8dc', // uncollected-pedestal glow, hub heart-glyph accent
   CREAM: '#f0e6cf', // glyph base tone — pedestals (until collected) and the hub's heart icon

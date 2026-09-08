@@ -15,6 +15,7 @@ import { applyEffectsToWorld } from '../world/world-objects.js';
 import { collected } from '../world/map-loader.js';
 import { player, snapPos } from './player.js';
 import { canvas } from '../render/render-world.js';
+import { playCast } from './music.js';
 
 const RUNE_KEYS = ZONES.map(zone => zone.id); // '1'->swamp(m), '2'->cavern(j), '3'->orchard(v), '4'->marsh(b)
 export const RUNE_SHAPE = { m: 0, j: 1, v: 2, b: 3 }; // RUNE_SHAPES index per zone (see engine-core.js)
@@ -59,8 +60,8 @@ const DESC_BY_SLOT = [
   },
 ];
 export let phraseRunes = []; // up to 3 zone ids (m/j/v/b), in the chosen order, repetition allowed
-// tap targets for the bar, recomputed every frame — lets one pointerdown handler
-// cover "press a rune" / "cast" / "erase" on touch
+// hit targets for the bar, recomputed every frame — lets one pointerdown handler
+// cover "press a rune" / "cast" / "erase" for both mouse and touch
 const comboHit = { runes: [], cast: null, erase: null, undo: null };
 export const comboOverlay = document.getElementById('o');
 const comboCtx = comboOverlay.getContext('2d');
@@ -325,6 +326,7 @@ function castPhrase() {
   // below the mark, so undo skipped straight past it and the crate stayed frozen.
   beginAction();
   const result = resolvePhrase(phraseRunes, player.x, player.y, player.facing);
+  playCast(RUNE_SHAPE[phraseRunes[0]]);
   applyEffectsToWorld(result.result, result.shape, player.x, player.y);
   // Switch: the crate's side of the trade already happened above (it's on the
   // caster's old tile now) — snap the player onto the crate's old tile too, no
@@ -338,8 +340,9 @@ function castPhrase() {
   phraseRunes = [];
 }
 
-// touch: tap a rune to add it, tap cast/erase to act on the phrase, same as the
-// keyboard path below. No open/close step, the bar is always live.
+// one pointerdown covers mouse and touch alike: click/tap a rune to add it, cast/erase to
+// act on the phrase, same as the keyboard path below. The bar is always live, no open step.
+// Movement is keyboard-only, so the bar is as far as touch gets you.
 export const inRect = (x, y, rect) =>
   rect && x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 comboOverlay.addEventListener('pointerdown', e => {

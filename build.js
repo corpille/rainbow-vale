@@ -315,6 +315,11 @@ async function build(opts = {}) {
     .replace(/\n\s*/g, '\n') // leading indentation on every line
     .replace(/\n+/g, '\n') // blank lines left behind by the above
     .replace(/\s*\/>/g, '>') // HTML5 doesn't need the self-closing slash on void elements
+    // Both end tags are optional in HTML5 and an unquoted charset is valid, so the parser
+    // builds an identical document either way — done here rather than in shell.html so the
+    // source stays well-formed (and survives `npm run format`).
+    .replace(/<\/(body|html)>/g, '')
+    .replace('<meta charset="UTF-8">', '<meta charset=utf-8>')
     .trim();
   // Candidates are compared on their final zip size, so the shell has to be built first:
   // the packed blob is high-entropy, and the shortest one doesn't reliably deflate smallest.
@@ -342,6 +347,7 @@ async function build(opts = {}) {
       const candidateHtml = shell.replace(MARKER_PLACEHOLDER, () => candidate);
       const buf = Buffer.from(candidateHtml, 'utf8');
       const zip = await makeZip('index.html', buf);
+      if (process.env.RR_DEBUG) console.log('   candidate', i + 1, 'zip', zip.length);
       if (!best || zip.length < best.zip.length) best = { html: candidateHtml, buf, zip };
     }
     if (!best)

@@ -143,7 +143,7 @@ function drawMenuOverlay() {
   ctx.fillStyle = UI_LIGHT;
   ctx.font = `${15 * scale}px ${FONT}`;
   const lineY = iconY + toLine;
-  const line = "Collect each zone's rune, restore the vale, and return its treasures to the altar.";
+  const line = 'Gather every rune, bring each treasure home, free the colors.';
   ctx.fillText(line, w / 2, lineY);
 
   // Play button — the outline (not a glow) reads as clickable, and it's the only way

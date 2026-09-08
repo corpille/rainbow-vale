@@ -14,7 +14,7 @@ import {
 } from '../world/world-zones.js';
 import { collected, items, primitiveSpots } from '../world/map-loader.js';
 import { startColorWave } from '../render/render-world.js';
-import { playPickup, setZone } from './music.js';
+import { playCue, playFanfare, setZone } from './music.js';
 
 export const player = {
   x: HUB.cx,
@@ -100,6 +100,7 @@ window.addEventListener('keydown', e => {
   if (e.key === '9') {
     items.forEach(item => collectedItems.add(item.zoneId + ':' + key(item.x, item.y)));
     hubActivated = true;
+    playFanfare();
     return;
   }
   // DEBUG: pops each rune's pickup card (5/6/7/8 = m/j/v/b) without the walk to its pedestal
@@ -149,6 +150,7 @@ function doMove(dir) {
       spot.collected = true;
       collected.add(zone.id);
       startColorWave(zone.id, spot.x, spot.y);
+      playCue(1319);
       // 'card' isn't 'playing', so every gameState guard already in place freezes
       // movement and the spell keys while the card is up (drawRuneCard in render-hud.js)
       /* eslint-disable no-import-assign */
@@ -163,7 +165,7 @@ function doMove(dir) {
     if (!collectedItems.has(spotKey) && targetX === item.x && targetY === item.y) {
       collectedItems.add(spotKey);
       startColorWave('h', HUB.cx, HUB.cy);
-      playPickup();
+      playCue(880);
     }
   });
 
@@ -175,6 +177,7 @@ function doMove(dir) {
     targetY === HUB.cy
   ) {
     hubActivated = true;
+    playFanfare();
   }
 }
 

@@ -48,14 +48,32 @@ function playPad() {
   playNote(f, t, 9, 0.035);
   playNote(f * 1.5, t, 9, 0.025);
 }
+let padTimer;
 export function startMusic() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   playPad();
-  setInterval(playPad, 5000);
+  padTimer = setInterval(playPad, 5000);
   setTimeout(playPhrase, 3000 + Math.random() * 4000);
 }
-export function playPickup() {
+// Every one-shot cue is the same shape — a root note with a fifth chasing it — so they
+// share one function and differ only in pitch: treasure 880, rune a fifth above that, and
+// a cast pitched by which rune is in slot 1, so Push/Freeze/Cut/Crack are audibly distinct
+// (the lesson the pickup card teaches, reinforced on every cast).
+export function playCue(f) {
   const t = audioCtx.currentTime;
-  playNote(880, t, 0.12);
-  playNote(1318.51, t + 0.08, 0.2);
+  playNote(f, t, 0.2, 0.08);
+  playNote(f * 1.5, t + 0.06, 0.18, 0.05);
+}
+// takes ui-panel's RUNE_SHAPE index, so a stack of fifths replaces a per-rune lookup table
+export const playCast = i => playCue(freq(i * 7 - 7));
+// Ending fanfare. Deliberately not built from playCue like the pickups are — same shape at
+// any length just reads as "collected something nice". A rising run resolving into a chord
+// that rings out for several seconds is the part that makes it land as an ending.
+export function playFanfare() {
+  const t = audioCtx.currentTime,
+    notes = [0, 4, 7, 12, 16, 19];
+  // the pad would otherwise drone straight through the finale and flatten it
+  clearInterval(padTimer);
+  notes.forEach((n, i) => playNote(freq(n), t + i * 0.13, 0.45, 0.09));
+  notes.forEach(n => playNote(freq(n), t + 0.85, 4.5, 0.055));
 }
