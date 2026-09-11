@@ -16,28 +16,37 @@ home to the altar at the Vale's heart.
 
 ## How to Play
 
-Explore each of the four realms and collect its rune. Combine up to three runes into
-a spell phrase — the first sets its **nature** (push, freeze, cut, crack), the second
-its **shape** (a line, an arc, a cone...), and an optional third twists the effect
-(go through further, spread wider, mirror it back).
+Gather every rune, bring each treasure home, free the colors.
 
-Use your spells to solve each realm's puzzles: push crates onto pressure plates,
-freeze water into stepping stones, cut through overgrown vines, crack open blocked
-walls, or bounce a spell off a mirror to reach somewhere you can't aim at directly.
-Dig out the hidden treasure in each zone and carry it back to the altar — restore
-them all, and the Vale blooms back into color.
+Each of the four realms holds one rune on a pedestal. Walk onto it and it's yours — a
+card tells you what it does, and it joins the spell bar along the bottom of the screen.
+
+A spell is a phrase of up to three runes: the first says what the spell does, the
+second what shape it takes, and an optional third twists it. The same rune means
+something different depending on where you put it, so four runes go a long way — and
+one rune on its own is already a spell.
+
+Spells fire in the direction you're facing, and the bar previews every tile they'll
+touch before you commit. Turn on the spot (press into a wall to turn without moving),
+watch the shape swing around with you, and cast once it covers what you meant. Undo
+rewinds your moves and spells step by step, so it costs nothing to try something.
+
+Crates, deep water, vines, rock and the odd mirror stand between you and the eight
+treasures scattered across the Vale. Bring them all home and the altar at its heart
+will be waiting.
 
 ## Controls
 
-| Key | Action |
-|---|---|
-| Arrow keys / WASD / ZQSD | Move |
-| Click a rune, or 1 – 4 | Add that rune to your spell (up to 3) |
-| Space / Enter, or Cast | Release the spell |
-| Backspace | Remove the last rune |
-| B, or Undo | Take back your last move |
+| Key                      | On the bar   | Action                                |
+| ------------------------ | ------------ | ------------------------------------- |
+| Arrow keys / WASD / ZQSD | —            | Move, and turn to face that way       |
+| 1 – 4                    | click a rune | Add that rune to the phrase (up to 3) |
+| Space / Enter            | ✓            | Cast                                  |
+| Backspace                | ←            | Remove the last rune                  |
+| B                        | ↺            | Undo your last move or spell          |
 
-The spell bar along the bottom is always live — no menu to open, just start typing runes.
+The spell bar is always live — no menu to open, just start typing runes. The bar takes
+clicks and taps, but moving needs a keyboard.
 
 ---
 
