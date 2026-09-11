@@ -368,3 +368,4 @@ window.addEventListener('keydown', e => {
 });
 
 draw();
+Wavedash.init();
